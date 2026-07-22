@@ -1,0 +1,76 @@
+# ---------------------------------------------------------------------------
+# .NET build output
+# ---------------------------------------------------------------------------
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+artifacts/
+*.dll
+*.exe
+*.pdb
+*.cache
+*.user
+*.suo
+project.lock.json
+project.fragment.lock.json
+
+# ---------------------------------------------------------------------------
+# Secrets — never commit these
+# ---------------------------------------------------------------------------
+# appsettings.Development.json IS committed on purpose: it holds LocalDB and a
+# signing key explicitly named as dev-only, so a new developer can run the API
+# immediately. Every other environment's settings must stay out.
+appsettings.Production.json
+appsettings.Staging.json
+appsettings.Local.json
+*.pfx
+*.p12
+*.key
+secrets.json
+.env
+.env.*
+
+# ---------------------------------------------------------------------------
+# Test and coverage output
+# ---------------------------------------------------------------------------
+[Tt]est[Rr]esult*/
+coverage*.json
+coverage*.xml
+coverage*.info
+*.trx
+*.coverage
+*.coveragexml
+BenchmarkDotNet.Artifacts/
+
+# ---------------------------------------------------------------------------
+# SQL Server local database files
+# ---------------------------------------------------------------------------
+*.mdf
+*.ldf
+*.ndf
+
+# ---------------------------------------------------------------------------
+# IDE
+# ---------------------------------------------------------------------------
+.vs/
+.vscode/
+.idea/
+*.swp
+*~
+
+# ---------------------------------------------------------------------------
+# OS
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------------------------------------------------------------------------
+# Logs and scratch
+# ---------------------------------------------------------------------------
+*.log
+logs/

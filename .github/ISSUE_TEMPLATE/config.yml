@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Frontend / mobile issue
+    url: https://github.com/ahmadsaeedpera-svg/Maren-Frontend/issues
+    about: Flutter app or React admin portal issues belong in the frontend repo.
