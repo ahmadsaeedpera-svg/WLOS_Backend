@@ -1,6 +1,7 @@
 using FluentValidation;
 using Maren.Application.Auth;
 using Maren.Contracts;
+using Maren.Domain;
 using Maren.Shared;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -69,6 +70,21 @@ public abstract class MarenControllerBase : ControllerBase
 
         ContentFailureCodes.StorageFailure =>
             StatusCodes.Status500InternalServerError,
+
+        // Refusals about state, not about the request. The caller is
+        // authenticated and permitted to call the endpoint; the platform is
+        // declining this particular change, and 403 would wrongly suggest they
+        // need a different permission.
+        AccessFailureCodes.PrivilegeEscalation or
+        AccessFailureCodes.SelfDemotion or
+        AccessFailureCodes.SystemRole or
+        AccessFailureCodes.RoleInUse or
+        AccessFailureCodes.LastAdministrator =>
+            StatusCodes.Status409Conflict,
+
+        AccessFailureCodes.UnknownPermission or
+        AccessFailureCodes.InvalidPayload =>
+            StatusCodes.Status400BadRequest,
 
         _ => StatusCodes.Status400BadRequest
     };

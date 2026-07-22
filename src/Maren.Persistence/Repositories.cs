@@ -1,6 +1,7 @@
 using System.Data;
 using Dapper;
 using Maren.Application.Abstractions;
+using Maren.Application.Access;
 using Maren.Contracts;
 using Maren.Shared;
 using Microsoft.Data.SqlClient;
@@ -97,6 +98,16 @@ public sealed class AuthRepository(IDbConnectionFactory factory) : IAuthReposito
             commandType: CommandType.StoredProcedure,
             cancellationToken: ct));
         return codes.ToList();
+    }
+
+    public async Task<Guid> GetSecurityStampAsync(Guid userId, CancellationToken ct)
+    {
+        using var connection = await factory.CreateAsync(ct);
+        return await connection.ExecuteScalarAsync<Guid>(new CommandDefinition(
+            "[Identity].[usp_User_GetSecurityStamp]",
+            new { UserId = userId },
+            commandType: CommandType.StoredProcedure,
+            cancellationToken: ct));
     }
 
     public async Task IssueRefreshTokenAsync(
@@ -286,6 +297,7 @@ public static class PersistenceRegistration
         services.AddScoped<IAuthRepository, AuthRepository>();
         services.AddScoped<IConfigurationRepository, ConfigurationRepository>();
         services.AddScoped<IContentRepository, ContentRepository>();
+        services.AddScoped<IAccessRepository, AccessRepository>();
         return services;
     }
 }

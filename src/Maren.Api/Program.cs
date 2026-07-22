@@ -30,6 +30,7 @@ builder.Services.AddMarenPersistence();
 builder.Services.AddMarenInfrastructure();
 
 builder.Services.AddMarenCaching();
+builder.Services.AddMarenSecurityStamps();
 
 builder.Services.AddMediatR(cfg =>
 {
@@ -176,6 +177,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors("admin-portal");
 app.UseAuthentication();
+
+/*  After authentication so the claims exist, before authorization so a revoked
+    token never reaches a permission check. */
+app.UseMiddleware<SecurityStampMiddleware>();
+
 app.UseAuthorization();
 app.MapControllers();
 

@@ -77,20 +77,30 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options) : ITokenServic
     private readonly JwtOptions _options = options.Value;
 
     public (string Token, DateTime ExpiresUtc) CreateAccessToken(
-        Guid userId, IReadOnlyList<string> permissions)
+        Guid userId, IReadOnlyList<string> permissions, Guid securityStamp)
     {
         var expires = DateTime.UtcNow.AddMinutes(_options.AccessTokenMinutes);
 
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, userId.ToString()),
-            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+
+            /*  The revocation handle. Locking an account, changing its roles or
+                forcing a sign-out rotates the stored stamp, and the API refuses
+                any token still carrying the previous value — which is what
+                turns those actions from "applies within fifteen minutes" into
+                "applies within thirty seconds". */
+            new("stamp", securityStamp.ToString())
         };
 
         /*  Permissions travel in the token so authorisation does not need a
             database round trip per request. The cost is staleness: a permission
             revoked mid-session applies at the next refresh, not immediately.
-            Acceptable at a 15-minute access token; it would not be at a day. */
+            Acceptable at a 15-minute access token; it would not be at a day.
+
+            For revocation that must be faster than that — a locked account, a
+            removed role — see the stamp claim above. */
         claims.AddRange(permissions.Select(p => new Claim("perm", p)));
 
         var credentials = new SigningCredentials(

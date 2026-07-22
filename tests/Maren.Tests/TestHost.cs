@@ -79,6 +79,7 @@ public sealed class DatabaseFixture : IDisposable
         services.AddSingleton<ICurrentUser>(CurrentUser);
         services.AddMarenPersistence();
         services.AddMarenCaching();
+        services.AddMarenSecurityStamps();
 
         services.AddMediatR(cfg =>
         {

@@ -71,7 +71,8 @@ public sealed class RegisterHandler(
         Guid? deviceId,
         CancellationToken ct)
     {
-        var access = tokens.CreateAccessToken(userId, permissions);
+        var stamp = await repository.GetSecurityStampAsync(userId, ct);
+        var access = tokens.CreateAccessToken(userId, permissions, stamp);
         var refresh = tokens.CreateRefreshToken();
 
         await repository.IssueRefreshTokenAsync(
@@ -208,7 +209,8 @@ public sealed class RefreshHandler(
 
         var userId = redeemed.Value;
         var permissions = await repository.GetPermissionsAsync(userId, ct);
-        var access = tokens.CreateAccessToken(userId, permissions);
+        var stamp = await repository.GetSecurityStampAsync(userId, ct);
+        var access = tokens.CreateAccessToken(userId, permissions, stamp);
 
         return Result<AuthResponse>.Success(new AuthResponse(
             userId, access.Token, access.ExpiresUtc,

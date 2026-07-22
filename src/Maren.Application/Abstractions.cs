@@ -45,8 +45,13 @@ public interface IPasswordHasher
 
 public interface ITokenService
 {
+    /// <param name="securityStamp">
+    /// Written into the token so a revocation can invalidate it mid-life.
+    /// Locking an account or removing a role rotates the stamp; the API refuses
+    /// any token still carrying the old one.
+    /// </param>
     (string Token, DateTime ExpiresUtc) CreateAccessToken(
-        Guid userId, IReadOnlyList<string> permissions);
+        Guid userId, IReadOnlyList<string> permissions, Guid securityStamp);
 
     /// <summary>Mints an opaque refresh token and its storage hash.</summary>
     /// <remarks>
@@ -72,6 +77,9 @@ public interface IAuthRepository
 
     Task<IReadOnlyList<string>> GetPermissionsAsync(Guid userId,
         CancellationToken ct);
+
+    /// <summary>The user's current security stamp, for minting a token.</summary>
+    Task<Guid> GetSecurityStampAsync(Guid userId, CancellationToken ct);
 
     Task IssueRefreshTokenAsync(Guid userId, Guid? deviceId, byte[] hash,
         DateTime expiresUtc, string? ip, CancellationToken ct);
