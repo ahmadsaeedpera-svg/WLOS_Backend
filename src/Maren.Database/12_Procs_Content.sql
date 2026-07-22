@@ -870,7 +870,11 @@ BEGIN
         (AuthorId, UserId, DisplayName, Credentials, Bio)
         VALUES (@AuthorId, @UserId, @DisplayName, @Credentials, @Bio);
 
-    SELECT * FROM [Content].[ContentAuthor] WHERE AuthorId = @AuthorId;
+    /*  Named to match ContentAuthorDto. The table has eight columns and the
+        record has six; Dapper cannot materialise a positional record from a
+        wider result set, so SELECT * made this endpoint fail on every call. */
+    SELECT AuthorId, UserId, DisplayName, Credentials, Bio, IsActive
+    FROM [Content].[ContentAuthor] WHERE AuthorId = @AuthorId;
 END
 GO
 
@@ -921,6 +925,9 @@ BEGIN
         (@ActorUserId, 'admin', 'Media.Save', 'Media',
          CONVERT(NVARCHAR(50), @MediaId));
 
-    SELECT * FROM [Content].[Media] WHERE MediaId = @MediaId;
+    /*  Named to match MediaDto — same reason as usp_Content_SaveAuthor. */
+    SELECT MediaId, FileName, ContentType, SizeBytes, StorageKey,
+           Width, Height, AltText, CreatedUtc
+    FROM [Content].[Media] WHERE MediaId = @MediaId;
 END
 GO

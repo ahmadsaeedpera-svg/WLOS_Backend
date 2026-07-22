@@ -140,6 +140,24 @@ builder.Services.AddOpenApi(options =>
     });
 });
 
+/*  CORS for the admin portal only.
+    
+    Named origins, never AllowAnyOrigin: the portal sends a bearer token, and
+    a wildcard origin with credentials is exactly the configuration that lets
+    any site a signed-in editor visits drive this API as them. The allowed
+    origins come from configuration so staging and production do not need a
+    code change. */
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("admin-portal", policy => policy
+        .WithOrigins(
+            builder.Configuration.GetSection("Cors:AdminPortalOrigins")
+                .Get<string[]>() ?? ["http://localhost:5173"])
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .WithExposedHeaders("ETag", "X-Total-Count", "X-Total-Pages"));
+});
+
 builder.Services.AddExceptionHandler<MarenExceptionHandler>();
 builder.Services.AddProblemDetails();
 
@@ -156,6 +174,7 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
+app.UseCors("admin-portal");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

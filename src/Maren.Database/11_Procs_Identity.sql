@@ -361,6 +361,8 @@ BEGIN
         (@DeviceId, @UserId, @Platform, @OsVersion, @AppVersion, @Model,
          @FcmToken, SYSUTCDATETIME());
 
-    SELECT * FROM [Identity].[Device] WHERE DeviceId = @DeviceId;
+    /*  No result set. The caller uses ExecuteAsync and reads nothing, and the
+        row carries an FCM token — a push credential that should not travel
+        anywhere it is not needed. */
 END
 GO

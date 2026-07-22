@@ -216,7 +216,19 @@ BEGIN
 
     COMMIT TRAN;
 
-    SELECT * FROM [Administration].[FeatureFlag] WHERE [Key] = @Key;
+    /*  Named columns, matching FeatureFlagAdminDto exactly.
+
+        SELECT * returned all fifteen columns for a twelve-field record, and
+        Dapper cannot materialise a positional record from a wider result set —
+        so this endpoint returned 500 on every call. Listing the columns means
+        adding one to the table is a compile-time conversation rather than a
+        runtime failure, and it keeps RowVersion and ModifiedBy off the wire. */
+    SELECT
+        FeatureFlagId, [Key], Name, Description, IsEnabled, RolloutPercent,
+        MinAppVersion, CountryFilter, RequiresPremium, BetaOnly, DefaultValue,
+        ModifiedUtc
+    FROM [Administration].[FeatureFlag]
+    WHERE [Key] = @Key;
 END
 GO
 
