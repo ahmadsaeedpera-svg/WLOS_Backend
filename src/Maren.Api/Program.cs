@@ -6,6 +6,7 @@ using Maren.Application.Abstractions;
 using Maren.Application.Auth;
 using Maren.Application.Behaviors;
 using Maren.Infrastructure;
+using Maren.Api;
 using Maren.Persistence;
 using Maren.Shared;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -139,6 +140,9 @@ builder.Services.AddOpenApi(options =>
     });
 });
 
+builder.Services.AddExceptionHandler<MarenExceptionHandler>();
+builder.Services.AddProblemDetails();
+
 var app = builder.Build();
 
 app.UseSerilogRequestLogging();
@@ -156,9 +160,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-app.MapGet("/health", () =>
-        Results.Ok(new { status = "ok", utc = DateTime.UtcNow }))
-   .AllowAnonymous();
+app.MapMarenHealth();
 
 app.Run();
 
