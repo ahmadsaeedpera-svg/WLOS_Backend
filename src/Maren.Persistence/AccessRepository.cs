@@ -55,7 +55,7 @@ public sealed class AccessRepository(
             var items = rows.Select(r => new UserListItemDto(
                 r.UserId, r.Email, r.LanguageCode, r.IsEmailConfirmed,
                 r.IsLockedOut, r.LockoutEndUtc, r.FailedLoginCount,
-                r.IsDeleted, r.CreatedUtc, r.CountryIso, r.RoleNames)).ToList();
+                r.IsDeleted, r.CreatedOn, r.CountryIso, r.RoleNames)).ToList();
 
             return new PagedResult<UserListItemDto>(
                 items, criteria.Page, criteria.PageSize, total);
@@ -88,8 +88,8 @@ public sealed class AccessRepository(
             return new UserDetailDto(
                 header.UserId, header.Email, header.LanguageCode,
                 header.IsEmailConfirmed, header.IsLockedOut, header.LockoutEndUtc,
-                header.FailedLoginCount, header.IsDeleted, header.DeletedUtc,
-                header.CreatedUtc, header.ModifiedUtc, header.CountryIso,
+                header.FailedLoginCount, header.IsDeleted, header.DeletedOn,
+                header.CreatedOn, header.ModifiedOn, header.CountryIso,
                 roles, devices, activity);
         }
         finally
@@ -372,14 +372,14 @@ public sealed class AccessRepository(
     private sealed record UserSearchRow(
         Guid UserId, string? Email, string LanguageCode, bool IsEmailConfirmed,
         bool IsLockedOut, DateTime? LockoutEndUtc, int FailedLoginCount,
-        bool IsDeleted, DateTime CreatedUtc, string? CountryIso,
+        bool IsDeleted, DateTime CreatedOn, string? CountryIso,
         string RoleNames, int TotalCount);
 
     private sealed record UserHeaderRow(
         Guid UserId, string? Email, string LanguageCode, bool IsEmailConfirmed,
         bool IsLockedOut, DateTime? LockoutEndUtc, int FailedLoginCount,
-        bool IsDeleted, DateTime? DeletedUtc, DateTime CreatedUtc,
-        DateTime ModifiedUtc, string? CountryIso);
+        bool IsDeleted, DateTime? DeletedOn, DateTime CreatedOn,
+        DateTime ModifiedOn, string? CountryIso);
 
     private sealed record RoleHeaderRow(
         int RoleId, string Name, string? Description, bool IsSystem,

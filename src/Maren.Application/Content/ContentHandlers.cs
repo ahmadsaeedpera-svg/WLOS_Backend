@@ -638,7 +638,8 @@ public sealed class SaveMediaValidator : AbstractValidator<SaveMediaCommand>
         // it means revisiting every article.
         RuleFor(x => x.Request.AltText)
             .NotEmpty()
-            .When(x => x.Request.ContentType.StartsWith("image/"))
+            .When(x => x.Request.ContentType.StartsWith(
+                "image/", StringComparison.OrdinalIgnoreCase))
             .WithMessage("Images need alt text.");
     }
 }

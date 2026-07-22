@@ -91,7 +91,7 @@ BEGIN
     DECLARE @stamp UNIQUEIDENTIFIER = NEWID();
 
     UPDATE [Identity].[User]
-    SET SecurityStamp = @stamp, ModifiedUtc = SYSUTCDATETIME()
+    SET SecurityStamp = @stamp, ModifiedOn = SYSUTCDATETIME()
     WHERE UserId = @UserId;
 
     MERGE [Identity].[SecurityStampRevocation] AS target
@@ -156,7 +156,7 @@ BEGIN
         u.LockoutEndUtc,
         u.FailedLoginCount,
         u.IsDeleted,
-        u.CreatedUtc,
+        u.CreatedOn,
         c.IsoCode AS CountryIso,
         /*  Comma-separated rather than a second result set: the grid shows them
             as chips and never needs the ids, and one round trip beats two. */
@@ -173,8 +173,8 @@ BEGIN
     JOIN [Identity].[User] u ON u.UserId = f.UserId
     LEFT JOIN [Identity].[Country] c ON c.CountryId = u.CountryId
     ORDER BY
-        CASE WHEN @SortDescending = 1 AND @SortBy = 'created'  THEN u.CreatedUtc END DESC,
-        CASE WHEN @SortDescending = 0 AND @SortBy = 'created'  THEN u.CreatedUtc END ASC,
+        CASE WHEN @SortDescending = 1 AND @SortBy = 'created'  THEN u.CreatedOn END DESC,
+        CASE WHEN @SortDescending = 0 AND @SortBy = 'created'  THEN u.CreatedOn END ASC,
         CASE WHEN @SortDescending = 1 AND @SortBy = 'email'    THEN u.Email END DESC,
         CASE WHEN @SortDescending = 0 AND @SortBy = 'email'    THEN u.Email END ASC,
         u.UserId
@@ -199,7 +199,7 @@ BEGIN
     SELECT
         u.UserId, u.Email, u.LanguageCode, u.IsEmailConfirmed,
         u.IsLockedOut, u.LockoutEndUtc, u.FailedLoginCount,
-        u.IsDeleted, u.DeletedUtc, u.CreatedUtc, u.ModifiedUtc,
+        u.IsDeleted, u.DeletedOn, u.CreatedOn, u.ModifiedOn,
         c.IsoCode AS CountryIso
     FROM [Identity].[User] u
     LEFT JOIN [Identity].[Country] c ON c.CountryId = u.CountryId
@@ -274,7 +274,7 @@ BEGIN
                 account on the next single mistyped password. */
             FailedLoginCount = CASE WHEN @IsLocked = 0 THEN 0
                                     ELSE FailedLoginCount END,
-            ModifiedUtc = SYSUTCDATETIME()
+            ModifiedOn = SYSUTCDATETIME()
         WHERE UserId = @UserId;
 
         /*  Locking must end the sessions that already exist. An account locked

@@ -1,0 +1,62 @@
+# Style enforced by the compiler rather than by review. A convention that only
+# lives in people's heads is renegotiated in every pull request.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{json,yml,yaml,md}]
+indent_size = 2
+
+[*.sql]
+indent_size = 4
+
+[*.cs]
+# --- Language style ---
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_prefer_braces = true:suggestion
+csharp_style_prefer_primary_constructors = true:suggestion
+dotnet_style_prefer_collection_expression = true:suggestion
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:warning
+
+# --- Correctness rules promoted to errors ---
+
+# CA2007 is deliberately NOT enforced: this is an ASP.NET Core app with no
+# synchronisation context, so ConfigureAwait(false) is noise.
+dotnet_diagnostic.CA2007.severity = none
+
+# Dispose correctness. SqlUnitOfWork is IAsyncDisposable and a leaked
+# connection is a production incident, not a style issue.
+dotnet_diagnostic.CA2000.severity = warning
+dotnet_diagnostic.CA1063.severity = warning
+
+# String comparison must be explicit. Culture-sensitive comparison on a
+# permission code is a security bug waiting for a Turkish locale.
+dotnet_diagnostic.CA1304.severity = warning
+dotnet_diagnostic.CA1305.severity = warning
+dotnet_diagnostic.CA1310.severity = warning
+
+# SQL injection and insecure crypto.
+dotnet_diagnostic.CA2100.severity = error
+dotnet_diagnostic.CA5350.severity = error
+dotnet_diagnostic.CA5351.severity = error
+dotnet_diagnostic.CA5359.severity = error
+dotnet_diagnostic.CA5364.severity = error
+dotnet_diagnostic.CA5397.severity = error
+
+# Unobserved exceptions and empty catch blocks.
+dotnet_diagnostic.CA1031.severity = suggestion
+dotnet_diagnostic.RCS1075.severity = warning
+
+# Nullable reference types are on; treat violations as errors so the annotation
+# stays truthful.
+dotnet_diagnostic.CS8600.severity = error
+dotnet_diagnostic.CS8602.severity = error
+dotnet_diagnostic.CS8603.severity = error
+dotnet_diagnostic.CS8618.severity = error

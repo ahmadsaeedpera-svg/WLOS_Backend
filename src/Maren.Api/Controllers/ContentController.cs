@@ -255,12 +255,12 @@ public sealed class ClientContentController(ISender sender) : MarenControllerBas
 
         var items = result.Value!;
 
-        // ETag over the newest ModifiedUtc and the row count. Together those
+        // ETag over the newest ModifiedOn and the row count. Together those
         // change whenever the set changes — a publish moves the timestamp, an
         // unpublish moves the count — without hashing every body.
         var newest = items.Count == 0
             ? DateTime.MinValue
-            : items.Max(i => i.ModifiedUtc);
+            : items.Max(i => i.ModifiedOn);
 
         var etag = WeakETag($"{newest:O}:{items.Count}");
 

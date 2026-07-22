@@ -162,7 +162,7 @@ BEGIN
             SET FailedLoginCount = 0,
                 IsLockedOut = 0,
                 LockoutEndUtc = NULL,
-                ModifiedUtc = SYSUTCDATETIME()
+                ModifiedOn = SYSUTCDATETIME()
             WHERE UserId = @UserId;
         END
         ELSE
@@ -174,7 +174,7 @@ BEGIN
                 LockoutEndUtc = CASE WHEN FailedLoginCount + 1 >= @MaxAttempts
                                      THEN DATEADD(MINUTE, @LockoutMinutes, SYSUTCDATETIME())
                                      ELSE LockoutEndUtc END,
-                ModifiedUtc = SYSUTCDATETIME()
+                ModifiedOn = SYSUTCDATETIME()
             WHERE UserId = @UserId;
         END
 

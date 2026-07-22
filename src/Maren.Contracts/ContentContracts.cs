@@ -34,8 +34,8 @@ public sealed record ContentItemDto(
     DateTime? PublishFromUtc,
     DateTime? PublishUntilUtc,
     bool IsDeleted,
-    DateTime CreatedUtc,
-    DateTime ModifiedUtc,
+    DateTime CreatedOn,
+    DateTime ModifiedOn,
     string? CategoryKey,
     Guid? AuthorId,
     string? AuthorName,
@@ -60,8 +60,8 @@ public sealed record ContentListItemDto(
     int VersionNumber,
     Guid? PublishedVersionId,
     bool IsDeleted,
-    DateTime CreatedUtc,
-    DateTime ModifiedUtc,
+    DateTime CreatedOn,
+    DateTime ModifiedOn,
     string? CategoryKey,
     string? AuthorName,
     string? Title);
@@ -70,7 +70,7 @@ public sealed record ContentVersionDto(
     Guid ContentVersionId,
     int VersionNumber,
     string? ChangeSummary,
-    DateTime CreatedUtc,
+    DateTime CreatedOn,
     Guid? CreatedBy,
     string SnapshotJson,
     bool IsPublished);
@@ -85,7 +85,7 @@ public sealed record ContentAuthorDto(
 public sealed record MediaDto(
     Guid MediaId, string FileName, string ContentType, long SizeBytes,
     string StorageKey, int? Width, int? Height, string? AltText,
-    DateTime CreatedUtc);
+    DateTime CreatedOn);
 
 /// <summary>What the mobile client reads.</summary>
 public sealed record ClientContentDto(
@@ -97,7 +97,7 @@ public sealed record ClientContentDto(
     byte? FromWeek,
     byte? ToWeek,
     string? Season,
-    DateTime ModifiedUtc,
+    DateTime ModifiedOn,
     string? CategoryKey,
     string? Title,
     string? Body,

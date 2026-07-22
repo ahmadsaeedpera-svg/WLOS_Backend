@@ -20,7 +20,7 @@ public sealed record UserListItemDto(
     DateTime? LockoutEndUtc,
     int FailedLoginCount,
     bool IsDeleted,
-    DateTime CreatedUtc,
+    DateTime CreatedOn,
     string? CountryIso,
     /// <summary>Comma-separated for display. Ids come from the detail view.</summary>
     string RoleNames);
@@ -34,9 +34,9 @@ public sealed record UserDetailDto(
     DateTime? LockoutEndUtc,
     int FailedLoginCount,
     bool IsDeleted,
-    DateTime? DeletedUtc,
-    DateTime CreatedUtc,
-    DateTime ModifiedUtc,
+    DateTime? DeletedOn,
+    DateTime CreatedOn,
+    DateTime ModifiedOn,
     string? CountryIso,
     IReadOnlyList<UserRoleDto> Roles,
     IReadOnlyList<UserDeviceDto> Devices,

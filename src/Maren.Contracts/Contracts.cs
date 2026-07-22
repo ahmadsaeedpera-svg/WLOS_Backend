@@ -88,7 +88,7 @@ public sealed record FeatureFlagAdminDto(
     bool RequiresPremium,
     bool BetaOnly,
     bool DefaultValue,
-    DateTime ModifiedUtc);
+    DateTime ModifiedOn);
 
 public sealed record UpsertFeatureFlagRequest(
     string Key,

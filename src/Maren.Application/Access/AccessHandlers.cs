@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using FluentValidation;
 using Maren.Application.Abstractions;
@@ -434,7 +435,7 @@ public sealed class SetRolePermissionsHandler(
         {
             await repository.RecordSecurityEventAsync(
                 currentUser.UserId, "Security.EscalationRefused", "Role",
-                request.RoleId.ToString(),
+                request.RoleId.ToString(CultureInfo.InvariantCulture),
                 JsonSerializer.Serialize(new
                 {
                     Operation = "SetRolePermissions",

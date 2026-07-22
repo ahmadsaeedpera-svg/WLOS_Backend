@@ -1,0 +1,213 @@
+name: CI
+
+# Runs on every push and pull request. Before this existed, nothing ran the
+# tests except a developer remembering to — which is how the audit-column
+# contract sat at 0/43 compliance without anybody noticing.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  # A newer push supersedes an in-flight run on the same branch. No value in
+  # finishing a build for a commit nobody will deploy.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  DOTNET_NOLOGO: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  # A CI machine downloads packages once per job; the telemetry and the
+  # first-run banner are noise in the log.
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      # The integration tests run against a real SQL Server, deliberately.
+      # Every rule that matters in this platform lives in a stored procedure;
+      # a suite that mocks the repository verifies the mocks and cannot tell
+      # you whether an editor can publish something nobody approved.
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: 'Y'
+          MSSQL_SA_PASSWORD: ${{ secrets.CI_SQL_PASSWORD || 'Local!CI!Passw0rd#2026' }}
+          MSSQL_PID: Developer
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+          --health-start-period 30s
+
+    env:
+      SA_PASSWORD: ${{ secrets.CI_SQL_PASSWORD || 'Local!CI!Passw0rd#2026' }}
+      SQLCMD: /opt/mssql-tools18/bin/sqlcmd
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Install sqlcmd
+        run: |
+          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+            | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+          curl -fsSL https://packages.microsoft.com/config/ubuntu/22.04/prod.list \
+            | sudo tee /etc/apt/sources.list.d/mssql-release.list > /dev/null
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18 unixodbc-dev
+
+      - name: Wait for SQL Server
+        run: |
+          for i in $(seq 1 30); do
+            if $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -Q "SELECT 1" > /dev/null 2>&1; then
+              echo "SQL Server ready after ${i}0s"; exit 0
+            fi
+            sleep 10
+          done
+          echo "SQL Server did not become ready"; exit 1
+
+      - name: Create database
+        run: $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -Q "CREATE DATABASE MarenPlatform"
+
+      - name: Apply schema
+        # Order matters and every script is idempotent. A failure here stops the
+        # job rather than letting later scripts fail confusingly against a
+        # half-built schema.
+        working-directory: src/Maren.Database
+        run: |
+          set -e
+          for f in 01_Schemas.sql 02_Identity.sql 03_Administration.sql 04_Health.sql \
+                   05_Content_Notifications_Audit.sql 06_CMS.sql 07_Access.sql \
+                   08_AuditContract.sql \
+                   10_Procs_Administration.sql 11_Procs_Identity.sql \
+                   12_Procs_Content.sql 13_Procs_Access.sql \
+                   20_Seed.sql 21_Seed_CMS.sql; do
+            echo "--- $f"
+            $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
+          done
+
+      - name: Verify schema applies from scratch a second time
+        # Proves idempotency. Every script claims to be re-runnable; this is
+        # what makes the claim true rather than aspirational.
+        working-directory: src/Maren.Database
+        run: |
+          set -e
+          for f in 01_Schemas.sql 02_Identity.sql 03_Administration.sql 04_Health.sql \
+                   05_Content_Notifications_Audit.sql 06_CMS.sql 07_Access.sql \
+                   08_AuditContract.sql \
+                   10_Procs_Administration.sql 11_Procs_Identity.sql \
+                   12_Procs_Content.sql 13_Procs_Access.sql \
+                   20_Seed.sql 21_Seed_CMS.sql; do
+            $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
+          done
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        # Warnings are errors in CI. A warning nobody fails on is a warning
+        # everybody scrolls past.
+        run: dotnet build --no-restore --configuration Release -warnaserror
+
+      - name: SQL assertion suite — CMS workflow
+        working-directory: src/Maren.Database
+        run: |
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/cms_workflow_test.sql)
+          echo "$out"
+          echo "$out" | grep -q "FAILED: 0" || { echo "::error::CMS workflow assertions failed"; exit 1; }
+
+      - name: SQL assertion suite — access control
+        working-directory: src/Maren.Database
+        run: |
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/access_test.sql)
+          echo "$out"
+          echo "$out" | grep -q "FAILED: 0" || { echo "::error::Access assertions failed"; exit 1; }
+
+      - name: Integration tests
+        env:
+          ConnectionStrings__MarenPlatform: >-
+            Server=localhost,1433;Database=MarenPlatform;User Id=sa;
+            Password=${{ secrets.CI_SQL_PASSWORD || 'Local!CI!Passw0rd#2026' }};
+            TrustServerCertificate=True;MultipleActiveResultSets=True
+        run: >-
+          dotnet test tests/Maren.Tests
+          --no-build --configuration Release
+          --logger "trx;LogFileName=results.trx"
+          --logger "console;verbosity=normal"
+
+      - name: Publish test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: '**/TestResults/*.trx'
+          retention-days: 14
+
+  security:
+    name: Security and dependency scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Vulnerable packages
+        # Fails the job on any known vulnerability. A report nobody fails on is
+        # a report nobody reads.
+        run: |
+          set -e
+          dotnet list package --vulnerable --include-transitive 2>&1 | tee vuln.txt
+          if grep -q "has the following vulnerable packages" vuln.txt; then
+            echo "::error::Vulnerable packages found"
+            exit 1
+          fi
+
+      - name: Deprecated packages
+        # Reported, not fatal. A deprecation is a plan, not an incident.
+        continue-on-error: true
+        run: dotnet list package --deprecated --include-transitive
+
+      - name: Check for committed secrets
+        # Catches the obvious cases before they reach history, where removing
+        # them means a force-push and rotating whatever leaked.
+        run: |
+          set -e
+          # appsettings.Development.json is committed deliberately and holds
+          # only LocalDB plus a key named as dev-only.
+          if git grep -nIE "(password|pwd|secret|apikey|api_key)\s*[=:]\s*[\"'][^\"']{8,}" \
+               -- ':!*.md' ':!**/appsettings.Development.json' | grep -viE "placeholder|example|your-|<.*>|dev-only"; then
+            echo "::error::Possible committed secret"
+            exit 1
+          fi
+          echo "No obvious secrets found"

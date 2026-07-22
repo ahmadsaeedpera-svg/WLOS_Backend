@@ -192,7 +192,7 @@ BEGIN
             RequiresPremium = @RequiresPremium,
             BetaOnly = @BetaOnly,
             DefaultValue = @DefaultValue,
-            ModifiedUtc = SYSUTCDATETIME(),
+            ModifiedOn = SYSUTCDATETIME(),
             ModifiedBy = @ActorUserId
         WHEN NOT MATCHED THEN INSERT
             ([Key], Name, Description, IsEnabled, RolloutPercent,
@@ -226,7 +226,7 @@ BEGIN
     SELECT
         FeatureFlagId, [Key], Name, Description, IsEnabled, RolloutPercent,
         MinAppVersion, CountryFilter, RequiresPremium, BetaOnly, DefaultValue,
-        ModifiedUtc
+        ModifiedOn
     FROM [Administration].[FeatureFlag]
     WHERE [Key] = @Key;
 END

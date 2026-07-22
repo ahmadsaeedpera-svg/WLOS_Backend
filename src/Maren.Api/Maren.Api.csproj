@@ -9,6 +9,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <PackageReference Include="Microsoft.OpenApi" Version="2.3.0" />
     <PackageReference Include="Scalar.AspNetCore" Version="2.0.0" />
     <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
   </ItemGroup>
@@ -18,6 +19,28 @@
     <ProjectReference Include="..\Maren.Persistence\Maren.Persistence.csproj" />
     <ProjectReference Include="..\Maren.Infrastructure\Maren.Infrastructure.csproj" />
     <ProjectReference Include="..\Maren.Contracts\Maren.Contracts.csproj" />
+  </ItemGroup>
+
+  <!--
+    GHSA-v5pm-xwqc-g5wc — Microsoft.OpenApi, high severity, no patched version.
+
+    Accepted risk, reviewed 2026-07-22. Reachability assessed rather than
+    assumed: Microsoft.OpenApi is a transitive dependency of
+    Microsoft.AspNetCore.OpenApi, and the only code that exercises it is
+    MapOpenApi() / MapScalarApiReference(), both of which sit inside
+    `if (app.Environment.IsDevelopment())` in Program.cs. No production request
+    reaches the vulnerable path.
+
+    Pinned to the newest 2.x so any OTHER fix is picked up; the advisory covers
+    the whole 2.x line, so upgrading does not clear it.
+
+    Suppressed here rather than by disabling NuGetAudit, so every other
+    advisory still fails the build. Recorded in docs/SECURITY_RISKS.md with a
+    revisit trigger: remove this the moment a patched version ships, or the day
+    OpenAPI is exposed outside Development.
+  -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-v5pm-xwqc-g5wc" />
   </ItemGroup>
 
 </Project>

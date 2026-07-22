@@ -29,7 +29,7 @@ CREATE TABLE #saved (ContentItemId UNIQUEIDENTIFIER,
 CREATE TABLE #client (
     ContentItemId UNIQUEIDENTIFIER, ContentType VARCHAR(40), [Key] VARCHAR(150),
     Weight INT, SourceCitation NVARCHAR(300), FromWeek TINYINT, ToWeek TINYINT,
-    Season VARCHAR(20), ModifiedUtc DATETIME2(3), CategoryKey VARCHAR(64),
+    Season VARCHAR(20), ModifiedOn DATETIME2(3), CategoryKey VARCHAR(64),
     Title NVARCHAR(300), Body NVARCHAR(MAX), Summary NVARCHAR(1000),
     MetadataJson NVARCHAR(MAX), IsFallback BIT);
 
@@ -101,7 +101,7 @@ DECLARE @clientTitle NVARCHAR(400);
 DECLARE @clientRows TABLE (
     ContentItemId UNIQUEIDENTIFIER, ContentType VARCHAR(40), [Key] VARCHAR(200),
     Weight INT, SourceCitation NVARCHAR(1000), FromWeek TINYINT, ToWeek TINYINT,
-    Season VARCHAR(20), ModifiedUtc DATETIME2(3), CategoryKey VARCHAR(100),
+    Season VARCHAR(20), ModifiedOn DATETIME2(3), CategoryKey VARCHAR(100),
     Title NVARCHAR(400), Body NVARCHAR(MAX), Summary NVARCHAR(1000),
     MetadataJson NVARCHAR(MAX), IsFallback BIT);
 
@@ -222,8 +222,8 @@ DECLARE @search TABLE (
     ContentItemId UNIQUEIDENTIFIER, ContentType VARCHAR(40), [Key] VARCHAR(150),
     Status VARCHAR(20), Weight INT, FromWeek TINYINT, ToWeek TINYINT,
     Season VARCHAR(20), SourceCitation NVARCHAR(300), VersionNumber INT,
-    PublishedVersionId UNIQUEIDENTIFIER, IsDeleted BIT, CreatedUtc DATETIME2(3),
-    ModifiedUtc DATETIME2(3), CategoryKey VARCHAR(64), AuthorName NVARCHAR(200),
+    PublishedVersionId UNIQUEIDENTIFIER, IsDeleted BIT, CreatedOn DATETIME2(3),
+    ModifiedOn DATETIME2(3), CategoryKey VARCHAR(64), AuthorName NVARCHAR(200),
     Title NVARCHAR(300), TotalCount INT);
 INSERT @search EXEC [Content].[usp_Content_Search] @Query = N'folate', @PageSize = 10;
 SELECT @n = COUNT(*) FROM @search;

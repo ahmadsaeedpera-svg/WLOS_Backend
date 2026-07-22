@@ -239,7 +239,7 @@ public sealed class ConfigurationRepository(IDbConnectionFactory factory)
             new CommandDefinition(
                 "SELECT FeatureFlagId, [Key], Name, Description, IsEnabled, " +
                 "RolloutPercent, MinAppVersion, CountryFilter, RequiresPremium, " +
-                "BetaOnly, DefaultValue, ModifiedUtc " +
+                "BetaOnly, DefaultValue, ModifiedOn " +
                 "FROM [Administration].[FeatureFlag] ORDER BY [Key]",
                 cancellationToken: ct));
         return rows.ToList();

@@ -89,7 +89,7 @@ BEGIN
                 Season = @Season,
                 Weight = @Weight,
                 SourceCitation = @SourceCitation,
-                ModifiedUtc = SYSUTCDATETIME(),
+                ModifiedOn = SYSUTCDATETIME(),
                 ModifiedBy = @ActorUserId
             WHERE ContentItemId = @ContentItemId;
         END
@@ -206,7 +206,7 @@ BEGIN
             PublishedVersionId = @version,
             PublishFromUtc = COALESCE(@PublishFromUtc, SYSUTCDATETIME()),
             PublishUntilUtc = @PublishUntilUtc,
-            ModifiedUtc = SYSUTCDATETIME(),
+            ModifiedOn = SYSUTCDATETIME(),
             ModifiedBy = @ActorUserId
         WHERE ContentItemId = @ContentItemId;
 
@@ -241,7 +241,7 @@ BEGIN
         UPDATE [Content].[ContentItem]
         SET Status = 'draft',
             PublishUntilUtc = SYSUTCDATETIME(),
-            ModifiedUtc = SYSUTCDATETIME(),
+            ModifiedOn = SYSUTCDATETIME(),
             ModifiedBy = @ActorUserId
         WHERE ContentItemId = @ContentItemId;
 
@@ -293,7 +293,7 @@ BEGIN
 
         UPDATE [Content].[ContentItem]
         SET Status = CASE WHEN @IsApproved = 1 THEN 'review' ELSE 'draft' END,
-            ModifiedUtc = SYSUTCDATETIME(),
+            ModifiedOn = SYSUTCDATETIME(),
             ModifiedBy = @ActorUserId
         WHERE ContentItemId = @ContentItemId AND Status <> 'published';
 
@@ -372,7 +372,7 @@ BEGIN
             Season         = JSON_VALUE(@snapshot, '$.Season'),
             Weight         = ISNULL(TRY_CAST(JSON_VALUE(@snapshot, '$.Weight') AS INT), 100),
             SourceCitation = JSON_VALUE(@snapshot, '$.SourceCitation'),
-            ModifiedUtc    = SYSUTCDATETIME(),
+            ModifiedOn    = SYSUTCDATETIME(),
             ModifiedBy     = @ActorUserId
         WHERE ContentItemId = @ContentItemId;
 
@@ -437,7 +437,7 @@ BEGIN
             what a later clinical or legal question needs to consult. */
         UPDATE [Content].[ContentItem]
         SET IsDeleted = 1, Status = 'retired',
-            ModifiedUtc = SYSUTCDATETIME(), ModifiedBy = @ActorUserId
+            ModifiedOn = SYSUTCDATETIME(), ModifiedBy = @ActorUserId
         WHERE ContentItemId = @ContentItemId;
 
         INSERT INTO [Audit].[AuditLog]
@@ -490,7 +490,7 @@ BEGIN
             i.ContentItemId, i.ContentType, i.[Key], i.Status, i.Weight,
             i.FromWeek, i.ToWeek, i.Season, i.SourceCitation,
             i.VersionNumber, i.PublishedVersionId, i.IsDeleted,
-            i.CreatedUtc, i.ModifiedUtc,
+            i.CreatedOn, i.ModifiedOn,
             c.[Key] AS CategoryKey,
             a.DisplayName AS AuthorName,
             (SELECT TOP 1 t.Title FROM [Content].[ContentTranslation] t
@@ -527,12 +527,12 @@ BEGIN
     ORDER BY
         CASE WHEN @SortDescending = 0 AND @SortBy = 'title' THEN Title END ASC,
         CASE WHEN @SortDescending = 1 AND @SortBy = 'title' THEN Title END DESC,
-        CASE WHEN @SortDescending = 0 AND @SortBy = 'created' THEN CreatedUtc END ASC,
-        CASE WHEN @SortDescending = 1 AND @SortBy = 'created' THEN CreatedUtc END DESC,
+        CASE WHEN @SortDescending = 0 AND @SortBy = 'created' THEN CreatedOn END ASC,
+        CASE WHEN @SortDescending = 1 AND @SortBy = 'created' THEN CreatedOn END DESC,
         CASE WHEN @SortDescending = 0 AND @SortBy NOT IN ('title','created')
-             THEN ModifiedUtc END ASC,
+             THEN ModifiedOn END ASC,
         CASE WHEN @SortDescending = 1 AND @SortBy NOT IN ('title','created')
-             THEN ModifiedUtc END DESC,
+             THEN ModifiedOn END DESC,
         ContentItemId
     OFFSET (@Page - 1) * @PageSize ROWS
     FETCH NEXT @PageSize ROWS ONLY;
@@ -555,7 +555,7 @@ BEGIN
            i.CountryFilter, i.MinAppVersion, i.FromWeek, i.ToWeek, i.Season,
            i.SourceCitation, i.ReviewedUtc, i.ReviewedBy, i.VersionNumber,
            i.CurrentVersionId, i.PublishedVersionId, i.PublishFromUtc,
-           i.PublishUntilUtc, i.IsDeleted, i.CreatedUtc, i.ModifiedUtc,
+           i.PublishUntilUtc, i.IsDeleted, i.CreatedOn, i.ModifiedOn,
            c.[Key] AS CategoryKey, i.AuthorId, a.DisplayName AS AuthorName
     FROM [Content].[ContentItem] i
     LEFT JOIN [Content].[Category] c ON c.CategoryId = i.CategoryId
@@ -587,7 +587,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     SELECT v.ContentVersionId, v.VersionNumber, v.ChangeSummary,
-           v.CreatedUtc, v.CreatedBy, v.SnapshotJson,
+           v.CreatedOn, v.CreatedBy, v.SnapshotJson,
            CAST(CASE WHEN i.PublishedVersionId = v.ContentVersionId
                      THEN 1 ELSE 0 END AS BIT) AS IsPublished
     FROM [Content].[ContentVersion] v
@@ -644,7 +644,7 @@ BEGIN
         operator governs. */
     SELECT
         i.ContentItemId, i.ContentType, i.[Key], i.Weight, i.SourceCitation,
-        i.FromWeek, i.ToWeek, i.Season, i.ModifiedUtc,
+        i.FromWeek, i.ToWeek, i.Season, i.ModifiedOn,
         c.[Key] AS CategoryKey,
         COALESCE(t.Title, fb.Title) AS Title,
         COALESCE(t.Body, fb.Body) AS Body,
@@ -688,7 +688,7 @@ BEGIN
       AND (i.PublishFromUtc IS NULL OR i.PublishFromUtc <= @now)
       AND (i.PublishUntilUtc IS NULL OR i.PublishUntilUtc > @now)
       AND (@ContentType IS NULL OR i.ContentType = @ContentType)
-      AND (@ModifiedSince IS NULL OR i.ModifiedUtc > @ModifiedSince)
+      AND (@ModifiedSince IS NULL OR i.ModifiedOn > @ModifiedSince)
       AND (i.MinAppVersion IS NULL OR @AppVersionCode IS NULL
            OR @AppVersionCode >= [Administration].[fn_VersionToCode](i.MinAppVersion))
       AND (i.CountryFilter IS NULL OR @CountryIso IS NULL
@@ -770,7 +770,7 @@ BEGIN
     SET Status = 'published',
         PublishedVersionId = COALESCE(i.PublishedVersionId, i.CurrentVersionId),
         PublishFromUtc = SYSUTCDATETIME(),
-        ModifiedUtc = SYSUTCDATETIME()
+        ModifiedOn = SYSUTCDATETIME()
     FROM [Content].[ContentItem] i
     JOIN @claimed c ON c.ContentItemId = i.ContentItemId
     WHERE c.[Action] = 'publish';
@@ -778,7 +778,7 @@ BEGIN
     UPDATE i
     SET Status = CASE WHEN c.[Action] = 'retire' THEN 'retired' ELSE 'draft' END,
         PublishUntilUtc = SYSUTCDATETIME(),
-        ModifiedUtc = SYSUTCDATETIME()
+        ModifiedOn = SYSUTCDATETIME()
     FROM [Content].[ContentItem] i
     JOIN @claimed c ON c.ContentItemId = i.ContentItemId
     WHERE c.[Action] IN ('unpublish','retire');
@@ -927,7 +927,7 @@ BEGIN
 
     /*  Named to match MediaDto — same reason as usp_Content_SaveAuthor. */
     SELECT MediaId, FileName, ContentType, SizeBytes, StorageKey,
-           Width, Height, AltText, CreatedUtc
+           Width, Height, AltText, CreatedOn
     FROM [Content].[Media] WHERE MediaId = @MediaId;
 END
 GO

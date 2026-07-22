@@ -69,9 +69,9 @@ CREATE TABLE [Content].[ContentItem] (
     ReviewedBy     NVARCHAR(200) NULL,
 
     IsDeleted     BIT NOT NULL DEFAULT 0,
-    CreatedUtc    DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn    DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     CreatedBy     UNIQUEIDENTIFIER NULL,
-    ModifiedUtc   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    ModifiedOn   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     ModifiedBy    UNIQUEIDENTIFIER NULL,
     RowVersion    ROWVERSION NOT NULL,
 
@@ -107,7 +107,7 @@ CREATE TABLE [Content].[ContentTranslation] (
         mostly-null columns. */
     MetadataJson  NVARCHAR(MAX) NULL,
     IsMachineTranslated BIT NOT NULL DEFAULT 0,
-    ModifiedUtc   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    ModifiedOn   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     RowVersion    ROWVERSION NOT NULL,
     CONSTRAINT PK_ContentTranslation PRIMARY KEY CLUSTERED (TranslationId),
     CONSTRAINT FK_ContentTranslation_Item FOREIGN KEY (ContentItemId)
@@ -129,7 +129,7 @@ CREATE TABLE [Content].[Media] (
     Height       INT NULL,
     AltText      NVARCHAR(300) NULL,
     UploadedBy   UNIQUEIDENTIFIER NULL,
-    CreatedUtc   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     IsDeleted    BIT NOT NULL DEFAULT 0,
     CONSTRAINT PK_Media PRIMARY KEY CLUSTERED (MediaId)
 );
@@ -146,7 +146,7 @@ CREATE TABLE [Notifications].[Template] (
     ReminderKind VARCHAR(50) NULL,
     Description  NVARCHAR(500) NULL,
     IsActive     BIT NOT NULL DEFAULT 1,
-    CreatedUtc   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT PK_NotificationTemplate PRIMARY KEY CLUSTERED (TemplateId),
     CONSTRAINT UQ_NotificationTemplate_Key UNIQUE ([Key])
 );
@@ -184,7 +184,7 @@ CREATE TABLE [Notifications].[Campaign] (
     FailedCount  INT NOT NULL DEFAULT 0,
     OpenedCount  INT NOT NULL DEFAULT 0,
     CreatedBy    UNIQUEIDENTIFIER NULL,
-    CreatedUtc   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     RowVersion   ROWVERSION NOT NULL,
     CONSTRAINT PK_Campaign PRIMARY KEY CLUSTERED (CampaignId),
     CONSTRAINT FK_Campaign_Template FOREIGN KEY (TemplateId)

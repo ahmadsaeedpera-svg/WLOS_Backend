@@ -255,7 +255,7 @@ FROM @res;
 DECLARE @userCols TABLE (
     UserId UNIQUEIDENTIFIER, Email NVARCHAR(256), LanguageCode CHAR(5),
     IsEmailConfirmed BIT, IsLockedOut BIT, LockoutEndUtc DATETIME2(3),
-    FailedLoginCount INT, IsDeleted BIT, CreatedUtc DATETIME2(3),
+    FailedLoginCount INT, IsDeleted BIT, CreatedOn DATETIME2(3),
     CountryIso CHAR(2), RoleNames NVARCHAR(MAX), TotalCount INT);
 
 INSERT @userCols EXEC [Identity].[usp_User_Search]

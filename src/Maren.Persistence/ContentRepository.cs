@@ -641,8 +641,8 @@ public sealed class ContentRepository(IAmbientConnection ambient) : IContentRepo
         public DateTime? PublishFromUtc { get; init; }
         public DateTime? PublishUntilUtc { get; init; }
         public bool IsDeleted { get; init; }
-        public DateTime CreatedUtc { get; init; }
-        public DateTime ModifiedUtc { get; init; }
+        public DateTime CreatedOn { get; init; }
+        public DateTime ModifiedOn { get; init; }
         public string? CategoryKey { get; init; }
         public Guid? AuthorId { get; init; }
         public string? AuthorName { get; init; }
@@ -654,7 +654,7 @@ public sealed class ContentRepository(IAmbientConnection ambient) : IContentRepo
                 MinAppVersion, FromWeek, ToWeek, Season, SourceCitation,
                 ReviewedUtc, ReviewedBy, VersionNumber, CurrentVersionId,
                 PublishedVersionId, PublishFromUtc, PublishUntilUtc, IsDeleted,
-                CreatedUtc, ModifiedUtc, CategoryKey, AuthorId, AuthorName,
+                CreatedOn, ModifiedOn, CategoryKey, AuthorId, AuthorName,
                 localizations, tags);
     }
 
@@ -672,8 +672,8 @@ public sealed class ContentRepository(IAmbientConnection ambient) : IContentRepo
         public int VersionNumber { get; init; }
         public Guid? PublishedVersionId { get; init; }
         public bool IsDeleted { get; init; }
-        public DateTime CreatedUtc { get; init; }
-        public DateTime ModifiedUtc { get; init; }
+        public DateTime CreatedOn { get; init; }
+        public DateTime ModifiedOn { get; init; }
         public string? CategoryKey { get; init; }
         public string? AuthorName { get; init; }
         public string? Title { get; init; }
@@ -682,7 +682,7 @@ public sealed class ContentRepository(IAmbientConnection ambient) : IContentRepo
         public ContentListItemDto ToDto() =>
             new(ContentItemId, ContentType, Key, Status, Weight, FromWeek,
                 ToWeek, Season, SourceCitation, VersionNumber,
-                PublishedVersionId, IsDeleted, CreatedUtc, ModifiedUtc,
+                PublishedVersionId, IsDeleted, CreatedOn, ModifiedOn,
                 CategoryKey, AuthorName, Title);
     }
 }

@@ -14,7 +14,7 @@ GO
     so all of them carry the same four columns:
 
       - a client-assignable GUID primary key
-      - ModifiedUtc, for last-writer-wins on a field-level conflict
+      - ModifiedOn, for last-writer-wins on a field-level conflict
       - IsDeleted, because a delete has to sync as an event rather than an
         absence — a row that simply vanished from the client is
         indistinguishable from one that never reached it
@@ -45,8 +45,8 @@ CREATE TABLE [Health].[Pregnancy] (
     Status            VARCHAR(20) NOT NULL DEFAULT 'active',
     EndedUtc          DATETIME2(3) NULL,
     IsDeleted         BIT NOT NULL DEFAULT 0,
-    CreatedUtc        DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
-    ModifiedUtc       DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn        DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    ModifiedOn       DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     RowVersion        ROWVERSION NOT NULL,
     CONSTRAINT PK_Pregnancy PRIMARY KEY CLUSTERED (PregnancyId),
     CONSTRAINT FK_Pregnancy_User FOREIGN KEY (UserId)
@@ -67,8 +67,8 @@ CREATE TABLE [Health].[Cycle] (
     FlowLevel   VARCHAR(20) NULL,
     Notes       NVARCHAR(1000) NULL,
     IsDeleted   BIT NOT NULL DEFAULT 0,
-    CreatedUtc  DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
-    ModifiedUtc DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn  DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    ModifiedOn DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     RowVersion  ROWVERSION NOT NULL,
     CONSTRAINT PK_Cycle PRIMARY KEY CLUSTERED (CycleId),
     CONSTRAINT FK_Cycle_User FOREIGN KEY (UserId)
@@ -96,8 +96,8 @@ CREATE TABLE [Health].[DailyLog] (
     WaterGlasses SMALLINT NOT NULL DEFAULT 0,
     Note         NVARCHAR(MAX) NULL,
     IsDeleted    BIT NOT NULL DEFAULT 0,
-    CreatedUtc   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
-    ModifiedUtc  DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    ModifiedOn  DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     RowVersion   ROWVERSION NOT NULL,
     CONSTRAINT PK_DailyLog PRIMARY KEY CLUSTERED (DailyLogId),
     CONSTRAINT FK_DailyLog_User FOREIGN KEY (UserId)
@@ -123,8 +123,8 @@ CREATE TABLE [Health].[Symptom] (
     Label       NVARCHAR(100) NULL,
     Note        NVARCHAR(MAX) NULL,
     IsDeleted   BIT NOT NULL DEFAULT 0,
-    CreatedUtc  DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
-    ModifiedUtc DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn  DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    ModifiedOn DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     RowVersion  ROWVERSION NOT NULL,
     CONSTRAINT PK_Symptom PRIMARY KEY CLUSTERED (SymptomId),
     CONSTRAINT FK_Symptom_User FOREIGN KEY (UserId)
@@ -147,8 +147,8 @@ CREATE TABLE [Health].[BodyMeasurement] (
     Unit          VARCHAR(20) NOT NULL,
     Note          NVARCHAR(500) NULL,
     IsDeleted     BIT NOT NULL DEFAULT 0,
-    CreatedUtc    DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
-    ModifiedUtc   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn    DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    ModifiedOn   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     RowVersion    ROWVERSION NOT NULL,
     CONSTRAINT PK_BodyMeasurement PRIMARY KEY CLUSTERED (MeasurementId),
     CONSTRAINT FK_BodyMeasurement_User FOREIGN KEY (UserId)
@@ -172,8 +172,8 @@ CREATE TABLE [Health].[Appointment] (
     Notes         NVARCHAR(MAX) NULL,
     ReminderMinutesBefore INT NULL,
     IsDeleted     BIT NOT NULL DEFAULT 0,
-    CreatedUtc    DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
-    ModifiedUtc   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn    DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    ModifiedOn   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     RowVersion    ROWVERSION NOT NULL,
     CONSTRAINT PK_Appointment PRIMARY KEY CLUSTERED (AppointmentId),
     CONSTRAINT FK_Appointment_User FOREIGN KEY (UserId)
@@ -200,8 +200,8 @@ CREATE TABLE [Health].[HospitalBagItem] (
     IsHidden    BIT NOT NULL DEFAULT 0,
     SortOrder   INT NOT NULL DEFAULT 0,
     IsDeleted   BIT NOT NULL DEFAULT 0,
-    CreatedUtc  DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
-    ModifiedUtc DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn  DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    ModifiedOn DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     RowVersion  ROWVERSION NOT NULL,
     CONSTRAINT PK_HospitalBagItem PRIMARY KEY CLUSTERED (ItemId),
     CONSTRAINT FK_HospitalBagItem_User FOREIGN KEY (UserId)
@@ -218,8 +218,8 @@ CREATE TABLE [Health].[BirthPreference] (
     IsSelected    BIT NOT NULL DEFAULT 0,
     CustomText    NVARCHAR(500) NULL,
     IsDeleted     BIT NOT NULL DEFAULT 0,
-    CreatedUtc    DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
-    ModifiedUtc   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn    DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    ModifiedOn   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     RowVersion    ROWVERSION NOT NULL,
     CONSTRAINT PK_BirthPreference PRIMARY KEY CLUSTERED (PreferenceId),
     CONSTRAINT FK_BirthPreference_User FOREIGN KEY (UserId)
@@ -251,7 +251,7 @@ CREATE TABLE [Health].[ShareGrant] (
     RevokedUtc    DATETIME2(3) NULL,
     LastViewedUtc DATETIME2(3) NULL,
     ViewCount     INT NOT NULL DEFAULT 0,
-    CreatedUtc    DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn    DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT PK_ShareGrant PRIMARY KEY CLUSTERED (ShareGrantId),
     CONSTRAINT FK_ShareGrant_User FOREIGN KEY (UserId)
         REFERENCES [Identity].[User](UserId),

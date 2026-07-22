@@ -69,9 +69,9 @@ CREATE TABLE [Identity].[User] (
     LockoutEndUtc       DATETIME2(3) NULL,
     FailedLoginCount    INT NOT NULL DEFAULT 0,
     IsDeleted           BIT NOT NULL DEFAULT 0,
-    DeletedUtc          DATETIME2(3) NULL,
-    CreatedUtc          DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
-    ModifiedUtc         DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    DeletedOn          DATETIME2(3) NULL,
+    CreatedOn          DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    ModifiedOn         DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     RowVersion          ROWVERSION NOT NULL,
     CONSTRAINT PK_User PRIMARY KEY CLUSTERED (UserId),
     CONSTRAINT FK_User_Country FOREIGN KEY (CountryId)
@@ -100,8 +100,8 @@ CREATE TABLE [Identity].[Profile] (
     DateOfBirth         DATE NULL,
     TimeZoneId          NVARCHAR(100) NULL,
     AvatarMediaId       UNIQUEIDENTIFIER NULL,
-    CreatedUtc          DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
-    ModifiedUtc         DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn          DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    ModifiedOn         DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     RowVersion          ROWVERSION NOT NULL,
     CONSTRAINT PK_Profile PRIMARY KEY CLUSTERED (UserId),
     CONSTRAINT FK_Profile_User FOREIGN KEY (UserId)
@@ -125,7 +125,7 @@ CREATE TABLE [Identity].[Device] (
         reached the device. Per-device rather than per-user, because two of a
         user's devices are legitimately at different points. */
     LastSyncUtc         DATETIME2(3) NULL,
-    CreatedUtc          DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn          DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     RowVersion          ROWVERSION NOT NULL,
     CONSTRAINT PK_Device PRIMARY KEY CLUSTERED (DeviceId),
     CONSTRAINT FK_Device_User FOREIGN KEY (UserId)
@@ -149,7 +149,7 @@ CREATE TABLE [Identity].[RefreshToken] (
     ExpiresUtc      DATETIME2(3) NOT NULL,
     RevokedUtc      DATETIME2(3) NULL,
     ReplacedByHash  VARBINARY(64) NULL,
-    CreatedUtc      DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn      DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     CreatedByIp     VARCHAR(45) NULL,
     CONSTRAINT PK_RefreshToken PRIMARY KEY CLUSTERED (RefreshTokenId),
     CONSTRAINT FK_RefreshToken_User FOREIGN KEY (UserId)

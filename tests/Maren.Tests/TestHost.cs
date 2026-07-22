@@ -56,10 +56,18 @@ public sealed class FakeCurrentUser : ICurrentUser
 /// </remarks>
 public sealed class DatabaseFixture : IDisposable
 {
-    public const string ConnectionString =
-        "Server=(localdb)\\MSSQLLocalDB;Database=MarenPlatform;" +
-        "Trusted_Connection=True;TrustServerCertificate=True;" +
-        "MultipleActiveResultSets=True";
+    /// <summary>Where the tests find SQL Server.</summary>
+    /// <remarks>
+    /// Environment first so CI can point at its own service container, falling
+    /// back to LocalDB so a developer needs no setup. Hardcoding LocalDB meant
+    /// the suite could only ever run on a Windows machine that had it — which
+    /// is a large part of why nothing ran these tests automatically.
+    /// </remarks>
+    public static readonly string ConnectionString =
+        Environment.GetEnvironmentVariable("ConnectionStrings__MarenPlatform")
+        ?? @"Server=(localdb)\MSSQLLocalDB;Database=MarenPlatform;"
+           + "Trusted_Connection=True;TrustServerCertificate=True;"
+           + "MultipleActiveResultSets=True";
 
     public ServiceProvider Provider { get; }
     public FakeCurrentUser CurrentUser { get; } = new();

@@ -69,7 +69,7 @@ GO
     a million. */
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_User_Search')
     CREATE INDEX IX_User_Search
-        ON [Identity].[User](IsDeleted, IsLockedOut, CreatedUtc DESC)
+        ON [Identity].[User](IsDeleted, IsLockedOut, CreatedOn DESC)
         INCLUDE (Email, LanguageCode, IsEmailConfirmed);
 GO
 

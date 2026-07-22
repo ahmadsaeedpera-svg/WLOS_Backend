@@ -42,7 +42,7 @@ CREATE TABLE [Content].[ContentAuthor] (
     Bio          NVARCHAR(MAX) NULL,
     AvatarMediaId UNIQUEIDENTIFIER NULL,
     IsActive     BIT NOT NULL DEFAULT 1,
-    CreatedUtc   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT PK_ContentAuthor PRIMARY KEY CLUSTERED (AuthorId),
     CONSTRAINT FK_ContentAuthor_User FOREIGN KEY (UserId)
         REFERENCES [Identity].[User](UserId),
@@ -71,7 +71,7 @@ CREATE TABLE [Content].[ContentVersion] (
         exactly as they stood. */
     SnapshotJson     NVARCHAR(MAX) NOT NULL,
     ChangeSummary    NVARCHAR(500) NULL,
-    CreatedUtc       DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn       DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     CreatedBy        UNIQUEIDENTIFIER NULL,
     CONSTRAINT PK_ContentVersion PRIMARY KEY CLUSTERED (ContentVersionId),
     CONSTRAINT FK_ContentVersion_Item FOREIGN KEY (ContentItemId)
@@ -105,7 +105,7 @@ CREATE TABLE [Content].[ContentReview] (
     ReviewKind     VARCHAR(30) NOT NULL DEFAULT 'editorial',
     Outcome        VARCHAR(20) NOT NULL,
     Comments       NVARCHAR(MAX) NULL,
-    CreatedUtc     DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn     DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT PK_ContentReview PRIMARY KEY CLUSTERED (ReviewId),
     CONSTRAINT FK_ContentReview_Item FOREIGN KEY (ContentItemId)
         REFERENCES [Content].[ContentItem](ContentItemId) ON DELETE CASCADE,
@@ -128,7 +128,7 @@ CREATE TABLE [Content].[ContentApproval] (
     ApproverUserId   UNIQUEIDENTIFIER NULL,
     IsApproved       BIT NOT NULL,
     Reason           NVARCHAR(MAX) NULL,
-    CreatedUtc       DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn       DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT PK_ContentApproval PRIMARY KEY CLUSTERED (ApprovalId),
     CONSTRAINT FK_ContentApproval_Item FOREIGN KEY (ContentItemId)
         REFERENCES [Content].[ContentItem](ContentItemId) ON DELETE CASCADE,
@@ -156,7 +156,7 @@ CREATE TABLE [Content].[ContentPublishSchedule] (
     ExecutedUtc    DATETIME2(3) NULL,
     FailureReason  NVARCHAR(500) NULL,
     CreatedBy      UNIQUEIDENTIFIER NULL,
-    CreatedUtc     DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn     DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT PK_ContentPublishSchedule PRIMARY KEY CLUSTERED (ScheduleId),
     CONSTRAINT FK_ContentSchedule_Item FOREIGN KEY (ContentItemId)
         REFERENCES [Content].[ContentItem](ContentItemId) ON DELETE CASCADE,

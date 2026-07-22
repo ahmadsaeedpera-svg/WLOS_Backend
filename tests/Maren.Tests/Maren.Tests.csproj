@@ -30,4 +30,14 @@
     <ProjectReference Include="..\..\src\Maren.Api\Maren.Api.csproj" />
   </ItemGroup>
 
+  <!--
+    Inherited from the Maren.Api project reference. See the justification in
+    src/Maren.Api/Maren.Api.csproj and docs/SECURITY_RISKS.md — the vulnerable
+    path is development-only OpenAPI document generation, which no test
+    exercises.
+  -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-v5pm-xwqc-g5wc" />
+  </ItemGroup>
+
 </Project>

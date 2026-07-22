@@ -47,8 +47,8 @@ CREATE TABLE [Administration].[FeatureFlag] (
         currently doing. */
     DefaultValue    BIT NOT NULL DEFAULT 0,
 
-    CreatedUtc      DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
-    ModifiedUtc     DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn      DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    ModifiedOn     DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     ModifiedBy      UNIQUEIDENTIFIER NULL,
     RowVersion      ROWVERSION NOT NULL,
 
@@ -109,7 +109,7 @@ CREATE TABLE [Administration].[Setting] (
     IsClientVisible BIT NOT NULL DEFAULT 0,
 
     IsSecret      BIT NOT NULL DEFAULT 0,
-    ModifiedUtc   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    ModifiedOn   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     ModifiedBy    UNIQUEIDENTIFIER NULL,
     RowVersion    ROWVERSION NOT NULL,
     CONSTRAINT PK_Setting PRIMARY KEY CLUSTERED (SettingId),
@@ -131,7 +131,7 @@ CREATE TABLE [Administration].[AppVersion] (
     IsLatest      BIT NOT NULL DEFAULT 0,
     ReleaseNotes  NVARCHAR(MAX) NULL,
     ReleasedUtc   DATETIME2(3) NULL,
-    CreatedUtc    DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn    DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT PK_AppVersion PRIMARY KEY CLUSTERED (AppVersionId),
     CONSTRAINT UQ_AppVersion UNIQUE (Platform, [Version]),
     CONSTRAINT CK_AppVersion_Platform CHECK (Platform IN ('android','ios','web'))
@@ -149,7 +149,7 @@ CREATE TABLE [Administration].[SupportTicket] (
     AssignedTo    UNIQUEIDENTIFIER NULL,
     AppVersion    NVARCHAR(20) NULL,
     Platform      VARCHAR(20) NULL,
-    CreatedUtc    DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedOn    DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     ResolvedUtc   DATETIME2(3) NULL,
     CONSTRAINT PK_SupportTicket PRIMARY KEY CLUSTERED (TicketId),
     CONSTRAINT FK_SupportTicket_User FOREIGN KEY (UserId)
