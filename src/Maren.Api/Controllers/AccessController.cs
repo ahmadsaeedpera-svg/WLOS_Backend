@@ -1,6 +1,7 @@
 using System.Globalization;
 using FluentValidation;
 using Maren.Application.Access;
+using Maren.Application.Config;
 using Maren.Contracts;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -196,4 +197,55 @@ public sealed class AuditController(ISender sender) : MarenControllerBase
 
         return FromResult(result);
     }
+}
+
+/// <summary>
+/// Remote configuration.
+/// </summary>
+/// <remarks>
+/// The most direct operator lever on the running app: a value changed here
+/// reaches every client on its next bootstrap, with no APK and no store review.
+/// That blast radius is why the write path is permission-gated, type-validated
+/// and audited.
+/// </remarks>
+[ApiController]
+[Route("api/v1/admin/settings")]
+[Authorize]
+[Produces("application/json")]
+public sealed class SettingsController(ISender sender) : MarenControllerBase
+{
+    [HttpGet]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<SettingAdminDto>>), 200)]
+    public async Task<IActionResult> Search(
+        [FromQuery] string? query,
+        [FromQuery] string? category,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
+    {
+        var result = await sender.Send(new SearchSettingsQuery(
+            new SettingSearchQuery(query, category, page, pageSize)), ct);
+
+        if (result.Succeeded)
+        {
+            Response.Headers["X-Total-Count"] =
+                result.Value!.TotalCount.ToString(CultureInfo.InvariantCulture);
+        }
+
+        return FromResult(result);
+    }
+
+    /// <summary>Creates or updates a setting.</summary>
+    [HttpPut]
+    [ProducesResponseType(typeof(ApiResponse<object>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
+    public async Task<IActionResult> Save(
+        [FromBody] SaveSettingRequest request, CancellationToken ct) =>
+        FromResult(await sender.Send(new SaveSettingCommand(request), ct));
+
+    /// <summary>Soft-deletes a setting, reverting clients to their default.</summary>
+    [HttpDelete("{key}")]
+    [ProducesResponseType(typeof(ApiResponse<object>), 200)]
+    public async Task<IActionResult> Delete(string key, CancellationToken ct) =>
+        FromResult(await sender.Send(new DeleteSettingCommand(key), ct));
 }

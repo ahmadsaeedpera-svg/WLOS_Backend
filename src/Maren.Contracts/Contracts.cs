@@ -130,3 +130,42 @@ public sealed record ApiResponse<T>(
         IReadOnlyDictionary<string, string[]> errors) =>
         new(false, default, "VALIDATION_FAILED", "One or more fields are invalid.", errors);
 }
+
+// ---------------------------------------------------------------------------
+// Remote configuration administration
+// ---------------------------------------------------------------------------
+
+/// <summary>A setting as an operator sees it.</summary>
+/// <remarks>
+/// <c>Value</c> is null for a secret. The value never leaves the database for
+/// a secret, not even for an administrator — showing it in a grid puts it in a
+/// browser cache, a screenshot and a support ticket. An operator can replace a
+/// secret; they cannot read it back.
+/// </remarks>
+public sealed record SettingAdminDto(
+    int SettingId,
+    string Key,
+    string? Value,
+    string DataType,
+    string? Category,
+    string? Description,
+    bool IsClientVisible,
+    bool IsSecret,
+    DateTime ModifiedOn,
+    Guid? ModifiedBy,
+    string? ModifiedByEmail);
+
+public sealed record SaveSettingRequest(
+    string Key,
+    string Value,
+    string? DataType,
+    string? Category,
+    string? Description,
+    bool? IsClientVisible,
+    bool? IsSecret);
+
+public sealed record SettingSearchQuery(
+    string? Query = null,
+    string? Category = null,
+    int Page = 1,
+    int PageSize = 50);
