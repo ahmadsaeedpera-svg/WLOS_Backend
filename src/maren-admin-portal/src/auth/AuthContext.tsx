@@ -132,4 +132,9 @@ export const Permissions = {
   contentRestore: 'content.restore',
   flagsRead: 'flags.read',
   flagsWrite: 'flags.write',
+  usersRead: 'users.read',
+  usersWrite: 'users.write',
+  rolesRead: 'roles.read',
+  rolesWrite: 'roles.write',
+  auditRead: 'audit.read',
 } as const

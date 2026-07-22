@@ -3,6 +3,9 @@ import {
   ListItemText, Toolbar, Typography, Divider, Chip,
 } from '@mui/material'
 import ArticleIcon from '@mui/icons-material/Article'
+import PeopleIcon from '@mui/icons-material/People'
+import SecurityIcon from '@mui/icons-material/Security'
+import HistoryIcon from '@mui/icons-material/History'
 import FlagIcon from '@mui/icons-material/Flag'
 import LogoutIcon from '@mui/icons-material/Logout'
 import { NavLink, useLocation } from 'react-router-dom'
@@ -29,6 +32,24 @@ const NAV: NavItem[] = [
     to: '/flags',
     icon: <FlagIcon fontSize="small" />,
     permission: Permissions.flagsRead,
+  },
+  {
+    label: 'Users',
+    to: '/users',
+    icon: <PeopleIcon fontSize="small" />,
+    permission: Permissions.usersRead,
+  },
+  {
+    label: 'Roles',
+    to: '/roles',
+    icon: <SecurityIcon fontSize="small" />,
+    permission: Permissions.rolesRead,
+  },
+  {
+    label: 'Audit log',
+    to: '/audit',
+    icon: <HistoryIcon fontSize="small" />,
+    permission: Permissions.auditRead,
   },
 ]
 

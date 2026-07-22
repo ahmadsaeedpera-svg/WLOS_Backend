@@ -7,6 +7,10 @@ import { SignIn } from './modules/SignIn'
 import { ContentList } from './modules/content/ContentList'
 import { ContentEditor } from './modules/content/ContentEditor'
 import { FeatureFlags } from './modules/flags/FeatureFlags'
+import { UsersList } from './modules/access/UsersList'
+import { UserDetail } from './modules/access/UserDetail'
+import { RolesMatrix } from './modules/access/RolesMatrix'
+import { AuditViewer } from './modules/access/AuditViewer'
 
 const theme = createTheme({
   palette: {
@@ -26,6 +30,8 @@ const queryClient = new QueryClient({
       // a denial three times triples the noise in the audit log.
       retry: (failureCount, error) => {
         const status = (error as { status?: number }).status
+        // 401 now also means "this session was revoked", which retrying
+        // cannot fix and which would hammer the endpoint after a lock.
         if (status === 401 || status === 403 || status === 400) return false
         return failureCount < 2
       },
@@ -45,6 +51,10 @@ function Routed() {
         <Route path="/content" element={<ContentList />} />
         <Route path="/content/:id" element={<ContentEditor />} />
         <Route path="/flags" element={<FeatureFlags />} />
+        <Route path="/users" element={<UsersList />} />
+        <Route path="/users/:id" element={<UserDetail />} />
+        <Route path="/roles" element={<RolesMatrix />} />
+        <Route path="/audit" element={<AuditViewer />} />
         <Route path="*" element={<Navigate to="/content" replace />} />
       </Routes>
     </Shell>
