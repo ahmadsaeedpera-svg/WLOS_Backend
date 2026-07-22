@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Maren.Admin/Maren.Admin.csproj" />
+    <Project Path="src/Maren.Api/Maren.Api.csproj" />
+    <Project Path="src/Maren.Application/Maren.Application.csproj" />
+    <Project Path="src/Maren.Contracts/Maren.Contracts.csproj" />
+    <Project Path="src/Maren.Domain/Maren.Domain.csproj" />
+    <Project Path="src/Maren.Infrastructure/Maren.Infrastructure.csproj" />
+    <Project Path="src/Maren.Persistence/Maren.Persistence.csproj" />
+    <Project Path="src/Maren.Shared/Maren.Shared.csproj" />
+  </Folder>
+</Solution>
