@@ -276,8 +276,16 @@ public static class PersistenceRegistration
         this IServiceCollection services)
     {
         services.AddSingleton<IDbConnectionFactory, SqlConnectionFactory>();
+
+        // Scoped so one request shares one unit of work, and so a repository
+        // enlisted in a transaction sees the same connection as its siblings.
+        services.AddScoped<SqlUnitOfWork>();
+        services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<SqlUnitOfWork>());
+        services.AddScoped<IAmbientConnection>(sp => sp.GetRequiredService<SqlUnitOfWork>());
+
         services.AddScoped<IAuthRepository, AuthRepository>();
         services.AddScoped<IConfigurationRepository, ConfigurationRepository>();
+        services.AddScoped<IContentRepository, ContentRepository>();
         return services;
     }
 }

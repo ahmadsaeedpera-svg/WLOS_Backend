@@ -1,10 +1,13 @@
 using System.Security.Claims;
+using System.Threading.RateLimiting;
 using System.Text;
 using FluentValidation;
 using Maren.Application.Abstractions;
 using Maren.Application.Auth;
+using Maren.Application.Behaviors;
 using Maren.Infrastructure;
 using Maren.Persistence;
+using Maren.Shared;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
@@ -25,8 +28,24 @@ builder.Services.Configure<JwtOptions>(
 builder.Services.AddMarenPersistence();
 builder.Services.AddMarenInfrastructure();
 
+builder.Services.AddMarenCaching();
+
 builder.Services.AddMediatR(cfg =>
-    cfg.RegisterServicesFromAssembly(typeof(RegisterCommand).Assembly));
+{
+    cfg.RegisterServicesFromAssembly(typeof(RegisterCommand).Assembly);
+
+    // Order matters and runs outermost first. Logging wraps everything so a
+    // rejected request still appears in the log; authorization runs before
+    // validation so an unauthorised caller learns nothing about which fields
+    // were wrong; the transaction opens last so it is held for the shortest
+    // possible time.
+    cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
+    cfg.AddOpenBehavior(typeof(AuthorizationBehavior<,>));
+    cfg.AddOpenBehavior(typeof(FeatureFlagBehavior<,>));
+    cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
+    cfg.AddOpenBehavior(typeof(CachingBehavior<,>));
+    cfg.AddOpenBehavior(typeof(TransactionBehavior<,>));
+});
 
 builder.Services.AddValidatorsFromAssembly(typeof(RegisterCommand).Assembly);
 
@@ -63,8 +82,44 @@ builder.Services
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // One policy per permission, generated from the codes the seed defines.
+    // Controllers never name a role — a role is a bundle of permissions that
+    // an administrator can change, and code that checks for "Publisher"
+    // breaks the moment somebody creates a second role that should publish.
+    foreach (var permission in PlatformPermissions.All)
+    {
+        options.AddPolicy(permission, policy =>
+            policy.RequireClaim("perm", permission));
+    }
+});
+
 builder.Services.AddControllers();
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+});
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    // Anonymous callers are bucketed by IP; authenticated ones by user, so one
+    // noisy client cannot exhaust the allowance for everyone behind the same
+    // NAT.
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(
+        context => RateLimitPartition.GetFixedWindowLimiter(
+            context.User.FindFirst("sub")?.Value
+                ?? context.Connection.RemoteIpAddress?.ToString()
+                ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 300,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+});
 builder.Services.AddEndpointsApiExplorer();
 
 // .NET 10 ships OpenAPI document generation in the framework. Swashbuckle is
@@ -87,6 +142,9 @@ builder.Services.AddOpenApi(options =>
 var app = builder.Build();
 
 app.UseSerilogRequestLogging();
+app.UseResponseCompression();
+app.UseRateLimiter();
+app.UseExceptionHandler(_ => { });
 
 if (app.Environment.IsDevelopment())
 {

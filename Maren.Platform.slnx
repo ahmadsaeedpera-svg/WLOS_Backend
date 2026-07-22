@@ -9,4 +9,7 @@
     <Project Path="src/Maren.Persistence/Maren.Persistence.csproj" />
     <Project Path="src/Maren.Shared/Maren.Shared.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Maren.Tests/Maren.Tests.csproj" />
+  </Folder>
 </Solution>

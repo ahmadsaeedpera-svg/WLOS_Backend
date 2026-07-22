@@ -26,6 +26,19 @@ public abstract class MarenControllerBase : ControllerBase
             : StatusCode(StatusFor(result.FailureCode),
                 ApiResponse<T>.Fail(result.FailureCode!, result.Message));
 
+    /// <summary>
+    /// For commands that carry no payload.
+    /// </summary>
+    /// <remarks>
+    /// Still returns the envelope with a null body rather than a bare 204, so
+    /// a client has one response shape to parse across every endpoint.
+    /// </remarks>
+    protected IActionResult FromResult(Result result) =>
+        result.Succeeded
+            ? Ok(ApiResponse<object>.Ok(new { }))
+            : StatusCode(StatusFor(result.FailureCode),
+                ApiResponse<object>.Fail(result.FailureCode!, result.Message));
+
     private static int StatusFor(string? code) => code switch
     {
         FailureCodes.InvalidCredentials => StatusCodes.Status401Unauthorized,
@@ -36,6 +49,27 @@ public abstract class MarenControllerBase : ControllerBase
         FailureCodes.Forbidden => StatusCodes.Status403Forbidden,
         FailureCodes.NotFound => StatusCodes.Status404NotFound,
         FailureCodes.EmailInUse => StatusCodes.Status409Conflict,
+
+        // A stale edit and a duplicate key are both conflicts, not bad
+        // requests: the payload was well formed and the caller can retry after
+        // refetching. A 400 would tell a client to stop rather than reload.
+        ContentFailureCodes.VersionConflict or
+        ContentFailureCodes.DuplicateKey => StatusCodes.Status409Conflict,
+
+        // Refusing to publish something unapproved is a rule about state, not
+        // about the request.
+        ContentFailureCodes.NotApproved => StatusCodes.Status409Conflict,
+
+        ContentFailureCodes.NoVersion => StatusCodes.Status404NotFound,
+
+        // Transient. 503 with a Retry-After is what a client should back off
+        // on; 500 invites a bug report instead of a retry.
+        ContentFailureCodes.Deadlock or
+        ContentFailureCodes.Timeout => StatusCodes.Status503ServiceUnavailable,
+
+        ContentFailureCodes.StorageFailure =>
+            StatusCodes.Status500InternalServerError,
+
         _ => StatusCodes.Status400BadRequest
     };
 

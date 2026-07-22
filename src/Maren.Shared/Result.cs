@@ -78,3 +78,31 @@ public static class FailureCodes
     public const string Forbidden = "FORBIDDEN";
     public const string ValidationFailed = "VALIDATION_FAILED";
 }
+
+/// <summary>
+/// Failure codes the content subsystem returns.
+/// </summary>
+/// <remarks>
+/// In Shared rather than Persistence, where they were first written. The
+/// repository produces them, the API maps them to status codes and the tests
+/// assert on them; a definition living in the layer that only produces them
+/// forces the other two to spell the strings by hand, and a typo in a
+/// hand-spelled status mapping is silent — the endpoint just returns the wrong
+/// code forever.
+/// </remarks>
+public static class ContentFailureCodes
+{
+    public const string DuplicateKey = "DUPLICATE_KEY";
+    public const string ReferenceViolation = "REFERENCE_VIOLATION";
+    public const string Deadlock = "DEADLOCK";
+    public const string Timeout = "TIMEOUT";
+    public const string StorageFailure = "STORAGE_FAILURE";
+
+    /// <summary>Publish was attempted on a version nobody approved.</summary>
+    public const string NotApproved = "NOT_APPROVED";
+
+    public const string NoVersion = "NO_VERSION";
+
+    /// <summary>The caller's copy was stale — somebody else saved first.</summary>
+    public const string VersionConflict = "VERSION_CONFLICT";
+}

@@ -87,6 +87,33 @@ INSERT @results VALUES ('editing does not move the published pointer',
     CONCAT('current=v', @n, ', published=v1'),
     CASE WHEN @ok = 1 AND @n = 2 THEN 'PASS' ELSE 'FAIL' END);
 
+-- 4b -----------------------------------------------------------------------
+/*  The pointer not moving is necessary but not sufficient. This asserts what
+    the CLIENT actually receives.
+
+    Assertion 4 passed for a long time while the client read served the
+    unreviewed draft anyway: usp_Content_GetForClient gated on
+    PublishedVersionId but then read its text from ContentTranslation, the live
+    working copy. The pointer was right and the bytes were wrong, so checking
+    the pointer alone proved nothing. Never assert on the mechanism when you
+    can assert on the outcome. */
+DECLARE @clientTitle NVARCHAR(400);
+DECLARE @clientRows TABLE (
+    ContentItemId UNIQUEIDENTIFIER, ContentType VARCHAR(40), [Key] VARCHAR(200),
+    Weight INT, SourceCitation NVARCHAR(1000), FromWeek TINYINT, ToWeek TINYINT,
+    Season VARCHAR(20), ModifiedUtc DATETIME2(3), CategoryKey VARCHAR(100),
+    Title NVARCHAR(400), Body NVARCHAR(MAX), Summary NVARCHAR(1000),
+    MetadataJson NVARCHAR(MAX), IsFallback BIT);
+
+INSERT @clientRows EXEC [Content].[usp_Content_GetForClient]
+    @ContentType = 'article', @LanguageCode = 'en-GB';
+
+SELECT @clientTitle = Title FROM @clientRows WHERE [Key] = 'folate-foods';
+
+INSERT @results VALUES ('client still reads the approved text after an edit',
+    CONCAT('served="', ISNULL(@clientTitle, '(none)'), '"'),
+    CASE WHEN @clientTitle = N'Where folate turns up' THEN 'PASS' ELSE 'FAIL' END);
+
 -- 5 ------------------------------------------------------------------------
 DELETE @res;
 INSERT @res EXEC [Content].[usp_Content_RestoreVersion]

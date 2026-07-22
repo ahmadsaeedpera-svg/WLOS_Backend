@@ -623,6 +623,25 @@ BEGIN
     SET NOCOUNT ON;
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME();
 
+    /*  Text comes from the PUBLISHED VERSION SNAPSHOT, never from
+        ContentTranslation.
+
+        ContentTranslation is the live working copy — it holds whatever an
+        editor last typed, reviewed or not. Reading it here made the approval
+        workflow decorative: an editor opening a published article and typing
+        pushed unreviewed text to every device on the next sync, with no
+        approval, no audit of a publish, and no way to tell from the admin UI
+        that it had happened. In a pregnancy app that is a clinical-safety
+        problem, not only a workflow one.
+
+        The snapshot is the exact bytes somebody approved. Serving those is the
+        entire reason the version table stores JSON rather than pointers.
+
+        Targeting (country, week, season, app version, publish window) is still
+        read live from the item. Those are operational controls: narrowing
+        distribution during an incident must take effect immediately and must
+        not require a publish. Text is what approval governs; reach is what an
+        operator governs. */
     SELECT
         i.ContentItemId, i.ContentType, i.[Key], i.Weight, i.SourceCitation,
         i.FromWeek, i.ToWeek, i.Season, i.ModifiedUtc,
@@ -637,10 +656,32 @@ BEGIN
         CAST(CASE WHEN t.LanguageCode IS NULL THEN 1 ELSE 0 END AS BIT) AS IsFallback
     FROM [Content].[ContentItem] i
     LEFT JOIN [Content].[Category] c ON c.CategoryId = i.CategoryId
-    LEFT JOIN [Content].[ContentTranslation] t
-           ON t.ContentItemId = i.ContentItemId AND t.LanguageCode = @LanguageCode
-    LEFT JOIN [Content].[ContentTranslation] fb
-           ON fb.ContentItemId = i.ContentItemId AND fb.LanguageCode = 'en-GB'
+    JOIN [Content].[ContentVersion] pv
+           ON pv.ContentVersionId = i.PublishedVersionId
+    OUTER APPLY (
+        SELECT TOP 1 j.Title, j.Body, j.Summary, j.MetadataJson, j.LanguageCode
+        FROM OPENJSON(pv.SnapshotJson, '$.Localizations')
+        WITH (
+            LanguageCode CHAR(5)       '$.LanguageCode',
+            Title        NVARCHAR(400) '$.Title',
+            Body         NVARCHAR(MAX) '$.Body',
+            Summary      NVARCHAR(1000)'$.Summary',
+            MetadataJson NVARCHAR(MAX) '$.MetadataJson' AS JSON
+        ) j
+        WHERE j.LanguageCode = @LanguageCode
+    ) t
+    OUTER APPLY (
+        SELECT TOP 1 j.Title, j.Body, j.Summary, j.MetadataJson
+        FROM OPENJSON(pv.SnapshotJson, '$.Localizations')
+        WITH (
+            LanguageCode CHAR(5)       '$.LanguageCode',
+            Title        NVARCHAR(400) '$.Title',
+            Body         NVARCHAR(MAX) '$.Body',
+            Summary      NVARCHAR(1000)'$.Summary',
+            MetadataJson NVARCHAR(MAX) '$.MetadataJson' AS JSON
+        ) j
+        WHERE j.LanguageCode = 'en-GB'
+    ) fb
     WHERE i.IsDeleted = 0
       AND i.Status = 'published'
       AND i.PublishedVersionId IS NOT NULL
