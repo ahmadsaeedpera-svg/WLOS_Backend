@@ -4,11 +4,11 @@
 
 | | |
 |---|---|
-| **Report** | #2 |
+| **Report** | #3 |
 | **Date** | 2026-07-22 |
-| **After sprint** | Sprint 2 — Dynamic Content Delivery |
-| **Coverage** | **15%** (8 of 55 surfaces) |
-| **Previous** | 11% (6 of 55) |
+| **After** | Help Center / FAQ vertical (Sprint 3 migration begins) |
+| **Coverage** | **16%** (9 of 55 surfaces) |
+| **Previous** | 15% (8 of 55) |
 
 ---
 
@@ -60,12 +60,12 @@ offline still works → roll back → the app reverts → audit records everythi
 ## Coverage
 
 ```
-Covered      ███░░░░░░░░░░░░░░░░░  15%   8 / 55
-Ready        ██████████░░░░░░░░░░  ~50%       migration mechanical, SDK exists
+Covered      ███░░░░░░░░░░░░░░░░░  16%   9 / 55
+Ready        ██████████░░░░░░░░░░  ~47%       migration mechanical, SDK exists
 Not started  ███████░░░░░░░░░░░░░  35%        needs a new backend module
 ```
 
-### Covered — verified end to end (8)
+### Covered — verified end to end (9)
 
 | Surface | Type | Since |
 |---|---|---|
@@ -75,10 +75,16 @@ Not started  ███████░░░░░░░░░░░░░  35%  
 | Privacy policy URL | setting | Sprint 1 |
 | Terms URL | setting | Sprint 1 |
 | Content rotation window | setting | Sprint 1 |
-| **Daily tip** | `dailyTip` | **Sprint 2** |
-| **Weekly text** | `weeklyText` | **Sprint 2** |
+| **Daily tip** | `dailyTip` | Sprint 2 |
+| **Weekly text** | `weeklyText` | Sprint 2 |
+| **Help Center / FAQ** | `faq` | **This vertical** |
 
-### Ready — the platform can carry these now; migration is mechanical (≈27)
+### Ready — the platform can carry these now; migration is mechanical (≈26)
+
+> **FAQ proved the claim.** The Help Center vertical converted one "ready"
+> surface to "covered" and touched **no backend code** — only a content seed and
+> a Flutter renderer. That is the migration shape for the rest of this column.
+
 
 Every one of these has a content type in the taxonomy, a delivery endpoint, and
 an SDK that already fetches, caches and renders it. Migrating each is: seed the
