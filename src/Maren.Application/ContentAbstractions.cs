@@ -80,6 +80,15 @@ public interface IContentRepository
         DateTime? modifiedSince, CancellationToken ct);
 
     /// <summary>
+    /// The incremental delta for a mobile client: changes and removals since a
+    /// token, plus the next token.
+    /// </summary>
+    Task<ContentDeltaDto> GetDeltaAsync(
+        string? sinceToken, string? contentType, string languageCode,
+        string? countryIso, int? appVersionCode, byte? week, string? season,
+        CancellationToken ct);
+
+    /// <summary>
     /// The current version number, for optimistic concurrency and ETags.
     /// Null when the item does not exist.
     /// </summary>

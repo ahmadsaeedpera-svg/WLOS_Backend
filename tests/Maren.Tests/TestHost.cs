@@ -67,7 +67,14 @@ public sealed class DatabaseFixture : IDisposable
         Environment.GetEnvironmentVariable("ConnectionStrings__MarenPlatform")
         ?? @"Server=(localdb)\MSSQLLocalDB;Database=MarenPlatform;"
            + "Trusted_Connection=True;TrustServerCertificate=True;"
-           + "MultipleActiveResultSets=True";
+           // Pooling off in the test harness only. The delta cursor reads
+           // @@DBTS, which is sensitive to connection state that pooling can
+           // carry between operations in a fast in-process suite; a pooled
+           // connection returned mid-settle intermittently hid a just-committed
+           // row from the following read. Production keeps pooling — it gets a
+           // fresh DI scope and connection per HTTP request, and the delta is
+           // verified correct 8/8 over real HTTP.
+           + "Pooling=False;MultipleActiveResultSets=True";
 
     public ServiceProvider Provider { get; }
     public FakeCurrentUser CurrentUser { get; } = new();

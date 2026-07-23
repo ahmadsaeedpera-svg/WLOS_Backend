@@ -7,6 +7,86 @@ using MediatR;
 
 namespace Maren.Application.Content;
 
+/// <summary>
+/// The enterprise content taxonomy — every user-visible surface the mobile app
+/// can render remotely.
+/// </summary>
+/// <remarks>
+/// One list, referenced by the save validator, so adding a surface is a
+/// one-line change here rather than an edit scattered across validators. The
+/// portal's category filter reads the same set through the API, so the two
+/// cannot drift.
+///
+/// <para>
+/// A content TYPE is what the client switches on to choose a renderer; the
+/// CATEGORY on the item is the editorial grouping an operator browses by. They
+/// are deliberately separate — "faq" is one renderer, but FAQs are grouped by
+/// topic.
+/// </para>
+/// </remarks>
+public static class ContentCatalog
+{
+    // Home and journey
+    public const string HomeBanner = "homeBanner";
+    public const string HomeCard = "homeCard";
+    public const string DailyTip = "dailyTip";
+    public const string WeeklyText = "weeklyText";
+    public const string JourneyCard = "journeyCard";
+    public const string WeeklyArticle = "article";
+
+    // Guidance
+    public const string Faq = "faq";
+    public const string WellnessSnippet = "wellnessSnippet";
+    public const string InsightTopic = "insightTopic";
+    public const string TrimesterContent = "trimesterContent";
+    public const string SymptomInfo = "symptomInfo";
+    public const string CoachMessage = "coachMessage";
+
+    // Lifecycle copy
+    public const string Onboarding = "onboardingPage";
+    public const string Greeting = "greeting";
+    public const string SeasonalNote = "seasonalNote";
+    public const string Challenge = "challenge";
+    public const string Encouragement = "encouragement";
+    public const string Achievement = "achievement";
+
+    // System surfaces
+    public const string EmptyState = "emptyState";
+    public const string ErrorMessage = "errorMessage";
+    public const string LoadingMessage = "loadingMessage";
+    public const string SuccessMessage = "successMessage";
+    public const string OfflineMessage = "offlineMessage";
+    public const string Dialog = "dialog";
+    public const string Banner = "banner";
+    public const string CalendarHelp = "calendarHelp";
+    public const string ReleaseNote = "releaseNote";
+
+    // Notifications
+    public const string NotificationCopy = "notificationCopy";
+
+    // Legal and safety
+    public const string Legal = "legal";
+    public const string Privacy = "privacy";
+    public const string Terms = "terms";
+    public const string Disclaimer = "disclaimer";
+    public const string Emergency = "emergency";
+
+    // Templates (operator-managed structures the app fills in)
+    public const string HospitalBagTemplate = "hospitalBagTemplate";
+    public const string BirthPreferenceOption = "birthPreferenceOption";
+
+    public static readonly string[] All =
+    [
+        HomeBanner, HomeCard, DailyTip, WeeklyText, JourneyCard, WeeklyArticle,
+        Faq, WellnessSnippet, InsightTopic, TrimesterContent, SymptomInfo,
+        CoachMessage, Onboarding, Greeting, SeasonalNote, Challenge,
+        Encouragement, Achievement, EmptyState, ErrorMessage, LoadingMessage,
+        SuccessMessage, OfflineMessage, Dialog, Banner, CalendarHelp,
+        ReleaseNote, NotificationCopy, Legal, Privacy, Terms, Disclaimer,
+        Emergency, HospitalBagTemplate, BirthPreferenceOption
+    ];
+}
+
 /// <summary>Permission codes. Never string literals at a call site.</summary>
 public static class ContentPermissions
 {
@@ -170,6 +250,30 @@ public sealed class GetClientContentHandler(IContentRepository repository)
                 query.ModifiedSince, ct));
 }
 
+/// <summary>The incremental delta a mobile client syncs.</summary>
+/// <remarks>
+/// Not cached by the pipeline. The whole value of a delta is that it is
+/// per-<c>since</c>-token, so the cache key would be unique on nearly every
+/// call and the cache would only cost memory. The procedure it calls is a
+/// cheap indexed read.
+/// </remarks>
+public sealed record GetContentDeltaQuery(
+    string? SinceToken, string? ContentType, string LanguageCode,
+    string? CountryIso, int? AppVersionCode, byte? Week, string? Season)
+    : IRequest<Result<ContentDeltaDto>>;
+
+public sealed class GetContentDeltaHandler(IContentRepository repository)
+    : IRequestHandler<GetContentDeltaQuery, Result<ContentDeltaDto>>
+{
+    public async Task<Result<ContentDeltaDto>> Handle(
+        GetContentDeltaQuery query, CancellationToken ct) =>
+        Result<ContentDeltaDto>.Success(
+            await repository.GetDeltaAsync(
+                query.SinceToken, query.ContentType, query.LanguageCode,
+                query.CountryIso, query.AppVersionCode, query.Week,
+                query.Season, ct));
+}
+
 // ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
@@ -182,12 +286,12 @@ public sealed record SaveContentCommand(SaveContentRequest Request)
 
 public sealed class SaveContentValidator : AbstractValidator<SaveContentCommand>
 {
-    private static readonly string[] ContentTypes =
-    [
-        "article", "wellnessSnippet", "greeting", "seasonalNote", "challenge",
-        "encouragement", "notificationCopy", "onboardingPage", "insightTopic",
-        "hospitalBagTemplate", "birthPreferenceOption"
-    ];
+    // Enterprise content taxonomy. Every user-visible surface the app can
+    // render is a content type here, so migrating a hardcoded source is a
+    // matter of choosing the right one rather than adding to a whitelist each
+    // time. Kept in sync with ContentTypes.All below and with the portal's
+    // category list.
+    private static readonly string[] ContentTypes = ContentCatalog.All;
 
     public SaveContentValidator()
     {

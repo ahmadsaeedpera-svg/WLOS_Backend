@@ -271,6 +271,67 @@ public sealed class ClientContentController(ISender sender) : MarenControllerBas
         return Ok(ApiResponse<IReadOnlyList<ClientContentDto>>.Ok(items));
     }
 
+    /// <summary>
+    /// The incremental delta since the client's last sync token.
+    /// </summary>
+    /// <param name="since">
+    /// The <c>syncToken</c> from the previous delta response. Omit for a first
+    /// full sync.
+    /// </param>
+    /// <remarks>
+    /// Returns changed items AND tombstones — items the client should delete
+    /// because they were unpublished, deleted or expired. A sync that only
+    /// carried changes could never tell a device that an article was pulled,
+    /// so a rollback would never reach the phone.
+    ///
+    /// <para>
+    /// The response gzips through the global compression middleware. The ETag
+    /// is over the returned token and the two set sizes, so an unchanged delta
+    /// (nothing happened since <c>since</c>) answers 304 and transfers nothing.
+    /// </para>
+    /// </remarks>
+    [HttpGet("delta")]
+    [ProducesResponseType(typeof(ApiResponse<ContentDeltaDto>), 200)]
+    [ProducesResponseType(304)]
+    public async Task<IActionResult> Delta(
+        [FromQuery] string? since,
+        [FromQuery] string? contentType,
+        [FromQuery] string language = "en-GB",
+        [FromQuery] string? country = null,
+        [FromQuery] string? appVersion = null,
+        [FromQuery] byte? week = null,
+        [FromQuery] string? season = null,
+        CancellationToken ct = default)
+    {
+        var result = await sender.Send(new GetContentDeltaQuery(
+            since, contentType, language, country,
+            appVersion is null ? null : VersionCode.Parse(appVersion),
+            week, season), ct);
+
+        if (!result.Succeeded) return FromResult(result);
+
+        var delta = result.Value!;
+
+        // An empty delta (nothing changed and nothing removed) still carries a
+        // fresh token, but its BODY is identical to the client's last empty
+        // pull. The ETag lets that answer 304 so an idle client polling every
+        // few minutes transfers almost nothing.
+        var etag = WeakETag(
+            $"{delta.Upserts.Count}:{delta.Tombstones.Count}:" +
+            (delta.Upserts.Count == 0
+                ? "0"
+                : delta.Upserts.Max(u => u.ModifiedOn).ToString("O")));
+
+        if (delta.Upserts.Count == 0 && delta.Tombstones.Count == 0 &&
+            Request.Headers.IfNoneMatch.Any(v => v == etag))
+        {
+            return StatusCode(StatusCodes.Status304NotModified);
+        }
+
+        Response.Headers.ETag = etag;
+        return Ok(ApiResponse<ContentDeltaDto>.Ok(delta));
+    }
+
     private static string WeakETag(string seed)
     {
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(seed));

@@ -210,3 +210,50 @@ public sealed record ContentSearchQuery(
     int PageSize = 25,
     string SortBy = "modified",
     bool SortDescending = true);
+
+// ---------------------------------------------------------------------------
+// Delta content sync (mobile)
+// ---------------------------------------------------------------------------
+
+/// <summary>One content item as the mobile client stores it.</summary>
+public sealed record DeltaContentItemDto(
+    Guid ContentItemId,
+    string ContentType,
+    string? Key,
+    int Weight,
+    string? SourceCitation,
+    byte? FromWeek,
+    byte? ToWeek,
+    string? Season,
+    DateTime ModifiedOn,
+    int VersionNumber,
+    string? CategoryKey,
+    string? Title,
+    string? Body,
+    string? Summary,
+    string? MetadataJson,
+    bool IsFallback);
+
+/// <summary>
+/// An item the client should delete from its cache.
+/// </summary>
+/// <remarks>
+/// The half a naive "changed since" sync omits. Without it a client that has
+/// cached a now-retired article keeps showing it forever, and a rollback never
+/// reaches the device.
+/// </remarks>
+public sealed record ContentTombstoneDto(
+    Guid ContentItemId,
+    string? Key,
+    string ContentType,
+    DateTime ModifiedOn);
+
+/// <summary>The whole delta: what changed, what to remove, and the next token.</summary>
+public sealed record ContentDeltaDto(
+    /// <summary>
+    /// Opaque cursor. Pass it back verbatim as <c>since</c> on the next sync.
+    /// A hex-encoded rowversion — the client never parses it, only echoes it.
+    /// </summary>
+    string SyncToken,
+    IReadOnlyList<DeltaContentItemDto> Upserts,
+    IReadOnlyList<ContentTombstoneDto> Tombstones);

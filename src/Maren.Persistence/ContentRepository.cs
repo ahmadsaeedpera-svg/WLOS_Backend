@@ -296,6 +296,45 @@ public sealed class ContentRepository(IAmbientConnection ambient) : IContentRepo
         }
     }
 
+    public async Task<ContentDeltaDto> GetDeltaAsync(
+        string? sinceToken, string? contentType, string languageCode,
+        string? countryIso, int? appVersionCode, byte? week, string? season,
+        CancellationToken ct)
+    {
+        var (connection, transaction, owned) = await ambient.GetAsync(ct);
+        try
+        {
+            using var grid = await connection.QueryMultipleAsync(
+                new CommandDefinition(
+                    "[Content].[usp_Content_GetDelta]",
+                    new
+                    {
+                        SinceToken = sinceToken,
+                        ContentType = contentType,
+                        LanguageCode = languageCode,
+                        CountryIso = countryIso,
+                        AppVersionCode = appVersionCode,
+                        Week = week,
+                        Season = season
+                    },
+                    transaction, commandType: CommandType.StoredProcedure,
+                    cancellationToken: ct));
+
+            // Three result sets, in the order the procedure declares them:
+            // token, upserts, tombstones. Reading them out of order silently
+            // maps the wrong columns, so the sequence is load-bearing.
+            var token = await grid.ReadSingleAsync<string>();
+            var upserts = (await grid.ReadAsync<DeltaContentItemDto>()).ToList();
+            var tombstones = (await grid.ReadAsync<ContentTombstoneDto>()).ToList();
+
+            return new ContentDeltaDto(token, upserts, tombstones);
+        }
+        finally
+        {
+            if (owned) connection.Dispose();
+        }
+    }
+
     // -----------------------------------------------------------------------
     // Writes
     // -----------------------------------------------------------------------
