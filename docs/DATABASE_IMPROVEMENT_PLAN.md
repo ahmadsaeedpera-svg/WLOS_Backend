@@ -69,9 +69,11 @@ All pure `CREATE INDEX` / `DROP INDEX` work. No schema, no procedure, no contrac
 
 ## PHASE 2 — Correctness & safety (bug fixes, still compatible)
 
-### 2.1 · Fix the approval-gate bypass in `usp_Content_RunDueSchedules` 🔴 **Highest severity**
-- Add the same `ContentApproval` check `usp_Content_Publish` enforces. **Must land before any scheduler is wired up**, or unapproved health content self-publishes.
-- **Test:** SQL assertion — scheduling an unapproved item must not publish it.
+### 2.1 · Fix the approval-gate bypass in `usp_Content_RunDueSchedules` ✅ **DONE**
+- Added the `ContentApproval` check `usp_Content_Publish` enforces. Refusals now mark the schedule `failed` with a `FailureReason` (both already existed in the schema and were unused) and write an audit row.
+- **A second defect surfaced while testing:** the runner published `COALESCE(PublishedVersionId, CurrentVersionId)`, which for an already-published item resolves to the version *already live* — so scheduling a newly approved edit silently republished the old text. Now publishes `CurrentVersionId`, agreeing with `usp_Content_Publish`.
+- **Test:** `tests/scheduled_publish_test.sql` — 5 of 6 assertions failed before the fix, 6/6 after. Wired into CI.
+- **Compatibility:** result set deliberately left at one column (`Executed`); the caller uses `QuerySingleAsync<int>`.
 
 ### 2.2 · Clamp page size in `usp_User_Search`, `usp_Audit_Search`, `usp_Setting_Search`
 - Match `usp_Content_Search`'s 1–200 clamp and add a `@Page < 1` guard. Defence in depth.

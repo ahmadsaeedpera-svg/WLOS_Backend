@@ -759,6 +759,10 @@ BEGIN
         ContentItemId UNIQUEIDENTIFIER,
         [Action] VARCHAR(20));
 
+    DECLARE @refused TABLE (
+        ScheduleId UNIQUEIDENTIFIER,
+        ContentItemId UNIQUEIDENTIFIER);
+
     UPDATE TOP (@BatchSize) s
     SET Status = 'executed', ExecutedUtc = SYSUTCDATETIME()
     OUTPUT inserted.ScheduleId, inserted.ContentItemId, inserted.[Action]
@@ -766,9 +770,50 @@ BEGIN
     FROM [Content].[ContentPublishSchedule] s
     WHERE s.Status = 'pending' AND s.ScheduledUtc <= SYSUTCDATETIME();
 
+    /*  A scheduled publish is the same act as an immediate one, deferred, so
+        it answers to the same approval rule as usp_Content_Publish. Without
+        this an editor could schedule an unreviewed draft and have it reach
+        every device unattended - the one outcome the whole approval workflow
+        exists to prevent.
+
+        Refusals are recorded on the schedule row rather than dropped. The
+        table already carries 'failed' and FailureReason for exactly this;
+        leaving the row marked 'executed' would report success for work that
+        never happened, and the editor would never learn why their post did
+        not appear.
+
+        An item with no current version fails here too, matching the
+        NO_VERSION path in usp_Content_Publish. */
+    UPDATE s
+    SET Status = 'failed',
+        ExecutedUtc = SYSUTCDATETIME(),
+        FailureReason = N'Not published: this version has not been approved. '
+                      + N'A scheduled publish follows the same approval rule '
+                      + N'as an immediate one.'
+    OUTPUT inserted.ScheduleId, inserted.ContentItemId INTO @refused
+    FROM [Content].[ContentPublishSchedule] s
+    JOIN @claimed c ON c.ScheduleId = s.ScheduleId
+    JOIN [Content].[ContentItem] i ON i.ContentItemId = c.ContentItemId
+    WHERE c.[Action] = 'publish'
+      AND NOT EXISTS (
+            SELECT 1 FROM [Content].[ContentApproval] a
+            WHERE a.ContentItemId = i.ContentItemId
+              AND a.ContentVersionId = i.CurrentVersionId
+              AND a.IsApproved = 1);
+
+    /*  Drop the refused rows so they are neither published below nor audited
+        as though they had been. */
+    DELETE c FROM @claimed c
+    JOIN @refused r ON r.ScheduleId = c.ScheduleId;
+
+    /*  Publishes CurrentVersionId, not COALESCE(PublishedVersionId, ...).
+        For an item that had been published before, the COALESCE resolved to
+        the version already live, so scheduling a newly approved edit quietly
+        republished the old text. usp_Content_Publish defaults to the current
+        version; this now agrees with it. */
     UPDATE i
     SET Status = 'published',
-        PublishedVersionId = COALESCE(i.PublishedVersionId, i.CurrentVersionId),
+        PublishedVersionId = i.CurrentVersionId,
         PublishFromUtc = SYSUTCDATETIME(),
         ModifiedOn = SYSUTCDATETIME()
     FROM [Content].[ContentItem] i
@@ -789,6 +834,22 @@ BEGIN
            'ContentItem', CONVERT(NVARCHAR(50), c.ContentItemId)
     FROM @claimed c;
 
+    /*  A refused publish is worth an audit row of its own. It is the record
+        that unreviewed content was stopped, and it is the only trace an
+        operator has when an editor asks why a scheduled post never went out. */
+    INSERT INTO [Audit].[AuditLog]
+        (ActorUserId, ActorKind, [Action], EntityType, EntityId)
+    SELECT NULL, 'system', 'Content.Scheduled.PublishRefused',
+           'ContentItem', CONVERT(NVARCHAR(50), r.ContentItemId)
+    FROM @refused r;
+
+    /*  Counts work actually done. Refusals are deliberately excluded: the
+        caller records this as the number of schedules executed, and a refusal
+        is the opposite of that.
+
+        One column, deliberately. The caller reads this with
+        QuerySingleAsync<int>, so widening the result set here would break it
+        silently at runtime - see CLAUDE.md 4.2. */
     SELECT COUNT(*) AS Executed FROM @claimed;
 END
 GO

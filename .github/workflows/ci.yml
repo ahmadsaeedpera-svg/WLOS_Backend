@@ -150,6 +150,16 @@ jobs:
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Access assertions failed"; exit 1; }
 
+      - name: SQL assertion suite — scheduled publish
+        # A deferred publish must obey the same approval rule as an immediate
+        # one. It did not, and in a health product that means unreviewed
+        # guidance reaching devices unattended.
+        working-directory: src/Maren.Database
+        run: |
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/scheduled_publish_test.sql)
+          echo "$out"
+          echo "$out" | grep -q "FAILED: 0" || { echo "::error::Scheduled publish assertions failed"; exit 1; }
+
       - name: SQL assertion suite — foreign key index coverage
         # Standing invariant: a foreign key added without a supporting index
         # is a scan waiting to happen, and twelve of ours cascade on delete.

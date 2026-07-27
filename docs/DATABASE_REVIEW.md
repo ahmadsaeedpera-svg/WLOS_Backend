@@ -161,7 +161,10 @@ No `Organization`/`Tenant`/`Program` table; no tenant column on any of the 44 ta
 
 ---
 
-### H-7 · `usp_Content_RunDueSchedules` bypasses the approval gate — latent data-integrity bug
+### H-7 · `usp_Content_RunDueSchedules` bypasses the approval gate — latent data-integrity bug ✅ **FIXED**
+
+> **Resolved.** Both this and a second defect found while testing it (the runner republished the already-live version instead of the newly approved one) are fixed and covered by `tests/scheduled_publish_test.sql`. Original finding retained below for the record.
+
 
 `usp_Content_Publish` enforces "publish requires approval" (`12_Procs_Content.sql:192-200`, returns `NOT_APPROVED`). The scheduled-publish runner does **not**: it publishes via `COALESCE(i.PublishedVersionId, i.CurrentVersionId)` with **no `ContentApproval` check** (`12_Procs_Content.sql:769-776`).
 
