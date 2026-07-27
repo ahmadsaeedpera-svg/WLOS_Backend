@@ -109,7 +109,8 @@ jobs:
                    30_Indexes_ForeignKeys.sql 31_AI_Safety.sql \
                    32_LifeStage.sql 33_Procs_Profile.sql \
                    34_ContentTargeting.sql 35_Procs_ContentTargeting.sql \
-                   36_Timeline.sql 37_Procs_Timeline.sql; do
+                   36_Timeline.sql 37_Procs_Timeline.sql \
+                   38_LifeDomain.sql 39_KnowledgeGraph.sql 40_Procs_Knowledge.sql; do
             echo "--- $f"
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
@@ -130,7 +131,8 @@ jobs:
                    30_Indexes_ForeignKeys.sql 31_AI_Safety.sql \
                    32_LifeStage.sql 33_Procs_Profile.sql \
                    34_ContentTargeting.sql 35_Procs_ContentTargeting.sql \
-                   36_Timeline.sql 37_Procs_Timeline.sql; do
+                   36_Timeline.sql 37_Procs_Timeline.sql \
+                   38_LifeDomain.sql 39_KnowledgeGraph.sql 40_Procs_Knowledge.sql; do
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
 
@@ -217,6 +219,18 @@ jobs:
           out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/timeline_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Timeline assertions failed"; exit 1; }
+
+      - name: SQL assertion suite — knowledge graph
+        # Assertions 1 to 5 are the reason this step exists. They check that the
+        # graph has not become a diagnostic engine: no causal verb in the
+        # relation vocabulary, every edge justified, and health observations
+        # flagged so no later engine can score them into advice. The change that
+        # adds "causes" will arrive in a hurry and look harmless in review.
+        working-directory: src/Maren.Database
+        run: |
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/knowledge_graph_test.sql)
+          echo "$out"
+          echo "$out" | grep -q "FAILED: 0" || { echo "::error::Knowledge graph assertions failed"; exit 1; }
 
       - name: Integration tests
         env:
