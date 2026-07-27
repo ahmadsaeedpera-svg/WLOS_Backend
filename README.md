@@ -94,7 +94,8 @@ for f in 01_Schemas.sql 02_Identity.sql 03_Administration.sql 04_Health.sql \
          13_Procs_Access.sql 15_Procs_ContentDelta.sql 16_ContentTaxonomy.sql \
          20_Seed.sql 21_Seed_CMS.sql 22_Seed_FAQ.sql \
          30_Indexes_ForeignKeys.sql 31_AI_Safety.sql \
-         32_LifeStage.sql 33_Procs_Profile.sql; do
+         32_LifeStage.sql 33_Procs_Profile.sql \
+         34_ContentTargeting.sql 35_Procs_ContentTargeting.sql; do
   sqlcmd -S "(localdb)\MSSQLLocalDB" -I -d MarenPlatform -i "$f" || break
 done
 

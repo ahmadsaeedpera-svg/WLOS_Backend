@@ -107,7 +107,8 @@ jobs:
                    15_Procs_ContentDelta.sql 16_ContentTaxonomy.sql \
                    20_Seed.sql 21_Seed_CMS.sql 22_Seed_FAQ.sql \
                    30_Indexes_ForeignKeys.sql 31_AI_Safety.sql \
-                   32_LifeStage.sql 33_Procs_Profile.sql; do
+                   32_LifeStage.sql 33_Procs_Profile.sql \
+                   34_ContentTargeting.sql 35_Procs_ContentTargeting.sql; do
             echo "--- $f"
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
@@ -126,7 +127,8 @@ jobs:
                    15_Procs_ContentDelta.sql 16_ContentTaxonomy.sql \
                    20_Seed.sql 21_Seed_CMS.sql 22_Seed_FAQ.sql \
                    30_Indexes_ForeignKeys.sql 31_AI_Safety.sql \
-                   32_LifeStage.sql 33_Procs_Profile.sql; do
+                   32_LifeStage.sql 33_Procs_Profile.sql \
+                   34_ContentTargeting.sql 35_Procs_ContentTargeting.sql; do
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
 
@@ -192,6 +194,16 @@ jobs:
           out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/life_stage_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Life stage assertions failed"; exit 1; }
+
+      - name: SQL assertion suite — content targeting
+        # Every failure here is silent: content reaching nobody raises no error,
+        # and content reaching the wrong woman raises none either. Assertions
+        # are the only thing that catches either one.
+        working-directory: src/Maren.Database
+        run: |
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/content_targeting_test.sql)
+          echo "$out"
+          echo "$out" | grep -q "FAILED: 0" || { echo "::error::Content targeting assertions failed"; exit 1; }
 
       - name: Integration tests
         env:
