@@ -133,12 +133,12 @@ public sealed class ContentDeltaTests : IAsyncLifetime
         await PublishTip(Prefix + "b", "Second");
 
         var delta = await DeltaUntil(null,
-            d => d.Upserts.Count(u => u.Key!.StartsWith(Prefix)) == 2);
+            d => d.Upserts.Count(u => u.Key!.StartsWith(Prefix, StringComparison.Ordinal)) == 2);
 
-        delta.Upserts.Where(u => u.Key!.StartsWith(Prefix)).Should().HaveCount(2);
+        delta.Upserts.Where(u => u.Key!.StartsWith(Prefix, StringComparison.Ordinal)).Should().HaveCount(2);
         // A first sync has no client cache to prune, so tombstones are empty by
         // construction even when other items were retired earlier.
-        delta.Tombstones.Where(t => t.Key!.StartsWith(Prefix)).Should().BeEmpty();
+        delta.Tombstones.Where(t => t.Key!.StartsWith(Prefix, StringComparison.Ordinal)).Should().BeEmpty();
         delta.SyncToken.Should().StartWith("0x");
     }
 
@@ -151,8 +151,8 @@ public sealed class ContentDeltaTests : IAsyncLifetime
         // Nothing changed between the two calls.
         var second = await Delta(first.SyncToken);
 
-        second.Upserts.Where(u => u.Key!.StartsWith(Prefix)).Should().BeEmpty();
-        second.Tombstones.Where(t => t.Key!.StartsWith(Prefix)).Should().BeEmpty();
+        second.Upserts.Where(u => u.Key!.StartsWith(Prefix, StringComparison.Ordinal)).Should().BeEmpty();
+        second.Tombstones.Where(t => t.Key!.StartsWith(Prefix, StringComparison.Ordinal)).Should().BeEmpty();
     }
 
     [Fact]

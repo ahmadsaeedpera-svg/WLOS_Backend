@@ -25,16 +25,17 @@
 
 ---
 
-## PHASE 0 — Unblock the build (prerequisite)
+## PHASE 0 — Unblock the build (prerequisite) ✅ **DONE**
 
-Nothing else can be verified while CI is red.
-
-| # | Improvement | Type | Risk |
+| # | Improvement | Type | Status |
 |---|---|---|---|
-| **0.1** | Fix the 5 `CA1310` errors in `ContentDeltaTests.cs` (add `StringComparison.Ordinal`) | Test-only | None |
-| **0.2** | Fix `DatabaseFixture` async disposal (`IAsyncLifetime`/`CreateAsyncScope`) — removes the masked `InvalidOperationException` | Test-only | None |
+| **0.1** | Fix the 5 `CA1310` errors in `ContentDeltaTests.cs` (`StringComparison.Ordinal`) | Test-only | ✅ Done |
+| **0.2** | Fix `DatabaseFixture` async disposal (`IAsyncLifetime`) | Test-only | ✅ Done |
 
-> Not database changes, but they gate honest verification of everything below.
+Both were needed. Fixing only 0.1 left `dotnet test` exiting non-zero from the
+collection cleanup failure, so the CI integration-test step would still have
+failed while printing "Passed! 127". Verified: build exit 0 with zero warnings,
+tests exit 0 with 127 passing.
 
 ---
 

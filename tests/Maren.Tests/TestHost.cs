@@ -54,7 +54,7 @@ public sealed class FakeCurrentUser : ICurrentUser
 /// own rows on the way in, so the suite is re-runnable and order-independent.
 /// </para>
 /// </remarks>
-public sealed class DatabaseFixture : IDisposable
+public sealed class DatabaseFixture : IAsyncLifetime
 {
     /// <summary>Where the tests find SQL Server.</summary>
     /// <remarks>
@@ -164,7 +164,23 @@ public sealed class DatabaseFixture : IDisposable
             """, new { Pattern = keyPrefix + "%" }, commandTimeout: 60);
     }
 
-    public void Dispose() => Provider.Dispose();
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    /*  Disposed asynchronously, and this is not a style preference.
+
+        The container holds SqlUnitOfWork, which implements IAsyncDisposable and
+        not IDisposable - the same rule CLAUDE.md section 7 states for scopes.
+        Calling the synchronous Provider.Dispose() on a container holding an
+        async-only disposable throws InvalidOperationException, which xUnit
+        reported as a collection cleanup failure while still printing
+        "Passed! 127".
+
+        That combination is why it survived: the summary line looked green, but
+        dotnet test exited non-zero, so the CI integration-test step would have
+        failed even once the build was fixed. Implementing IAsyncLifetime only -
+        not IDisposable as well - matters, because xUnit would call both and the
+        synchronous path would throw again. */
+    public async Task DisposeAsync() => await Provider.DisposeAsync();
 }
 
 [CollectionDefinition("database")]

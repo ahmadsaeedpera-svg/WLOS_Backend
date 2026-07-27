@@ -6,7 +6,7 @@
 
 ## 1. Current state
 
-**One workflow exists:** `Maren-Backend/.github/workflows/ci.yml`. **It is red.**
+**One workflow exists:** `Maren-Backend/.github/workflows/ci.yml`. **It was red; it is now green** (see §2).
 
 What it does well — and it is genuinely good for a project this young:
 - Spins a real SQL Server 2022 service container; integration tests run against real procedures, not mocks
