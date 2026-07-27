@@ -108,7 +108,8 @@ jobs:
                    20_Seed.sql 21_Seed_CMS.sql 22_Seed_FAQ.sql \
                    30_Indexes_ForeignKeys.sql 31_AI_Safety.sql \
                    32_LifeStage.sql 33_Procs_Profile.sql \
-                   34_ContentTargeting.sql 35_Procs_ContentTargeting.sql; do
+                   34_ContentTargeting.sql 35_Procs_ContentTargeting.sql \
+                   36_Timeline.sql 37_Procs_Timeline.sql; do
             echo "--- $f"
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
@@ -128,7 +129,8 @@ jobs:
                    20_Seed.sql 21_Seed_CMS.sql 22_Seed_FAQ.sql \
                    30_Indexes_ForeignKeys.sql 31_AI_Safety.sql \
                    32_LifeStage.sql 33_Procs_Profile.sql \
-                   34_ContentTargeting.sql 35_Procs_ContentTargeting.sql; do
+                   34_ContentTargeting.sql 35_Procs_ContentTargeting.sql \
+                   36_Timeline.sql 37_Procs_Timeline.sql; do
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
 
@@ -204,6 +206,17 @@ jobs:
           out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/content_targeting_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Content targeting assertions failed"; exit 1; }
+
+      - name: SQL assertion suite — timeline
+        # The event store every later engine reads from. Assertion 2 checks the
+        # clustered key rather than any behaviour: clustering on a random GUID
+        # is invisible in functional tests and is what decides whether this
+        # table survives ten million rows.
+        working-directory: src/Maren.Database
+        run: |
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/timeline_test.sql)
+          echo "$out"
+          echo "$out" | grep -q "FAILED: 0" || { echo "::error::Timeline assertions failed"; exit 1; }
 
       - name: Integration tests
         env:
