@@ -26,9 +26,11 @@ cd Maren.Platform/src/Maren.Database
 
 for f in 01_Schemas.sql 02_Identity.sql 03_Administration.sql 04_Health.sql \
          05_Content_Notifications_Audit.sql 06_CMS.sql 07_Access.sql \
+         08_AuditContract.sql 14_Procs_Config.sql \
          10_Procs_Administration.sql 11_Procs_Identity.sql 12_Procs_Content.sql \
-         13_Procs_Access.sql \
-         20_Seed.sql 21_Seed_CMS.sql; do
+         13_Procs_Access.sql 15_Procs_ContentDelta.sql 16_ContentTaxonomy.sql \
+         20_Seed.sql 21_Seed_CMS.sql 22_Seed_FAQ.sql \
+         30_Indexes_ForeignKeys.sql; do
   sqlcmd -S "(localdb)\MSSQLLocalDB" -I -d MarenPlatform -i "$f" || break
 done
 ```

@@ -105,7 +105,8 @@ jobs:
                    10_Procs_Administration.sql 11_Procs_Identity.sql \
                    12_Procs_Content.sql 13_Procs_Access.sql \
                    15_Procs_ContentDelta.sql 16_ContentTaxonomy.sql \
-                   20_Seed.sql 21_Seed_CMS.sql 22_Seed_FAQ.sql; do
+                   20_Seed.sql 21_Seed_CMS.sql 22_Seed_FAQ.sql \
+                   30_Indexes_ForeignKeys.sql; do
             echo "--- $f"
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
@@ -122,7 +123,8 @@ jobs:
                    10_Procs_Administration.sql 11_Procs_Identity.sql \
                    12_Procs_Content.sql 13_Procs_Access.sql \
                    15_Procs_ContentDelta.sql 16_ContentTaxonomy.sql \
-                   20_Seed.sql 21_Seed_CMS.sql 22_Seed_FAQ.sql; do
+                   20_Seed.sql 21_Seed_CMS.sql 22_Seed_FAQ.sql \
+                   30_Indexes_ForeignKeys.sql; do
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
 
@@ -147,6 +149,16 @@ jobs:
           out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/access_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Access assertions failed"; exit 1; }
+
+      - name: SQL assertion suite — foreign key index coverage
+        # Standing invariant: a foreign key added without a supporting index
+        # is a scan waiting to happen, and twelve of ours cascade on delete.
+        # This is what stops the eighteen fixed in 30_* from coming back.
+        working-directory: src/Maren.Database
+        run: |
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/index_coverage_test.sql)
+          echo "$out"
+          echo "$out" | grep -q "FAILED: 0" || { echo "::error::Foreign key index coverage assertions failed"; exit 1; }
 
       - name: Integration tests
         env:
