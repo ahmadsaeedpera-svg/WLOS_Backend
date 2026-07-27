@@ -106,7 +106,8 @@ jobs:
                    12_Procs_Content.sql 13_Procs_Access.sql \
                    15_Procs_ContentDelta.sql 16_ContentTaxonomy.sql \
                    20_Seed.sql 21_Seed_CMS.sql 22_Seed_FAQ.sql \
-                   30_Indexes_ForeignKeys.sql 31_AI_Safety.sql; do
+                   30_Indexes_ForeignKeys.sql 31_AI_Safety.sql \
+                   32_LifeStage.sql 33_Procs_Profile.sql; do
             echo "--- $f"
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
@@ -124,7 +125,8 @@ jobs:
                    12_Procs_Content.sql 13_Procs_Access.sql \
                    15_Procs_ContentDelta.sql 16_ContentTaxonomy.sql \
                    20_Seed.sql 21_Seed_CMS.sql 22_Seed_FAQ.sql \
-                   30_Indexes_ForeignKeys.sql 31_AI_Safety.sql; do
+                   30_Indexes_ForeignKeys.sql 31_AI_Safety.sql \
+                   32_LifeStage.sql 33_Procs_Profile.sql; do
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
 
@@ -180,6 +182,16 @@ jobs:
           out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/ai_safety_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::AI safety ledger assertions failed"; exit 1; }
+
+      - name: SQL assertion suite — life stage
+        # A transition must preserve history rather than overwrite it. That
+        # record is the basis of the companion's longitudinal context and
+        # cannot be recovered once a transition has discarded it.
+        working-directory: src/Maren.Database
+        run: |
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/life_stage_test.sql)
+          echo "$out"
+          echo "$out" | grep -q "FAILED: 0" || { echo "::error::Life stage assertions failed"; exit 1; }
 
       - name: Integration tests
         env:
