@@ -17,7 +17,6 @@ What it does well — and it is genuinely good for a project this young:
 - Concurrency group cancels superseded runs
 
 What is missing:
-- **It is failing.** 5 × `CA1310` in `ContentDeltaTests.cs` under `-warnaserror`
 - **No CD.** Nothing builds an image, tags it, pushes it, or deploys it
 - **No frontend workflow at all** — `Maren-Frontend/.github/` has templates but no `workflows/`
 - No dependency update automation (Dependabot/Renovate)
@@ -26,11 +25,17 @@ What is missing:
 
 ---
 
-## 2. Why red CI is the first thing to fix
+## 2. Restoring the gate — what it actually took
 
-A pipeline that always fails teaches the team to ignore it, and then it protects nothing. Every commit on this branch — the foreign-key indexes, the approval-gate fix, the AI safety ledger — is currently unvalidated by CI, despite each being verified locally. Fixing five one-line lint errors restores the gate for all of them.
+A pipeline that always fails teaches the team to ignore it, and then it protects nothing. Every commit on this branch — the foreign-key indexes, the approval-gate fix, the AI safety ledger — was unvalidated by CI despite each being verified locally. This was fixed first for that reason.
 
-The errors are real, not noise: `string.StartsWith(string)` uses the current culture, so the same test can pass in one locale and fail in another. On a CI runner in a different region that is a genuine flake source. The fix is `StringComparison.Ordinal`.
+It needed **two** fixes, and the second only became visible after the first:
+
+1. **5 × `CA1310`** under `-warnaserror`. Real, not pedantic: `string.StartsWith(string)` uses the current culture, so the same assertion can pass on one runner and fail on another in a different region. The compared values are content keys — identifiers, not prose — so `StringComparison.Ordinal` is both correct and locale-independent.
+
+2. **`dotnet test` exited 1 while printing `Passed! 127, Failed: 0`.** `DatabaseFixture` implemented `IDisposable` and called `Provider.Dispose()`, but the container holds `SqlUnitOfWork`, which is `IAsyncDisposable` and not `IDisposable` — the trap `CLAUDE.md §7` documents for scopes. xUnit reported a collection cleanup failure and returned non-zero, so **the integration-test step would still have failed even with a green build**. The fixture now implements `IAsyncLifetime` *only*; adding it alongside `IDisposable` would have xUnit call both and throw again.
+
+The lesson worth keeping: a green summary line is not a green step. Verify the **exit code**, not the printed result.
 
 ---
 
