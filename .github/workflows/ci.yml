@@ -106,7 +106,7 @@ jobs:
                    12_Procs_Content.sql 13_Procs_Access.sql \
                    15_Procs_ContentDelta.sql 16_ContentTaxonomy.sql \
                    20_Seed.sql 21_Seed_CMS.sql 22_Seed_FAQ.sql \
-                   30_Indexes_ForeignKeys.sql; do
+                   30_Indexes_ForeignKeys.sql 31_AI_Safety.sql; do
             echo "--- $f"
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
@@ -124,7 +124,7 @@ jobs:
                    12_Procs_Content.sql 13_Procs_Access.sql \
                    15_Procs_ContentDelta.sql 16_ContentTaxonomy.sql \
                    20_Seed.sql 21_Seed_CMS.sql 22_Seed_FAQ.sql \
-                   30_Indexes_ForeignKeys.sql; do
+                   30_Indexes_ForeignKeys.sql 31_AI_Safety.sql; do
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
 
@@ -169,6 +169,17 @@ jobs:
           out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/index_coverage_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Foreign key index coverage assertions failed"; exit 1; }
+
+      - name: SQL assertion suite — AI safety ledger
+        # The companion never diagnoses and never prescribes, and this is the
+        # table that shows whether that is still true. It must never be able to
+        # hold message content: conversation stays on the device, and one
+        # well-meant debugging column would reverse that.
+        working-directory: src/Maren.Database
+        run: |
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/ai_safety_test.sql)
+          echo "$out"
+          echo "$out" | grep -q "FAILED: 0" || { echo "::error::AI safety ledger assertions failed"; exit 1; }
 
       - name: Integration tests
         env:

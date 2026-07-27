@@ -56,7 +56,7 @@ for f in 01_Schemas.sql 02_Identity.sql 03_Administration.sql 04_Health.sql \
          10_Procs_Administration.sql 11_Procs_Identity.sql 12_Procs_Content.sql \
          13_Procs_Access.sql 15_Procs_ContentDelta.sql 16_ContentTaxonomy.sql \
          20_Seed.sql 21_Seed_CMS.sql 22_Seed_FAQ.sql \
-         30_Indexes_ForeignKeys.sql; do
+         30_Indexes_ForeignKeys.sql 31_AI_Safety.sql; do
   sqlcmd -S "(localdb)\MSSQLLocalDB" -I -d MarenPlatform -i "$f" || break
 done
 ```
