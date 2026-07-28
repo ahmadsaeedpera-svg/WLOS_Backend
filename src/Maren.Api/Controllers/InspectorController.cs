@@ -44,6 +44,16 @@ public sealed class InspectorController(ISender sender) : MarenControllerBase
         [FromBody] SimulateRequest request, CancellationToken ct)
         => FromResult(await sender.Send(new SimulateDashboardQuery(request), ct));
 
+    /// <summary>The signals an operator may simulate.</summary>
+    /// <remarks>
+    /// Only signals that actually move a card. Server-driven so one added by an
+    /// editor appears without a portal release.
+    /// </remarks>
+    [HttpGet("signals")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<InspectableSignal>>), 200)]
+    public async Task<IActionResult> Signals(CancellationToken ct)
+        => FromResult(await sender.Send(new ListInspectableSignalsQuery(), ct));
+
     /// <summary>Every rule and adjustment governing one card, with pass or fail.</summary>
     /// <remarks>
     /// Failing rules are returned alongside passing ones. A list of only what

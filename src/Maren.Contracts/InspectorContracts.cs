@@ -85,3 +85,18 @@ public sealed record ExplainCardResponse(
     bool IsActive,
     IReadOnlyList<InspectedRule> Rules,
     IReadOnlyList<InspectedAdjustment> Adjustments);
+
+/// <summary>A signal an operator can pretend is raised.</summary>
+/// <remarks>
+/// Server-driven, like the life stages: a signal added by an editor appears in
+/// the inspector without a portal release. Only signals that actually move a
+/// card are offered — one with no adjustment changes nothing, and offering it
+/// would invite an operator to toggle it and conclude the engine is broken.
+/// </remarks>
+public sealed record InspectableSignal(
+    string SignalCode,
+    string DisplayName,
+    string DomainCode,
+    string ObservationText,
+    bool IsHealthSensitive,
+    int AffectsCardCount);

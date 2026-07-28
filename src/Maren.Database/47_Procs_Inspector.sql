@@ -148,6 +148,44 @@ END
 GO
 
 -- ---------------------------------------------------------------------------
+-- usp_Inspector_ListSignals
+-- ---------------------------------------------------------------------------
+IF OBJECT_ID('Dashboard.usp_Inspector_ListSignals') IS NOT NULL
+    DROP PROCEDURE [Dashboard].[usp_Inspector_ListSignals];
+GO
+/*  The signals an operator can pretend are raised.
+
+    Server-driven for the same reason the life stages are: a signal added by an
+    editor should appear in the inspector without a portal release. A hardcoded
+    list in the browser would be wrong the day somebody adds one, and wrong
+    silently - the toggle simply would not exist.
+
+    Only signals that actually move a card are offered. A signal with no
+    priority adjustment changes nothing, and showing it would invite an
+    operator to toggle it and conclude the engine is broken. */
+CREATE PROCEDURE [Dashboard].[usp_Inspector_ListSignals]
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        s.SignalCode,
+        s.DisplayName,
+        s.DomainCode,
+        s.ObservationText,
+        s.IsHealthSensitive,
+        COUNT(pa.PriorityAdjustmentId) AS AffectsCardCount
+    FROM [Knowledge].[Signal] s
+    JOIN [Dashboard].[PriorityAdjustment] pa
+          ON pa.SignalCode = s.SignalCode AND pa.IsActive = 1
+    WHERE s.IsActive = 1
+    GROUP BY s.SignalCode, s.DisplayName, s.DomainCode,
+             s.ObservationText, s.IsHealthSensitive, s.SortOrder
+    ORDER BY s.SortOrder;
+END
+GO
+
+-- ---------------------------------------------------------------------------
 -- usp_Inspector_ExplainCard
 -- ---------------------------------------------------------------------------
 IF OBJECT_ID('Dashboard.usp_Inspector_ExplainCard') IS NOT NULL

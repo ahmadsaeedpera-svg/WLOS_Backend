@@ -146,6 +146,54 @@ INSERT @results VALUES ('an unknown signal is ignored, not an error',
     CONCAT('water=', @p),
     CASE WHEN @p = 75 THEN 'PASS' ELSE 'FAIL' END);
 
+-- 11 ------------------------------------------------------------------------
+/*  The signal list is the picker the portal draws. If it comes back empty the
+    screen renders a fieldset with nothing in it and an operator concludes the
+    engine has no signals at all. */
+CREATE TABLE #sig (
+    SignalCode VARCHAR(40), DisplayName NVARCHAR(80), DomainCode VARCHAR(30),
+    ObservationText NVARCHAR(200), IsHealthSensitive BIT, AffectsCardCount INT);
+
+INSERT #sig EXEC [Dashboard].[usp_Inspector_ListSignals];
+
+SELECT @n = COUNT(*) FROM #sig;
+INSERT @results VALUES ('the simulatable signals are server-driven',
+    CONCAT(@n, ' offered'),
+    CASE WHEN @n >= 1 THEN 'PASS' ELSE 'FAIL' END);
+
+-- 12 ------------------------------------------------------------------------
+/*  Only signals that move something. A signal with no priority adjustment
+    changes nothing, so offering it invites an operator to toggle it, see the
+    same cards, and conclude the engine is broken. */
+SELECT @n = COUNT(*) FROM #sig s
+WHERE NOT EXISTS (SELECT 1 FROM [Dashboard].[PriorityAdjustment] pa
+                  WHERE pa.SignalCode = s.SignalCode AND pa.IsActive = 1);
+INSERT @results VALUES ('no signal is offered that changes nothing',
+    CONCAT(@n, ' inert'),
+    CASE WHEN @n = 0 THEN 'PASS' ELSE 'FAIL' END);
+
+-- 13 ------------------------------------------------------------------------
+/*  The count is a claim the portal repeats to an operator, so it has to be the
+    real number of adjustments and not the row count of a join. */
+SELECT @n = COUNT(*) FROM #sig s
+WHERE s.AffectsCardCount <> (
+    SELECT COUNT(*) FROM [Dashboard].[PriorityAdjustment] pa
+    WHERE pa.SignalCode = s.SignalCode AND pa.IsActive = 1);
+INSERT @results VALUES ('the affected-card count is accurate',
+    CONCAT(@n, ' wrong'),
+    CASE WHEN @n = 0 THEN 'PASS' ELSE 'FAIL' END);
+
+-- 14 ------------------------------------------------------------------------
+/*  Every offered signal must be one the simulator recognises. If the picker
+    could list a name that SimulateDashboard drops as unknown, the inspector
+    would silently lie: toggled on, nothing moves, no error. */
+SELECT @n = COUNT(*) FROM #sig s
+WHERE NOT EXISTS (SELECT 1 FROM [Knowledge].[Signal] k
+                  WHERE k.SignalCode = s.SignalCode AND k.IsActive = 1);
+INSERT @results VALUES ('every offered signal is one the engine knows',
+    CONCAT(@n, ' unrecognised'),
+    CASE WHEN @n = 0 THEN 'PASS' ELSE 'FAIL' END);
+
 -- Report --------------------------------------------------------------------
 SELECT RIGHT('  ' + CAST(Seq AS varchar(3)), 3) + ' ' +
        LEFT(Assertion + REPLICATE('.', 56), 56) + ' ' +
@@ -161,6 +209,7 @@ PRINT CONCAT('TOTAL: ', @total, '  FAILED: ', @failed);
 PRINT '---------------------------------------------';
 
 DROP TABLE #sim;
+DROP TABLE #sig;
 
 IF @failed > 0
     THROW 51000, 'Inspector assertions failed.', 1;

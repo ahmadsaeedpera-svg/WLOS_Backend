@@ -33,6 +33,16 @@ public sealed class InspectorIntegrationTests(DatabaseFixture fixture)
             return result.Value!;
         });
 
+    private Task<IReadOnlyList<InspectableSignal>> SignalsAsync() =>
+        ScopedAsync(async sp =>
+        {
+            var handler = new ListInspectableSignalsHandler(
+                sp.GetRequiredService<IInspectorRepository>());
+            var result = await handler.Handle(new ListInspectableSignalsQuery(), default);
+            result.Succeeded.Should().BeTrue();
+            return result.Value!;
+        });
+
     // -----------------------------------------------------------------------
 
     [Fact]
@@ -169,6 +179,43 @@ public sealed class InspectorIntegrationTests(DatabaseFixture fixture)
         // pipeline enforces this before the handler runs.
         var query = new SimulateDashboardQuery(new SimulateRequest(null, null, null, null, null));
         query.Permission.Should().Be(Maren.Shared.PlatformPermissions.ContentRead);
+    }
+
+    [Fact]
+    public async Task The_signal_picker_offers_only_signals_that_move_a_card()
+    {
+        var signals = await SignalsAsync();
+
+        // Empty would render a fieldset with nothing in it, and an operator
+        // would conclude the platform has no signals at all.
+        signals.Should().NotBeEmpty();
+
+        // A signal with no adjustment changes nothing. Offering it invites an
+        // operator to toggle it, see identical cards, and report a bug.
+        signals.Should().OnlyContain(s => s.AffectsCardCount > 0);
+    }
+
+    [Fact]
+    public async Task Every_offered_signal_is_one_the_simulator_actually_applies()
+    {
+        // The contract between the two endpoints. If the picker could list a
+        // name SimulateDashboard drops as unknown, the inspector would lie
+        // silently: toggled on, nothing moves, no error.
+        var codes = (await SignalsAsync()).Select(s => s.SignalCode).ToArray();
+
+        var response = await SimulateAsync(new SimulateRequest(
+            "independent", ["professional"], null, null, codes));
+
+        response.AppliedSignals.Should().BeEquivalentTo(codes);
+    }
+
+    [Fact]
+    public void The_signal_picker_requires_the_same_permission_as_the_simulator()
+    {
+        // It names the signals the platform observes about women. Anyone who
+        // may see how content is targeted may see these; nobody else.
+        new ListInspectableSignalsQuery().Permission
+            .Should().Be(Maren.Shared.PlatformPermissions.ContentRead);
     }
 
     [Fact]

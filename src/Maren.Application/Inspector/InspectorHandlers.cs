@@ -19,6 +19,8 @@ public interface IInspectorRepository
     Task<IReadOnlyList<SimulatedCard>> SimulateAsync(
         string contextJson, string signalsCsv, CancellationToken ct);
 
+    Task<IReadOnlyList<InspectableSignal>> ListSignalsAsync(CancellationToken ct);
+
     Task<ExplainCardResponse?> ExplainCardAsync(
         string cardTypeCode, string contextJson, CancellationToken ct);
 }
@@ -115,6 +117,22 @@ public sealed class ExplainCardHandler(IInspectorRepository repository)
                 "NOT_FOUND", "We could not find that card.")
             : Result<ExplainCardResponse>.Success(explanation);
     }
+}
+
+/// <summary>The signals an operator may simulate.</summary>
+public sealed record ListInspectableSignalsQuery
+    : IRequest<Result<IReadOnlyList<InspectableSignal>>>, IRequirePermission
+{
+    public string Permission => PlatformPermissions.ContentRead;
+}
+
+public sealed class ListInspectableSignalsHandler(IInspectorRepository repository)
+    : IRequestHandler<ListInspectableSignalsQuery, Result<IReadOnlyList<InspectableSignal>>>
+{
+    public async Task<Result<IReadOnlyList<InspectableSignal>>> Handle(
+        ListInspectableSignalsQuery query, CancellationToken ct) =>
+        Result<IReadOnlyList<InspectableSignal>>.Success(
+            await repository.ListSignalsAsync(ct));
 }
 
 // ---------------------------------------------------------------------------

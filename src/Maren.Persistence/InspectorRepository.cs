@@ -33,6 +33,20 @@ public sealed class InspectorRepository(IDbConnectionFactory factory) : IInspect
             Split(r.EvidenceSignals), r.Source)).ToList();
     }
 
+    public async Task<IReadOnlyList<InspectableSignal>> ListSignalsAsync(CancellationToken ct)
+    {
+        using var connection = await factory.CreateAsync(ct);
+
+        var rows = await connection.QueryAsync<SignalRow>(new CommandDefinition(
+            "[Dashboard].[usp_Inspector_ListSignals]",
+            commandType: CommandType.StoredProcedure,
+            cancellationToken: ct));
+
+        return rows.Select(r => new InspectableSignal(
+            r.SignalCode, r.DisplayName, r.DomainCode, r.ObservationText,
+            r.IsHealthSensitive, r.AffectsCardCount)).ToList();
+    }
+
     public async Task<ExplainCardResponse?> ExplainCardAsync(
         string cardTypeCode, string contextJson, CancellationToken ct)
     {
@@ -81,6 +95,10 @@ public sealed class InspectorRepository(IDbConnectionFactory factory) : IInspect
         string CardTypeCode, string DisplayName, string DomainCode, int Priority,
         int BasePriority, decimal Confidence, bool IsHealthSensitive,
         bool IsSuppressed, string Reason, string? EvidenceSignals, string Source);
+
+    private sealed record SignalRow(
+        string SignalCode, string DisplayName, string DomainCode,
+        string ObservationText, bool IsHealthSensitive, int AffectsCardCount);
 
     private sealed record CardRow(
         string CardTypeCode, string DisplayName, string DomainCode, int BasePriority,
