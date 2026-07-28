@@ -78,75 +78,94 @@ RETURN
 GO
 
 -- ---------------------------------------------------------------------------
--- fn_SubjectSpan — how much history exists to reason from
+-- fn_SubjectHours — what time of day she does things
 -- ---------------------------------------------------------------------------
-IF OBJECT_ID('Behaviour.fn_SubjectSpan') IS NOT NULL
-    DROP FUNCTION [Behaviour].[fn_SubjectSpan];
+IF OBJECT_ID('Behaviour.fn_SubjectHours') IS NOT NULL
+    DROP FUNCTION [Behaviour].[fn_SubjectHours];
 GO
-/*  The observed span per subject: first day, last day, how many days carried
-    activity, and how many events supported it.
+/*  The real observer for time of day, extracted so the arithmetic no longer
+    reads the timeline itself.
 
-    Span is measured from her first logged day, not from the window, because
-    confidence must describe what she has actually shown the platform. A woman
-    who joined four days ago has four days of span inside a 56-day window, and
-    reporting 56 would be the platform claiming to have watched her for two
-    months. */
-CREATE FUNCTION [Behaviour].[fn_SubjectSpan]
+    Waking hours only. The least likely hour of any behaviour is 4am, which is
+    true, useless, and would be the platform telling her something she already
+    knows about sleep. */
+CREATE FUNCTION [Behaviour].[fn_SubjectHours]
     (@UserId UNIQUEIDENTIFIER, @AsOfDate DATE, @WindowDays INT)
 RETURNS TABLE
 AS
 RETURN
     SELECT
-        d.SubjectKey,
-        MIN(d.LocalDate) AS FirstDate,
-        MAX(d.LocalDate) AS LastDate,
-        COUNT(*)         AS ActiveDays,
-        SUM(d.EventCount) AS SupportingEvents,
-        /*  Inclusive of both ends: one logged day is a span of one, not zero. */
-        DATEDIFF(DAY, MIN(d.LocalDate), @AsOfDate) + 1 AS SpanDays
-    FROM [Behaviour].[fn_SubjectDays](@UserId, @AsOfDate, @WindowDays) d
-    GROUP BY d.SubjectKey;
+        se.SubjectKey,
+        CAST(DATEPART(HOUR, e.OccurredUtc) AS TINYINT) AS HourNo,
+        COUNT(*) AS EventCount
+    FROM [Behaviour].[SubjectEvent] se
+    JOIN [Timeline].[Event] e ON e.EventTypeCode = se.EventTypeCode
+    WHERE e.UserId = @UserId
+      AND e.IsDeleted = 0
+      AND se.IsRequired = 1
+      AND e.OccurredLocalDate <= @AsOfDate
+      AND e.OccurredLocalDate > DATEADD(DAY, -@WindowDays, @AsOfDate)
+      AND DATEPART(HOUR, e.OccurredUtc) BETWEEN 5 AND 23
+    GROUP BY se.SubjectKey, DATEPART(HOUR, e.OccurredUtc);
 GO
 
 -- ---------------------------------------------------------------------------
--- fn_Observe — every measure, for every subject
+-- fn_Measure — the arithmetic, and the only copy of it
 -- ---------------------------------------------------------------------------
-IF OBJECT_ID('Behaviour.fn_Observe') IS NOT NULL
-    DROP FUNCTION [Behaviour].[fn_Observe];
+IF OBJECT_ID('Behaviour.fn_Measure') IS NOT NULL
+    DROP FUNCTION [Behaviour].[fn_Measure];
 GO
-/*  What the platform can honestly say about how she lives.
+/*  Every measure, computed from a day set and an hour set.
 
-    A table-valued function rather than a procedure so it composes: the
-    inspector, the resolver and any future engine can join to it directly.
-    INSERT ... EXEC cannot nest, and the dashboard engine has already been
-    caught once by that - a procedure here would silently return nothing to any
-    caller that was itself inside an INSERT ... EXEC.
+    This function does not know where its input came from, and that is the whole
+    point. The real observer feeds it what a woman actually logged; the Decision
+    Inspector feeds it a hypothetical. Both get the same arithmetic, because
+    there is only one copy of it.
 
-    Confidence is coverage, never a judgement about the value. It scales from
-    MinSpanDays to FullSpanDays on the span actually observed, and a measure
-    below its minimum is not returned at all. So a screen either shows a number
-    that has history behind it, or shows nothing - never a confident-looking
-    figure derived from three days. */
-CREATE FUNCTION [Behaviour].[fn_Observe]
-    (@UserId UNIQUEIDENTIFIER, @AsOfDate DATE, @WindowDays INT)
+    Before this split, fn_Observe read Timeline.Event directly. A simulator
+    would have had to reimplement fourteen measures - streaks, momentum, rhythm,
+    probabilities - and the day the two implementations disagreed, an operator
+    would have been configuring the platform against a fiction. That is worse
+    than having no inspector at all, which is why the inspector was left unable
+    to show behaviour until this refactor rather than being worked around.
+
+    An inline table-valued function, so it composes and so the optimiser can
+    estimate it properly. Table-valued parameters are permitted on inline TVFs;
+    that was verified before the design depended on it.
+
+    Nothing here references Timeline.Event, Behaviour.Observation or any
+    per-user table. behaviour_test.sql asserts it. */
+CREATE FUNCTION [Behaviour].[fn_Measure]
+    (@Days  [Behaviour].[DaySet]  READONLY,
+     @Hours [Behaviour].[HourSet] READONLY,
+     @AsOfDate DATE,
+     @WindowDays INT)
 RETURNS TABLE
 AS
 RETURN
     WITH days AS (
         SELECT SubjectKey, LocalDate, EventCount
-        FROM [Behaviour].[fn_SubjectDays](@UserId, @AsOfDate, @WindowDays)
+        FROM @Days
     ),
-    span AS (
-        SELECT SubjectKey, FirstDate, LastDate, ActiveDays,
-               SupportingEvents, SpanDays
-        FROM [Behaviour].[fn_SubjectSpan](@UserId, @AsOfDate, @WindowDays)
-    ),
+    /*  Span is measured from her first logged day, not from the window, because
+        confidence must describe what she has actually shown. A woman who joined
+        four days ago has four days of span inside a 56-day window, and
+        reporting 56 would be the platform claiming to have watched her for two
+        months.
 
-    /*  Gaps and islands. Consecutive days share a group because subtracting a
-        dense row number from the date holds constant across a run; a break in
-        the run shifts it. This is the only way to get a streak without a loop,
-        and a loop inside a function called per user per day would be the
-        platform's slowest path. */
+        Computed here rather than by a separate function so that a simulated day
+        set gets exactly the same treatment as a real one. */
+    span AS (
+        SELECT
+            d.SubjectKey,
+            MIN(d.LocalDate) AS FirstDate,
+            MAX(d.LocalDate) AS LastDate,
+            COUNT(*)         AS ActiveDays,
+            SUM(d.EventCount) AS SupportingEvents,
+            DATEDIFF(DAY, MIN(d.LocalDate), @AsOfDate) + 1 AS SpanDays
+        FROM days d
+        GROUP BY d.SubjectKey
+    ),
     islands AS (
         SELECT
             d.SubjectKey,
@@ -246,27 +265,20 @@ RETURN
         Local hour is reconstructed from the offset between the local date and
         the UTC timestamp, because that is the only local information the
         timeline stores. */
+    /*  Hour of day, from the hour set rather than from the timeline. The day
+        roll-up throws the time away and the preference measures need it back;
+        whoever supplies the set decides which hours count. */
     hours AS (
         SELECT
-            se.SubjectKey,
-            DATEPART(HOUR, e.OccurredUtc) AS HourNo,
-            COUNT(*) AS EventCount,
-            ROW_NUMBER() OVER (PARTITION BY se.SubjectKey
-                ORDER BY COUNT(*) DESC, DATEPART(HOUR, e.OccurredUtc)) AS BestRank,
-            ROW_NUMBER() OVER (PARTITION BY se.SubjectKey
-                ORDER BY COUNT(*) ASC, DATEPART(HOUR, e.OccurredUtc)) AS WorstRank
-        FROM [Behaviour].[SubjectEvent] se
-        JOIN [Timeline].[Event] e ON e.EventTypeCode = se.EventTypeCode
-        WHERE e.UserId = @UserId
-          AND e.IsDeleted = 0
-          AND se.IsRequired = 1
-          AND e.OccurredLocalDate <= @AsOfDate
-          AND e.OccurredLocalDate > DATEADD(DAY, -@WindowDays, @AsOfDate)
-          /*  Waking hours only. The least likely hour of any behaviour is 4am,
-              which is true, useless, and would be the platform telling her
-              something she already knows about sleep. */
-          AND DATEPART(HOUR, e.OccurredUtc) BETWEEN 5 AND 23
-        GROUP BY se.SubjectKey, DATEPART(HOUR, e.OccurredUtc)
+            h.SubjectKey,
+            h.HourNo,
+            SUM(h.EventCount) AS EventCount,
+            ROW_NUMBER() OVER (PARTITION BY h.SubjectKey
+                ORDER BY SUM(h.EventCount) DESC, h.HourNo) AS BestRank,
+            ROW_NUMBER() OVER (PARTITION BY h.SubjectKey
+                ORDER BY SUM(h.EventCount) ASC, h.HourNo) AS WorstRank
+        FROM @Hours h
+        GROUP BY h.SubjectKey, h.HourNo
     ),
 
     /*  Every measure this subject is configured for, with the span it has to
@@ -474,6 +486,68 @@ RETURN
     ) v;
 GO
 
+
+-- ---------------------------------------------------------------------------
+-- fn_Observe — the real path
+-- ---------------------------------------------------------------------------
+IF OBJECT_ID('Behaviour.fn_Observe') IS NOT NULL
+    DROP FUNCTION [Behaviour].[fn_Observe];
+GO
+/*  What the platform can honestly say about how this woman lives.
+
+    Observes her timeline, then hands the result to fn_Measure. All the
+    arithmetic lives there; this function's only job is to say where the days
+    and hours came from.
+
+    A multi-statement table-valued function rather than an inline one, because
+    the day set has to be materialised into a variable before it can be passed
+    as a table-valued parameter, and an inline function cannot declare
+    variables. Still a function rather than a procedure, deliberately: it
+    composes, it can be joined to, and INSERT ... EXEC cannot nest - a procedure
+    here would silently return nothing to any caller that was itself inside an
+    INSERT ... EXEC, which has already cost this platform one defect. */
+CREATE FUNCTION [Behaviour].[fn_Observe]
+    (@UserId UNIQUEIDENTIFIER, @AsOfDate DATE, @WindowDays INT)
+RETURNS @observed TABLE (
+    SubjectKey  VARCHAR(40),
+    MeasureCode VARCHAR(30),
+    MeasureName NVARCHAR(80),
+    Family      VARCHAR(20),
+    ValueKind   VARCHAR(12),
+    Unit        VARCHAR(20),
+    Confidence  INT,
+    SpanDays    INT,
+    SupportingEventCount INT,
+    FirstObservedDate DATE,
+    LastObservedDate  DATE,
+    SortOrder   INT,
+    ValueNumeric DECIMAL(9, 4),
+    ValueText   NVARCHAR(80),
+    Reason      NVARCHAR(600),
+    EvidenceCsv NVARCHAR(400))
+AS
+BEGIN
+    DECLARE @days  [Behaviour].[DaySet];
+    DECLARE @hours [Behaviour].[HourSet];
+
+    INSERT @days (SubjectKey, LocalDate, EventCount)
+    SELECT SubjectKey, LocalDate, EventCount
+    FROM [Behaviour].[fn_SubjectDays](@UserId, @AsOfDate, @WindowDays);
+
+    INSERT @hours (SubjectKey, HourNo, EventCount)
+    SELECT SubjectKey, HourNo, EventCount
+    FROM [Behaviour].[fn_SubjectHours](@UserId, @AsOfDate, @WindowDays);
+
+    INSERT @observed
+    SELECT SubjectKey, MeasureCode, MeasureName, Family, ValueKind, Unit,
+           Confidence, SpanDays, SupportingEventCount, FirstObservedDate,
+           LastObservedDate, SortOrder, ValueNumeric, ValueText, Reason,
+           EvidenceCsv
+    FROM [Behaviour].[fn_Measure](@days, @hours, @AsOfDate, @WindowDays);
+
+    RETURN;
+END
+GO
 -- ---------------------------------------------------------------------------
 -- usp_Behaviour_Resolve
 -- ---------------------------------------------------------------------------

@@ -28,7 +28,7 @@ GO
     sleep every other day, and a half-completed evening routine.
 
     Run: sqlcmd -S "$SERVER" -d "$DB" -i tests/behaviour_test.sql -I
-    Expect: TOTAL: 20  FAILED: 0
+    Expect: TOTAL: 22  FAILED: 0
 
     Re-runnable: owns its user and removes it at both ends.
 */
@@ -308,6 +308,74 @@ WHERE [Description] LIKE '%causes%' OR [Description] LIKE '%leads to%'
 INSERT @results VALUES ('no measure is clinical or causal',
     CONCAT(@n, ' offending'),
     CASE WHEN @n = 0 THEN 'PASS' ELSE 'FAIL' END);
+
+-- 21 ------------------------------------------------------------------------
+/*  The arithmetic must not know where its input came from.
+
+    fn_Measure is the only copy of the measure logic, and it is fed by the real
+    observer on one path and by the inspector's hypothetical on the other. The
+    moment it reads a per-user table directly, simulation becomes impossible
+    without a second implementation - which is the situation this split existed
+    to end. */
+/*  Checked against the dependency graph rather than the text of the module.
+
+    A LIKE over sys.sql_modules matches comments as well as code - the first
+    version of this assertion failed on fn_Measure's own doc comment, which says
+    it references none of these. Scanning prose to prove something about code
+    tests the prose. sys.sql_expression_dependencies reports what SQL Server
+    resolved, so it cannot be fooled by a comment or by whitespace. */
+SELECT @n = COUNT(*)
+FROM sys.sql_expression_dependencies d
+WHERE d.referencing_id = OBJECT_ID('Behaviour.fn_Measure')
+  AND d.referenced_entity_name IN
+      ('Event', 'Observation', 'UserStateSnapshot', 'UserGoal', 'GoalProgress');
+INSERT @results VALUES ('the arithmetic reads no per-user source',
+    CONCAT(@n, ' per-user dependencies'),
+    CASE WHEN @n = 0 THEN 'PASS' ELSE 'FAIL' END);
+
+-- 22 ------------------------------------------------------------------------
+/*  The proof that there is one implementation rather than two that agree today.
+
+    The fixture logs water on every day of the last 40 except 5, 12 and 23.
+    Handing the inspector exactly that pattern must reproduce exactly what the
+    real path computed from her timeline - not approximately, not for the
+    headline measures, but every measure to the decimal.
+
+    If this ever fails, an operator is configuring the platform against a
+    fiction, and that is worse than having no inspector. */
+DECLARE @offsets NVARCHAR(MAX) = N'';
+SET @i = 0;
+WHILE @i < 40
+BEGIN
+    IF @i NOT IN (5, 12, 23)
+        SET @offsets = CONCAT(@offsets, CASE WHEN LEN(@offsets) = 0 THEN N'' ELSE N',' END, @i);
+    SET @i = @i + 1;
+END
+
+DECLARE @sim TABLE (
+    SubjectKey VARCHAR(40), SubjectName NVARCHAR(80), DomainCode VARCHAR(30),
+    IsHealthSensitive BIT, MeasureCode VARCHAR(30), MeasureName NVARCHAR(80),
+    Family VARCHAR(20), ValueKind VARCHAR(12), Unit VARCHAR(20),
+    ValueNumeric DECIMAL(9,4), ValueText NVARCHAR(80), Confidence INT,
+    SpanDays INT, SupportingEventCount INT, FirstObservedDate DATE,
+    LastObservedDate DATE, Reason NVARCHAR(600), EvidenceCsv NVARCHAR(400));
+
+INSERT @sim EXEC [Dashboard].[usp_Inspector_SimulateBehaviour]
+    @SubjectKey = 'hydration', @DayOffsetsCsv = @offsets,
+    @HourOfDay = 14, @WindowDays = 56;
+
+SELECT @n = COUNT(*)
+FROM @sim s
+JOIN [Behaviour].[fn_Observe](@user, @today, 56) f
+      ON f.SubjectKey = s.SubjectKey AND f.MeasureCode = s.MeasureCode
+WHERE ISNULL(s.ValueNumeric, -999) <> ISNULL(f.ValueNumeric, -999)
+   OR s.Confidence <> f.Confidence
+   OR s.SpanDays <> f.SpanDays;
+
+DECLARE @simCount INT = (SELECT COUNT(*) FROM @sim);
+INSERT @results VALUES ('simulation reproduces the real path exactly',
+    CONCAT(@simCount, ' measures, ', @n, ' disagree'),
+    CASE WHEN @n = 0 AND @simCount > 0 THEN 'PASS' ELSE 'FAIL' END);
 
 -- Report --------------------------------------------------------------------
 SELECT RIGHT('  ' + CAST(Seq AS varchar(3)), 3) + ' ' +

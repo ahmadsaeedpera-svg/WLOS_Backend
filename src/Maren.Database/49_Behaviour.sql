@@ -47,6 +47,44 @@ IF SCHEMA_ID('Behaviour') IS NULL
 GO
 
 -- ---------------------------------------------------------------------------
+-- The observation input types
+-- ---------------------------------------------------------------------------
+/*  What the measure arithmetic consumes, instead of querying the timeline
+    itself.
+
+    This split exists because the platform needs to answer two questions with
+    one implementation: "how is this woman actually living" and "what would the
+    engine say about a woman who logged like this". The second is what the
+    Decision Inspector needs, and it must never load a real account.
+
+    Before this, fn_Observe read Timeline.Event directly, so a simulator would
+    have had to reimplement every measure - a second source of behavioural
+    truth, and the one thing this architecture forbids. Now the arithmetic takes
+    a day set and an hour set, and both the real observer and the simulator
+    feed the same function.
+
+    A day is (subject, date, how many events). An hour is (subject, hour of day,
+    how many events) - the day roll-up throws the time away, and the preference
+    measures need it back. */
+IF TYPE_ID('Behaviour.DaySet') IS NULL
+    CREATE TYPE [Behaviour].[DaySet] AS TABLE (
+        SubjectKey VARCHAR(40) NOT NULL,
+        LocalDate  DATE        NOT NULL,
+        EventCount INT         NOT NULL,
+        PRIMARY KEY CLUSTERED (SubjectKey, LocalDate)
+    );
+GO
+
+IF TYPE_ID('Behaviour.HourSet') IS NULL
+    CREATE TYPE [Behaviour].[HourSet] AS TABLE (
+        SubjectKey VARCHAR(40) NOT NULL,
+        HourNo     TINYINT     NOT NULL,
+        EventCount INT         NOT NULL,
+        PRIMARY KEY CLUSTERED (SubjectKey, HourNo)
+    );
+GO
+
+-- ---------------------------------------------------------------------------
 -- MeasureType — the vocabulary of what can be observed
 -- ---------------------------------------------------------------------------
 /*  A registry rather than a set of columns, for the reason the dashboard card

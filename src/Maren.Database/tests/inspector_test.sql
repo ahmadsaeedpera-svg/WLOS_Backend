@@ -43,16 +43,37 @@ DECLARE @worker   NVARCHAR(MAX) = N'[{"dimension":"life_stage","value":"independ
 -- 1 -------------------------------------------------------------------------
 /*  No user, no timeline. The inspector must not be able to reach a real
     woman's data even by accident - that is the privacy decision it exists
-    under, so it is asserted rather than trusted. */
+    under, so it is asserted rather than trusted.
+
+    Checked semantically, not textually. This was a LIKE over sys.sql_modules
+    until the behaviour simulator arrived, when it failed on that procedure's
+    own doc comment explaining why it reads none of these. Scanning prose to
+    prove something about code has two faults, and the harmless one surfaced
+    first: it is tripped by comments, and it is defeated by formatting -
+    [Timeline].[Event], extra whitespace, or a synonym would all slip past a
+    search for a literal string. For the guard that stops this platform
+    impersonating a woman, the second fault is the one that matters.
+
+    sys.parameters and sys.sql_expression_dependencies report what SQL Server
+    actually resolved, so neither prose nor formatting can fool them. */
 SELECT @n = COUNT(*)
-FROM sys.sql_modules m
-JOIN sys.procedures p ON p.object_id = m.object_id
+FROM sys.procedures p
 WHERE p.name LIKE 'usp_Inspector%'
-  AND (m.definition LIKE '%@UserId%'
-    OR m.definition LIKE '%Timeline.Event%'
-    OR m.definition LIKE '%UserStateSnapshot%');
+  AND (
+        /*  No inspector procedure may even accept a user id. */
+        EXISTS (SELECT 1 FROM sys.parameters pa
+                WHERE pa.object_id = p.object_id
+                  AND pa.name LIKE '%UserId%')
+        /*  Nor reach anything holding a real woman's data. */
+     OR EXISTS (SELECT 1 FROM sys.sql_expression_dependencies d
+                WHERE d.referencing_id = p.object_id
+                  AND d.referenced_entity_name IN (
+                        'Event', 'Observation', 'UserStateSnapshot', 'User',
+                        'UserGoal', 'GoalProgress', 'UserLifeStage',
+                        'UserRoleMode'))
+      );
 INSERT @results VALUES ('the inspector cannot read a real account',
-    CONCAT(@n, ' procedure(s) reference user data'),
+    CONCAT(@n, ' procedure(s) reach user data'),
     CASE WHEN @n = 0 THEN 'PASS' ELSE 'FAIL' END);
 
 -- 2 -------------------------------------------------------------------------
