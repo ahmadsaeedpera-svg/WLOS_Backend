@@ -111,7 +111,8 @@ jobs:
                    34_ContentTargeting.sql 35_Procs_ContentTargeting.sql \
                    36_Timeline.sql 37_Procs_Timeline.sql \
                    38_LifeDomain.sql 39_KnowledgeGraph.sql 40_Procs_Knowledge.sql \
-                   41_Dashboard.sql 42_Procs_Dashboard.sql; do
+                   41_Dashboard.sql 42_Procs_Dashboard.sql \
+                   43_Intelligence.sql 44_Procs_Intelligence.sql; do
             echo "--- $f"
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
@@ -134,7 +135,8 @@ jobs:
                    34_ContentTargeting.sql 35_Procs_ContentTargeting.sql \
                    36_Timeline.sql 37_Procs_Timeline.sql \
                    38_LifeDomain.sql 39_KnowledgeGraph.sql 40_Procs_Knowledge.sql \
-                   41_Dashboard.sql 42_Procs_Dashboard.sql; do
+                   41_Dashboard.sql 42_Procs_Dashboard.sql \
+                   43_Intelligence.sql 44_Procs_Intelligence.sql; do
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
 
@@ -244,6 +246,17 @@ jobs:
           out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/dashboard_engine_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Dashboard engine assertions failed"; exit 1; }
+
+      - name: SQL assertion suite — intelligence core
+        # Assertions 3 to 6 decide whether this core is honest. A platform that
+        # reports a confident state for a woman who logged nothing has reported
+        # its own defaults, not her life. No data means no confidence, and no
+        # confidence means unknown.
+        working-directory: src/Maren.Database
+        run: |
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/intelligence_test.sql)
+          echo "$out"
+          echo "$out" | grep -q "FAILED: 0" || { echo "::error::Intelligence core assertions failed"; exit 1; }
 
       - name: Integration tests
         env:
