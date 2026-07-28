@@ -112,7 +112,8 @@ jobs:
                    36_Timeline.sql 37_Procs_Timeline.sql \
                    38_LifeDomain.sql 39_KnowledgeGraph.sql 40_Procs_Knowledge.sql \
                    41_Dashboard.sql 42_Procs_Dashboard.sql \
-                   43_Intelligence.sql 44_Procs_Intelligence.sql; do
+                   43_Intelligence.sql 44_Procs_Intelligence.sql \
+                   45_RuleEngine.sql 46_Procs_RuleEngine.sql; do
             echo "--- $f"
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
@@ -136,7 +137,8 @@ jobs:
                    36_Timeline.sql 37_Procs_Timeline.sql \
                    38_LifeDomain.sql 39_KnowledgeGraph.sql 40_Procs_Knowledge.sql \
                    41_Dashboard.sql 42_Procs_Dashboard.sql \
-                   43_Intelligence.sql 44_Procs_Intelligence.sql; do
+                   43_Intelligence.sql 44_Procs_Intelligence.sql \
+                   45_RuleEngine.sql 46_Procs_RuleEngine.sql; do
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
 
@@ -257,6 +259,17 @@ jobs:
           out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/intelligence_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Intelligence core assertions failed"; exit 1; }
+
+      - name: SQL assertion suite — rule engine
+        # Assertion 5 replaces a foreign key. A generic rule table cannot
+        # reference its target, so the ON DELETE CASCADE that protected card
+        # and content rules is gone; this invariant is what stands in for it,
+        # and it caught five orphans on a fresh database the first time.
+        working-directory: src/Maren.Database
+        run: |
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/rule_engine_test.sql)
+          echo "$out"
+          echo "$out" | grep -q "FAILED: 0" || { echo "::error::Rule engine assertions failed"; exit 1; }
 
       - name: Integration tests
         env:

@@ -67,7 +67,10 @@ INSERT @results VALUES ('every card carries a configurable base priority',
 -- 3 -------------------------------------------------------------------------
 /*  Every eligibility rule and adjustment must say why it exists, or the
     dashboard becomes unconfigurable by anyone who did not write it. */
-SELECT @n = (SELECT COUNT(*) FROM [Dashboard].[CardRule] WHERE LEN(LTRIM(RuleNote)) = 0)
+/*  Eligibility rules moved to Rules.Rule when the two matchers were
+    consolidated; the requirement that every one explains itself did not. */
+SELECT @n = (SELECT COUNT(*) FROM [Rules].[Rule]
+             WHERE ScopeCode = 'dashboardCard' AND LEN(LTRIM(RuleNote)) = 0)
          + (SELECT COUNT(*) FROM [Dashboard].[PriorityAdjustment] WHERE LEN(LTRIM(ReasonText)) = 0);
 INSERT @results VALUES ('every rule and adjustment explains itself',
     CONCAT(@n, ' unexplained'),
