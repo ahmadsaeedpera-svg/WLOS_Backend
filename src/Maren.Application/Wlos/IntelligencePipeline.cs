@@ -68,6 +68,14 @@ public static class IntelligenceKeys
     /// reassembled would be a second opinion about the same woman.
     /// </remarks>
     public const string Recommendations = "recommendations";
+
+    /// <summary>How the platform is saying what it suggested.</summary>
+    /// <remarks>
+    /// Published by <c>coachResolution</c>. Carries no fact the recommendations
+    /// did not already carry: a coach message is filled in from a tone pattern,
+    /// never composed.
+    /// </remarks>
+    public const string CoachMessages = "coachMessages";
 }
 
 /// <summary>What a stage may read, publish and emit.</summary>

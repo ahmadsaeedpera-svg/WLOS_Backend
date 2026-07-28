@@ -3,6 +3,7 @@ using Dapper;
 using Maren.Application.Abstractions;
 using Maren.Application.Access;
 using Maren.Application.Behaviour;
+using Maren.Application.Coaching;
 using Maren.Application.Config;
 using Maren.Application.Growth;
 using Maren.Application.Inspector;
@@ -313,6 +314,7 @@ public static class PersistenceRegistration
         services.AddScoped<IGoalRepository, GoalRepository>();
         services.AddScoped<IRoutineRepository, RoutineRepository>();
         services.AddScoped<IRecommendationRepository, RecommendationRepository>();
+        services.AddScoped<ICoachRepository, CoachRepository>();
 
         /*  The Women's Life OS pipeline, in order.
 

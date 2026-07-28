@@ -1,5 +1,6 @@
 using System.Globalization;
 using Maren.Application.Behaviour;
+using Maren.Application.Coaching;
 using Maren.Application.Growth;
 using Maren.Application.Recommend;
 using Maren.Contracts;
@@ -678,8 +679,72 @@ public sealed class RecommendationResolutionStage(IRecommendationRepository repo
     }
 }
 
-public sealed class CoachResolutionStage()
-    : UnbuiltStage("coachResolution", "No coaching engine yet.");
+/// <summary>How the platform says what it is already suggesting.</summary>
+/// <remarks>
+/// Explanation only. It reads the recommendations the previous stage published
+/// and fills in a tone pattern; it assembles nothing, observes nothing and adds
+/// no evidence. A coach that reassembled would be a second opinion about the
+/// same woman, and the two could disagree the moment a threshold changed
+/// between them.
+/// </remarks>
+public sealed class CoachResolutionStage(ICoachRepository repository)
+    : IIntelligenceStage
+{
+    public string Name => "coachResolution";
+    public string Version => "1.0";
+
+    public async Task<IntelligenceResult> ExecuteAsync(
+        IntelligenceContext context, CancellationToken ct)
+    {
+        /*  Degrades rather than throwing when there is nothing to explain. A
+            stage whose input never arrived must not take the pipeline down. */
+        if (!context.TryGet<IReadOnlyList<Recommendation>>(
+                IntelligenceKeys.Recommendations, out var recommendations)
+            || recommendations!.Count == 0)
+        {
+            return IntelligenceResult.NoResult(
+                "Nothing was suggested today, so there is nothing to explain.");
+        }
+
+        var messages = await repository.ResolveAsync(
+            context.UserId, context.AsOfLocalDate, ct);
+
+        context.Publish(IntelligenceKeys.CoachMessages, messages);
+
+        if (messages.Count == 0)
+            return IntelligenceResult.NoResult(
+                "The suggestions had lapsed before they could be explained.");
+
+        /*  Carried through from the recommendations. The coach observes
+            nothing, so it has no confidence of its own to report. */
+        var confidence = Math.Round(
+            (decimal)messages.Sum(m => m.Confidence) / messages.Count / 100m, 2);
+
+        var warnings = new List<string>();
+
+        /*  A voice chosen by the fallback is not wrong, but it means nothing
+            about her day shaped how she is being spoken to. Worth saying
+            rather than presenting it as a considered choice. */
+        if (messages.All(m => !m.ToneFromRule))
+            warnings.Add("Nothing about today shaped the voice; the default was used.");
+
+        return IntelligenceResult.Contributed(
+            confidence: confidence,
+            factors:
+            [
+                new ConfidenceFactor("explained", confidence,
+                    "Carried through from the recommendations; the coach observes nothing."),
+            ],
+            evidence: messages.SelectMany(m => m.Evidence).Distinct().ToList(),
+            warnings: warnings,
+            diagnostics: new Dictionary<string, string>
+            {
+                ["messages"] = messages.Count.ToString(CultureInfo.InvariantCulture),
+                ["tones"] = string.Join(",",
+                    messages.Select(m => m.ToneCode).Distinct().Order()),
+            });
+    }
+}
 
 public sealed class NotificationResolutionStage()
     : UnbuiltStage("notificationResolution",

@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+#
+# Every SQL assertion step in CI must actually run something.
+#
+# Twice now a step has been authored with a command substitution that the
+# authoring shell evaluated before the YAML was written, leaving `out=` empty.
+# The step then greps an empty string for "FAILED: 0", finds nothing, and
+# reports green forever — a CI step that verifies nothing and says it verified
+# everything. It is the worst possible failure for a guard, because it is
+# indistinguishable from success.
+#
+# This checks the committed workflow rather than trusting the author. Run from
+# the repository root:
+#
+#     bash src/Maren.Database/tests/ci_workflow_test.sh
+#
+# Expect: TOTAL: <n>  FAILED: 0
+
+set -u
+
+WORKFLOW="${1:-.github/workflows/ci.yml}"
+total=0
+failed=0
+
+check() {
+    local name="$1" detail="$2" ok="$3"
+    total=$((total + 1))
+    if [ "$ok" = "1" ]; then
+        printf '  %-58s %-28s PASS\n' "$name" "$detail"
+    else
+        printf '  %-58s %-28s FAIL\n' "$name" "$detail"
+        failed=$((failed + 1))
+    fi
+}
+
+echo ""
+echo "=== CI workflow ============================================================="
+
+[ -f "$WORKFLOW" ] || { echo "Workflow not found: $WORKFLOW"; exit 1; }
+
+# 1. No assertion step may capture an empty command.
+empty=$(grep -cE '^\s+out=\s*$' "$WORKFLOW" || true)
+check "no assertion step captures an empty command" \
+      "$empty empty" \
+      "$([ "$empty" = "0" ] && echo 1 || echo 0)"
+
+# 2. Every `out=` capture must invoke sqlcmd.
+captures=$(grep -cE '^\s+out=' "$WORKFLOW" || true)
+sqlcmd_captures=$(grep -cE '^\s+out=\$\(\$SQLCMD ' "$WORKFLOW" || true)
+check "every capture invokes sqlcmd" \
+      "$sqlcmd_captures of $captures" \
+      "$([ "$captures" = "$sqlcmd_captures" ] && echo 1 || echo 0)"
+
+# 3. Every capture must be checked for FAILED: 0. A step that runs the suite
+#    and ignores the result is the same failure wearing a different hat.
+checks=$(grep -cE 'grep -q "FAILED: 0"' "$WORKFLOW" || true)
+check "every capture is checked for FAILED: 0" \
+      "$checks checks, $captures captures" \
+      "$([ "$checks" = "$captures" ] && echo 1 || echo 0)"
+
+# 4. Every assertion suite on disk must appear in the workflow. A suite nobody
+#    runs in CI is a suite that only passes on the machine that wrote it.
+missing=0
+missing_names=""
+for f in src/Maren.Database/tests/*.sql; do
+    base=$(basename "$f")
+    if ! grep -q "$base" "$WORKFLOW"; then
+        missing=$((missing + 1))
+        missing_names="$missing_names $base"
+    fi
+done
+check "every assertion suite runs in CI" \
+      "$missing missing$missing_names" \
+      "$([ "$missing" = "0" ] && echo 1 || echo 0)"
+
+echo ""
+echo "---------------------------------------------"
+echo "TOTAL: $total  FAILED: $failed"
+echo "---------------------------------------------"
+
+[ "$failed" = "0" ] || exit 1

@@ -222,7 +222,7 @@ public sealed class LifeOsIntegrationTests(DatabaseFixture fixture)
                 engine is missing. When the last of these is built, replace them
                 rather than deleting the test: a pipeline reporting no
                 unavailable stages should be true, not merely unasserted. */
-            unavailable.Should().Contain(t => t.Stage == "coachResolution");
+            unavailable.Should().Contain(t => t.Stage == "predictionResolution");
             unavailable.Should().Contain(t => t.Stage == "aiContextResolution");
             unavailable.Should().OnlyContain(t => !string.IsNullOrWhiteSpace(t.Reason),
                 "an operator must be told why, not just that");

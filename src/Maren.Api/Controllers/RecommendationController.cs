@@ -1,4 +1,5 @@
 using Maren.Application.Abstractions;
+using Maren.Application.Coaching;
 using Maren.Application.Recommend;
 using Maren.Contracts;
 using MediatR;
@@ -92,4 +93,72 @@ public sealed class RecommendationAdminController(ISender sender) : MarenControl
     public async Task<IActionResult> Simulate(
         [FromBody] SimulateRecommendationsRequest request, CancellationToken ct)
         => FromResult(await sender.Send(new SimulateRecommendationsQuery(request), ct));
+}
+
+/// <summary>
+/// The coach: how the platform says what it is already suggesting.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The coach invents nothing. A message is filled in from a tone pattern whose
+/// placeholders are the recommendation and the observations behind it, and a
+/// database constraint refuses a pattern that drops either — so every fact she
+/// reads came from her own timeline.
+/// </para>
+/// <para>
+/// It never reassembles. A coach that did would be a second opinion about the
+/// same woman, and the two could disagree the moment a threshold changed.
+/// </para>
+/// </remarks>
+[ApiController]
+[Route("api/v1/me/coach")]
+[Authorize]
+public sealed class CoachController(ISender sender, ICurrentUser currentUser)
+    : MarenControllerBase
+{
+    /// <summary>What the platform is saying to her today, and why in that voice.</summary>
+    [HttpGet]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<CoachMessage>>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 401)]
+    public async Task<IActionResult> GetMyCoach(
+        [FromQuery] DateOnly? asOfDate, CancellationToken ct)
+    {
+        if (currentUser.UserId is not { } userId) return Unauthenticated();
+
+        return FromResult(await sender.Send(new GetMyCoachQuery(userId, asOfDate), ct));
+    }
+}
+
+/// <summary>The tone library and its simulator, for operators.</summary>
+[ApiController]
+[Route("api/v1/admin/coach")]
+[Authorize]
+public sealed class CoachAdminController(ISender sender) : MarenControllerBase
+{
+    /// <summary>Every tone, its pattern and when it applies.</summary>
+    /// <remarks>
+    /// Carries the rule count, because a non-default tone with no rules can
+    /// never be selected — a voice the platform will never use, indistinguishable
+    /// from one nobody qualifies for.
+    /// </remarks>
+    [HttpGet("tones")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<CoachToneSummary>>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 403)]
+    public async Task<IActionResult> ListTones(CancellationToken ct)
+        => FromResult(await sender.Send(new ListCoachTonesQuery(), ct));
+
+    /// <summary>What the platform would say, given evidence you describe.</summary>
+    /// <remarks>
+    /// Assembles with the only copy of the assembly and explains with the only
+    /// copy of the explanation, so what you hear is what she would be told.
+    /// Returns every tone alongside the messages, with whether this evidence
+    /// selected it — which answers "why is it not being gentle".
+    /// </remarks>
+    [HttpPost("simulate")]
+    [ProducesResponseType(typeof(ApiResponse<SimulateCoachResponse>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 403)]
+    public async Task<IActionResult> Simulate(
+        [FromBody] SimulateRecommendationsRequest request, CancellationToken ct)
+        => FromResult(await sender.Send(new SimulateCoachQuery(request), ct));
 }
