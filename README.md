@@ -103,7 +103,8 @@ for f in 01_Schemas.sql 02_Identity.sql 03_Administration.sql 04_Health.sql \
          45_RuleEngine.sql 46_Procs_RuleEngine.sql 47_Procs_Inspector.sql \
          49_Behaviour.sql 50_Procs_Behaviour.sql \
          52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
-         54_AuditContract_Apply.sql; do
+         55_Growth_Routines.sql 56_Procs_Growth_Routines.sql \
+         57_AuditContract_Apply.sql; do
   sqlcmd -S "(localdb)\MSSQLLocalDB" -I -d MarenPlatform -i "$f" || break
 done
 

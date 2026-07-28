@@ -125,3 +125,64 @@ public sealed class GoalAdminController(ISender sender) : MarenControllerBase
     public async Task<IActionResult> ListTemplates(CancellationToken ct)
         => FromResult(await sender.Send(new ListGoalTemplatesQuery(), ct));
 }
+
+/// <summary>
+/// Her routines: several behaviours done together, and where she is up to today.
+/// </summary>
+/// <remarks>
+/// <para>
+/// There is deliberately no endpoint that marks a routine complete. Completion
+/// is derived from logged events every time it is asked for — a "mark done"
+/// endpoint would be a second definition of done, and the first time it
+/// disagreed with the timeline she would see a completed routine beside a
+/// broken streak.
+/// </para>
+/// <para>
+/// To finish a routine she logs its steps, through the timeline, like
+/// everything else the platform observes.
+/// </para>
+/// </remarks>
+[ApiController]
+[Route("api/v1/me/routines")]
+[Authorize]
+public sealed class RoutineController(ISender sender, ICurrentUser currentUser)
+    : MarenControllerBase
+{
+    /// <summary>Today's routines, in the order they belong to the day.</summary>
+    /// <remarks>
+    /// Ordered by the clock rather than by priority: a morning routine listed
+    /// under an evening one because it scores lower would be the platform
+    /// arguing with the day. Each carries its steps, optional ones included and
+    /// flagged.
+    /// </remarks>
+    [HttpGet]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<RoutineToday>>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 401)]
+    public async Task<IActionResult> GetMyRoutines(
+        [FromQuery] DateOnly? asOfDate, CancellationToken ct)
+    {
+        if (currentUser.UserId is not { } userId) return Unauthenticated();
+
+        return FromResult(await sender.Send(new GetMyRoutinesQuery(userId, asOfDate), ct));
+    }
+}
+
+/// <summary>The routine library, for operators.</summary>
+[ApiController]
+[Route("api/v1/admin/routines")]
+[Authorize]
+public sealed class RoutineAdminController(ISender sender) : MarenControllerBase
+{
+    /// <summary>Every routine, with the Behaviour subject that observes it.</summary>
+    /// <remarks>
+    /// Carries the subject's target and required-part count, because the
+    /// commonest routine misconfiguration is a target higher than the number of
+    /// required parts — a routine that can never be completed, which looks
+    /// identical to one nobody has done.
+    /// </remarks>
+    [HttpGet]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<RoutineSummary>>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 403)]
+    public async Task<IActionResult> ListRoutines(CancellationToken ct)
+        => FromResult(await sender.Send(new ListRoutinesQuery(), ct));
+}

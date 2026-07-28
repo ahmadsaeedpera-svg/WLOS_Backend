@@ -310,6 +310,7 @@ public static class PersistenceRegistration
         services.AddScoped<IInspectorRepository, InspectorRepository>();
         services.AddScoped<IBehaviourRepository, BehaviourRepository>();
         services.AddScoped<IGoalRepository, GoalRepository>();
+        services.AddScoped<IRoutineRepository, RoutineRepository>();
 
         /*  The Women's Life OS pipeline, in order.
 

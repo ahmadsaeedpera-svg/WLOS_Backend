@@ -539,9 +539,72 @@ public sealed class GoalResolutionStage(IGoalRepository repository) : IIntellige
     }
 }
 
-public sealed class RoutinePlanResolutionStage()
-    : UnbuiltStage("routinePlanResolution",
-        "No routine engine yet. The routine state dimension is derived, not planned.");
+/// <summary>Which routines belong to her day, and where she is up to.</summary>
+/// <remarks>
+/// <para>
+/// Orchestration, and thinner than the goal stage. A routine is several
+/// behaviours done together, which Behaviour already models; this stage adds
+/// only when in the day each belongs and which are hers.
+/// </para>
+/// <para>
+/// Completion is derived from logged events every time it is asked for. There
+/// is no stored percentage anywhere in the routine layer, so this stage cannot
+/// disagree with the streak Behaviour computed from the same events.
+/// </para>
+/// </remarks>
+public sealed class RoutinePlanResolutionStage(IRoutineRepository repository)
+    : IIntelligenceStage
+{
+    public string Name => "routinePlanResolution";
+    public string Version => "1.0";
+
+    public async Task<IntelligenceResult> ExecuteAsync(
+        IntelligenceContext context, CancellationToken ct)
+    {
+        var routines = await repository.TodayAsync(
+            context.UserId, context.AsOfLocalDate, null, ct);
+
+        context.Publish(IntelligenceKeys.Routines, routines);
+
+        if (routines.Count == 0)
+            return IntelligenceResult.NoResult("No routine applies to her today.");
+
+        var done = routines.Count(r => r.IsDoneToday);
+        var started = routines.Count(r => r.IsStarted);
+
+        /*  Inherited from the consistency observations behind them, never
+            invented here. A routine resting on nine days is not confident. */
+        var confidence = Math.Round(
+            (decimal)routines.Sum(r => r.Confidence) / routines.Count / 100m, 2);
+
+        var warnings = new List<string>();
+
+        /*  A routine whose target exceeds its required parts can never be
+            completed, and on her screen looks exactly like one she keeps
+            missing. Reported rather than hidden, because it is a configuration
+            fault and she would otherwise carry the blame for it. */
+        var impossible = routines.Count(r => r.TargetPerDay > r.RequiredCount);
+        if (impossible > 0)
+            warnings.Add($"{impossible} routine(s) ask for more steps than they have.");
+
+        return IntelligenceResult.Contributed(
+            confidence: confidence,
+            factors:
+            [
+                new ConfidenceFactor("observed", confidence,
+                    "Inherited from Behaviour Intelligence; nothing recomputed here."),
+            ],
+            evidence: routines.SelectMany(r => r.Steps.Select(s => s.EventTypeCode))
+                              .Distinct().ToList(),
+            warnings: warnings,
+            diagnostics: new Dictionary<string, string>
+            {
+                ["routines"] = routines.Count.ToString(CultureInfo.InvariantCulture),
+                ["doneToday"] = done.ToString(CultureInfo.InvariantCulture),
+                ["started"] = started.ToString(CultureInfo.InvariantCulture),
+            });
+    }
+}
 
 public sealed class RecommendationResolutionStage()
     : UnbuiltStage("recommendationResolution",

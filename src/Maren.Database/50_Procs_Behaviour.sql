@@ -765,6 +765,60 @@ RETURN
 GO
 
 -- ---------------------------------------------------------------------------
+-- fn_ReadSteps — which parts of a routine she has done today
+-- ---------------------------------------------------------------------------
+IF OBJECT_ID('Behaviour.fn_ReadSteps') IS NOT NULL
+    DROP FUNCTION [Behaviour].[fn_ReadSteps];
+GO
+/*  Part-by-part completion for one day.
+
+    fn_Read answers "how has this gone lately". This answers "where is she up to
+    right now", which is what a routine checklist needs and what the day-level
+    measures deliberately throw away.
+
+    It lives here rather than in Growth for the same reason everything
+    behavioural does: it reads Timeline.Event, and growth_goals_test.sql fails
+    if any Growth procedure touches the timeline. A routine screen asking the
+    timeline directly would be a second definition of "done", and the first
+    time somebody counted a soft-deleted event the checklist and the streak
+    would disagree in front of her.
+
+    Optional parts are returned too, flagged. She should see the whole routine,
+    including the step she is allowed to skip - hiding it would quietly turn an
+    optional step into one that does not exist. */
+CREATE FUNCTION [Behaviour].[fn_ReadSteps]
+    (@UserId UNIQUEIDENTIFIER, @AsOfDate DATE)
+RETURNS TABLE
+AS
+RETURN
+    SELECT
+        se.SubjectKey,
+        se.EventTypeCode,
+        et.DisplayName AS StepName,
+        se.IsRequired,
+        se.SortOrder,
+        CAST(CASE WHEN EXISTS (
+            SELECT 1 FROM [Timeline].[Event] e
+            WHERE e.UserId = @UserId
+              AND e.EventTypeCode = se.EventTypeCode
+              AND e.IsDeleted = 0
+              AND e.OccurredLocalDate = @AsOfDate) THEN 1 ELSE 0 END AS BIT)
+            AS IsDoneToday,
+
+        /*  The last time she did this step at all, so a checklist can say "you
+            usually do this on Sundays" rather than only "not yet". */
+        (SELECT MAX(e.OccurredLocalDate) FROM [Timeline].[Event] e
+         WHERE e.UserId = @UserId
+           AND e.EventTypeCode = se.EventTypeCode
+           AND e.IsDeleted = 0
+           AND e.OccurredLocalDate <= @AsOfDate) AS LastDoneDate
+    FROM [Behaviour].[SubjectEvent] se
+    JOIN [Behaviour].[Subject] s ON s.SubjectKey = se.SubjectKey
+    JOIN [Timeline].[EventType] et ON et.EventTypeCode = se.EventTypeCode
+    WHERE s.IsActive = 1;
+GO
+
+-- ---------------------------------------------------------------------------
 -- usp_Behaviour_ListMeasures
 -- ---------------------------------------------------------------------------
 IF OBJECT_ID('Behaviour.usp_Behaviour_ListMeasures') IS NOT NULL

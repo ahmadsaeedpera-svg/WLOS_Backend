@@ -116,7 +116,8 @@ jobs:
                    45_RuleEngine.sql 46_Procs_RuleEngine.sql 47_Procs_Inspector.sql \
                    49_Behaviour.sql 50_Procs_Behaviour.sql \
                    52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
-                   54_AuditContract_Apply.sql; do
+                   55_Growth_Routines.sql 56_Procs_Growth_Routines.sql \
+                   57_AuditContract_Apply.sql; do
             echo "--- $f"
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
@@ -144,7 +145,8 @@ jobs:
                    45_RuleEngine.sql 46_Procs_RuleEngine.sql 47_Procs_Inspector.sql \
                    49_Behaviour.sql 50_Procs_Behaviour.sql \
                    52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
-                   54_AuditContract_Apply.sql; do
+                   55_Growth_Routines.sql 56_Procs_Growth_Routines.sql \
+                   57_AuditContract_Apply.sql; do
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
 
@@ -311,6 +313,18 @@ jobs:
           out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/growth_goals_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Goal assertions failed"; exit 1; }
+
+      - name: Routine assertions
+        # A routine is several behaviours done together, and Behaviour already
+        # models that. These hold the layer thin: a routine owns no step list,
+        # completion is derived from logged events rather than stored, a
+        # soft-deleted event stops counting, and a routine cannot point at an
+        # event subject — which would complete on one logged event.
+        working-directory: src/Maren.Database
+        run: |
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/growth_routines_test.sql)
+          echo "$out"
+          echo "$out" | grep -q "FAILED: 0" || { echo "::error::Routine assertions failed"; exit 1; }
 
       - name: Audit contract assertions
         # Ordering, not compliance. 08_AuditContract.sql applies the contract

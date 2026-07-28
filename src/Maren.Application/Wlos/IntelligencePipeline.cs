@@ -52,6 +52,14 @@ public static class IntelligenceKeys
     /// about somebody else.
     /// </remarks>
     public const string Goals = "goals";
+
+    /// <summary>The routines that belong to her day, and where she is up to.</summary>
+    /// <remarks>
+    /// Published by <c>routinePlanResolution</c>. Carries no stored completion:
+    /// whether a routine was done is derived from logged events every time, so
+    /// a consumer cannot show a completed routine beside a broken streak.
+    /// </remarks>
+    public const string Routines = "routines";
 }
 
 /// <summary>What a stage may read, publish and emit.</summary>
