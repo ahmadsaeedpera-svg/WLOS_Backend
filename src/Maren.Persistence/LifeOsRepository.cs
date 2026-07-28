@@ -69,6 +69,32 @@ public sealed class LifeOsRepository(IDbConnectionFactory factory) : ILifeOsRepo
         return rows.Select(r => r.SignalCode).ToList();
     }
 
+    public async Task<IReadOnlyList<Maren.Contracts.LifeStateReading>> ResolveStateAsync(
+        Guid userId, DateOnly asOf, CancellationToken ct)
+    {
+        using var connection = await factory.CreateAsync(ct);
+
+        var rows = await connection.QueryAsync<StateRow>(new CommandDefinition(
+            "[Intelligence].[usp_Intelligence_Resolve]",
+            new
+            {
+                UserId = userId,
+                AsOfDate = asOf.ToDateTime(TimeOnly.MinValue),
+                WindowDays = 3,
+                Persist = true
+            },
+            commandType: CommandType.StoredProcedure,
+            cancellationToken: ct));
+
+        return rows.Select(r => new Maren.Contracts.LifeStateReading(
+            r.DimensionCode, r.DisplayName, r.ValueCode, r.ValueText, r.Score,
+            r.Confidence, r.Reason,
+            string.IsNullOrWhiteSpace(r.EvidenceCsv)
+                ? []
+                : r.EvidenceCsv.Split(',', StringSplitOptions.RemoveEmptyEntries),
+            r.Trend, r.PreviousScore)).ToList();
+    }
+
     public async Task<IReadOnlyList<DashboardCardRow>> ResolveDashboardAsync(
         Guid userId, string contextJson, DateOnly asOf, int take, CancellationToken ct)
     {
@@ -112,6 +138,13 @@ public sealed class LifeOsRepository(IDbConnectionFactory factory) : ILifeOsRepo
     private sealed record SignalRow(
         string SignalCode, string DisplayName, string DomainCode,
         string ObservationText, bool IsHealthSensitive, int BreachDays);
+
+    /// <summary>usp_Intelligence_Resolve's result set, column for column.</summary>
+    private sealed record StateRow(
+        string DimensionCode, string DisplayName, string ValueKind,
+        string ValueCode, string ValueText, int? Score, int Confidence,
+        string Reason, string? EvidenceCsv, int? PreviousScore,
+        DateTime? PreviousDate, string Trend, int SortOrder);
 
     private sealed record CardRow(
         string CardTypeCode, string DisplayName, string DomainCode, int Priority,

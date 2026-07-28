@@ -313,14 +313,32 @@ public static class PersistenceRegistration
             deliberately: they report themselves as unavailable in the trace,
             which is how an operator sees what the platform cannot yet decide
             instead of inferring it from silence. */
-        services.AddScoped<ILifeOsStage, ContextResolutionStage>();
-        services.AddScoped<ILifeOsStage, SignalAnalysisStage>();
-        services.AddScoped<ILifeOsStage, DashboardResolutionStage>();
-        services.AddScoped<ILifeOsStage, RoutineResolutionStage>();
-        services.AddScoped<ILifeOsStage, RecommendationResolutionStage>();
-        services.AddScoped<ILifeOsStage, NotificationResolutionStage>();
-        services.AddScoped<ILifeOsStage, PredictionResolutionStage>();
-        services.AddScoped<ILifeOsStage, AiContextResolutionStage>();
+        services.AddScoped<IIntelligenceStage, ContextResolutionStage>();
+        services.AddScoped<IIntelligenceStage, ProfileResolutionStage>();
+        services.AddScoped<IIntelligenceStage, SignalAnalysisStage>();
+
+        // Computes every dimension once; the nine below present them.
+        services.AddScoped<IIntelligenceStage, StateResolutionStage>();
+        services.AddScoped<IIntelligenceStage, EnergyResolutionStage>();
+        services.AddScoped<IIntelligenceStage, FocusResolutionStage>();
+        services.AddScoped<IIntelligenceStage, ConsistencyResolutionStage>();
+        services.AddScoped<IIntelligenceStage, WellnessResolutionStage>();
+        services.AddScoped<IIntelligenceStage, BalanceResolutionStage>();
+        services.AddScoped<IIntelligenceStage, RoutineStateStage>();
+        services.AddScoped<IIntelligenceStage, MomentumResolutionStage>();
+        services.AddScoped<IIntelligenceStage, LoadResolutionStage>();
+        services.AddScoped<IIntelligenceStage, RiskResolutionStage>();
+
+        services.AddScoped<IIntelligenceStage, HabitResolutionStage>();
+        services.AddScoped<IIntelligenceStage, GoalResolutionStage>();
+        services.AddScoped<IIntelligenceStage, RoutinePlanResolutionStage>();
+        services.AddScoped<IIntelligenceStage, RecommendationResolutionStage>();
+        services.AddScoped<IIntelligenceStage, CoachResolutionStage>();
+        services.AddScoped<IIntelligenceStage, DashboardResolutionStage>();
+        services.AddScoped<IIntelligenceStage, NotificationResolutionStage>();
+        services.AddScoped<IIntelligenceStage, PredictionResolutionStage>();
+        services.AddScoped<IIntelligenceStage, ConversationContextStage>();
+        services.AddScoped<IIntelligenceStage, AiContextResolutionStage>();
         return services;
     }
 }

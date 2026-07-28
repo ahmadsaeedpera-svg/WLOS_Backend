@@ -218,7 +218,7 @@ public sealed class LifeOsIntegrationTests(DatabaseFixture fixture)
             unavailable.Should().NotBeEmpty();
             unavailable.Should().Contain(t => t.Stage == "recommendationResolution");
             unavailable.Should().Contain(t => t.Stage == "aiContextResolution");
-            unavailable.Should().OnlyContain(t => !string.IsNullOrWhiteSpace(t.Note),
+            unavailable.Should().OnlyContain(t => !string.IsNullOrWhiteSpace(t.Reason),
                 "an operator must be told why, not just that");
         }
         finally { await CleanupAsync(); }
@@ -235,10 +235,16 @@ public sealed class LifeOsIntegrationTests(DatabaseFixture fixture)
 
             var dashboard = response.Trace.Single(t => t.Stage == "dashboardResolution");
             dashboard.Status.Should().Be("contributed");
-            dashboard.DecisionCount.Should().Be(response.Decisions.Count);
+            dashboard.Diagnostics.Should().ContainKey("cards");
 
             var context = response.Trace.Single(t => t.Stage == "contextResolution");
             context.Status.Should().Be("contributed");
+
+            // Observed by the context, not declared by the stage — a stage
+            // cannot misreport what it actually read or wrote.
+            var profileStage = response.Trace.Single(t => t.Stage == "profileResolution");
+            profileStage.InputsUsed.Should().Contain("profile");
+            profileStage.OutputsProduced.Should().Contain("targetingContext");
         }
         finally { await CleanupAsync(); }
     }
@@ -263,6 +269,88 @@ public sealed class LifeOsIntegrationTests(DatabaseFixture fixture)
             response.Context.LifeStageCode.Should().Be("menopause");
             response.Context.RoleModes.Should().Contain("professional");
             response.Context.AsOfLocalDate.Should().Be(new DateOnly(2026, 7, 20));
+        }
+        finally { await CleanupAsync(); }
+    }
+
+    [Fact]
+    public async Task The_pipeline_reports_her_state_alongside_her_cards()
+    {
+        var userId = await CreateUserAsync();
+        try
+        {
+            await SetStageAsync(userId, "independent");
+            await RecordAsync(userId, "sleep", "2026-07-19", 300);
+            await RecordAsync(userId, "sleep", "2026-07-20", 310);
+
+            var response = await ResolveAsync(userId);
+
+            response.State.Should().NotBeEmpty();
+            var energy = response.State.Single(s => s.DimensionCode == "energy");
+            energy.ValueCode.Should().NotBe("unknown");
+            energy.Score.Should().BeLessThan(70, "two short nights lower it from baseline");
+            energy.Evidence.Should().Contain("short_sleep");
+        }
+        finally { await CleanupAsync(); }
+    }
+
+    [Fact]
+    public async Task A_woman_who_logged_nothing_gets_unknown_not_a_confident_guess()
+    {
+        // The property the whole intelligence core rests on, asserted at the
+        // pipeline boundary as well as in SQL.
+        var userId = await CreateUserAsync();
+        try
+        {
+            var response = await ResolveAsync(userId);
+
+            response.State.Should().NotBeEmpty("she is still told what is unknown");
+            response.State.Should().OnlyContain(s => s.ValueCode == "unknown");
+            response.State.Should().OnlyContain(s => s.Confidence == 0);
+            response.State.Should().OnlyContain(s => s.Score == null);
+            response.State.Should().OnlyContain(s => !string.IsNullOrWhiteSpace(s.Reason));
+        }
+        finally { await CleanupAsync(); }
+    }
+
+    [Fact]
+    public async Task Confidence_is_explained_wherever_it_is_reported()
+    {
+        var userId = await CreateUserAsync();
+        try
+        {
+            await RecordAsync(userId, "sleep", "2026-07-20", 420);
+            var response = await ResolveAsync(userId);
+
+            // No bare numbers. A stage reporting confidence must say what
+            // produced it, or an operator cannot tell 0.8 from a guess.
+            foreach (var stage in response.Trace.Where(t => t.Confidence is not null))
+            {
+                stage.ConfidenceFactors.Should().NotBeEmpty(
+                    $"{stage.Stage} reported confidence without explaining it");
+                stage.ConfidenceFactors.Should()
+                    .OnlyContain(f => !string.IsNullOrWhiteSpace(f.Explanation));
+            }
+        }
+        finally { await CleanupAsync(); }
+    }
+
+    [Fact]
+    public async Task Every_stage_reports_itself_including_the_unbuilt_ones()
+    {
+        var userId = await CreateUserAsync();
+        try
+        {
+            var response = await ResolveAsync(userId);
+
+            // Adding a stage is registration only; the trace grows with it.
+            response.Trace.Should().HaveCountGreaterThanOrEqualTo(20);
+            response.Trace.Should().OnlyContain(t => !string.IsNullOrWhiteSpace(t.Version));
+            response.Trace.Select(t => t.Stage).Should().OnlyHaveUniqueItems();
+
+            // No stage may fail the pipeline; a failure is recorded and the
+            // run continues.
+            response.Trace.Should().NotContain(t => t.Status == "failed");
         }
         finally { await CleanupAsync(); }
     }

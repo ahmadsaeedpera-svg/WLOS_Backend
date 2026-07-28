@@ -1,79 +1,64 @@
 namespace Maren.Contracts;
 
 // ---------------------------------------------------------------------------
-// Women's Life Operating System — the unified output
+// Women's Life OS — the intelligence pipeline's public shape
 //
-// Every surface asks the same question and receives the same shape. A
+// Every surface asks the same question and receives the same answer. A
 // dashboard, a notification scheduler, a widget and eventually an AI companion
-// are all consumers of this; none of them decides anything.
+// are all consumers; none of them decides anything.
 //
 // One envelope for every kind of decision, deliberately. A notification that
 // carried different fields from a dashboard card would let a client special
-// case one of them, and a client that special cases is a client that has
-// started making decisions.
+// case one of them, and a client that special cases has started deciding.
 // ---------------------------------------------------------------------------
 
 /// <summary>One thing the platform has decided, whatever kind it is.</summary>
-/// <remarks>
-/// Every decision explains itself. Reason is written for the woman, Evidence
-/// names the signals behind it for a client or model that wants the reasoning
-/// rather than the sentence, and Source says which engine produced it.
-/// <para>
-/// An adaptive platform nobody can interrogate is one nobody can debug,
-/// configure or defend — and the AI layer that will eventually phrase these
-/// must be reading a decision rather than making one.
-/// </para>
-/// </remarks>
 public sealed record LifeDecision(
-    /// <summary>What kind of thing this is: <c>dashboardCard</c> today.</summary>
     string Kind,
-
-    /// <summary>Stable identifier within its kind, for a client to key on.</summary>
     string Code,
-
     string Title,
-
-    /// <summary>Which part of her life this belongs to.</summary>
     string DomainCode,
-
-    /// <summary>Higher comes first. Resolved, never raw.</summary>
     int Priority,
-
-    /// <summary>Why she is seeing this, in her words.</summary>
     string Reason,
-
-    /// <summary>The signals behind it. Empty when it is simply routine.</summary>
     IReadOnlyList<string> Evidence,
-
-    /// <summary>0 to 1. As weak as the weakest reason behind it.</summary>
     decimal Confidence,
-
-    /// <summary>Which engine decided this.</summary>
     string Source,
-
-    /// <summary>When a client should stop trusting it. Null means no expiry.</summary>
     DateTime? ExpiresUtc,
-
-    /// <summary>How long a client may hold it before asking again.</summary>
     int RefreshSeconds,
-
-    /// <summary>
-    /// Codes this decision leans on. Lets a client drop a card whose
-    /// prerequisite disappeared rather than showing something orphaned.
-    /// </summary>
     IReadOnlyList<string> DependsOn,
-
-    /// <summary>
-    /// Whether this reflects self-reported health information. Such decisions
-    /// may be shown back to her and must never be presented as a finding.
-    /// </summary>
     bool IsHealthSensitive);
 
-/// <summary>What the platform knew about her when it decided.</summary>
+/// <summary>One derived understanding of how she is living.</summary>
 /// <remarks>
-/// Returned rather than kept private so a decision can be reproduced. Without
-/// it, "why did she see this yesterday" is unanswerable.
+/// Distinct from a decision. A decision is something to show her; this is
+/// something the platform understands about her, which decisions are derived
+/// from. Kept separate so a consumer can render her state without inferring it
+/// back out of a list of cards.
 /// </remarks>
+public sealed record LifeStateReading(
+    string DimensionCode,
+    string DisplayName,
+
+    /// <summary><c>unknown</c> when there was not enough logged to tell.</summary>
+    string ValueCode,
+
+    string ValueText,
+
+    /// <summary>0–100 for a score dimension; null for a categorical one.</summary>
+    int? Score,
+
+    /// <summary>0–100, derived from coverage. Never asserted.</summary>
+    int Confidence,
+
+    string Reason,
+    IReadOnlyList<string> Evidence,
+
+    /// <summary><c>new</c> until there is an earlier reading to compare with.</summary>
+    string Trend,
+
+    int? PreviousScore);
+
+/// <summary>What the platform knew about her when it decided.</summary>
 public sealed record LifeContext(
     string? LifeStageCode,
     IReadOnlyList<string> RoleModes,
@@ -83,26 +68,58 @@ public sealed record LifeContext(
     DateOnly AsOfLocalDate,
     IReadOnlyList<string> RaisedSignals);
 
-/// <summary>What one stage of the pipeline did.</summary>
+/// <summary>One contribution to a confidence figure.</summary>
 /// <remarks>
-/// The engine trace. Every stage reports itself, including the ones that are
-/// not built yet — a stage that returned nothing because it does not exist is
-/// a different fact from one that ran and found nothing, and collapsing them
-/// would make the platform look complete while being empty.
+/// Confidence is never a bare number. Every stage that reports one has to say
+/// what produced it, so an operator can see whether 82% means "most inputs
+/// present" or "one stale input and a guess".
 /// </remarks>
-public sealed record LifeOsStageTrace(
+public sealed record ConfidenceFactor(
+    string Name,
+    decimal Value,
+    string Explanation);
+
+/// <summary>Everything one pipeline stage did.</summary>
+/// <remarks>
+/// The full record, not a summary. The decision inspector renders exactly
+/// this, and anything omitted here is something an operator cannot see.
+/// </remarks>
+public sealed record IntelligenceStageReport(
     string Stage,
 
     /// <summary>
-    /// <c>contributed</c> — ran and produced decisions.
-    /// <c>noResult</c> — ran and had nothing to say.
-    /// <c>unavailable</c> — the engine behind it does not exist yet.
-    /// <c>skipped</c> — deliberately not run for this request.
+    /// <c>contributed</c> · <c>noResult</c> · <c>unavailable</c> ·
+    /// <c>failed</c> · <c>skipped</c>
     /// </summary>
     string Status,
 
-    string? Note,
-    int DecisionCount,
+    /// <summary>Why, when the status is not <c>contributed</c>.</summary>
+    string? Reason,
+
+    /// <summary>0–1, or null when the stage produces nothing to be confident about.</summary>
+    decimal? Confidence,
+
+    /// <summary>How that confidence was arrived at.</summary>
+    IReadOnlyList<ConfidenceFactor> ConfidenceFactors,
+
+    /// <summary>Context keys this stage read.</summary>
+    IReadOnlyList<string> InputsUsed,
+
+    /// <summary>Context keys this stage published.</summary>
+    IReadOnlyList<string> OutputsProduced,
+
+    /// <summary>What it based its answer on — signals, event types, rows.</summary>
+    IReadOnlyList<string> Evidence,
+
+    /// <summary>Things that did not stop it but are worth knowing.</summary>
+    IReadOnlyList<string> Warnings,
+
+    /// <summary>Free-form detail for an operator. Never shown to a woman.</summary>
+    IReadOnlyDictionary<string, string> Diagnostics,
+
+    /// <summary>Bumped when a stage's behaviour changes, so a stored trace stays readable.</summary>
+    string Version,
+
     long ElapsedMs);
 
 /// <summary>Everything the platform has decided for her, right now.</summary>
@@ -110,10 +127,8 @@ public sealed record LifeOsResponse(
     Guid UserId,
     DateTime ResolvedUtc,
     LifeContext Context,
+    IReadOnlyList<LifeStateReading> State,
     IReadOnlyList<LifeDecision> Decisions,
 
-    /// <summary>
-    /// How the answer was reached. Returned to operators through the portal's
-    /// decision inspector; a client may ignore it.
-    /// </summary>
-    IReadOnlyList<LifeOsStageTrace> Trace);
+    /// <summary>How the answer was reached, stage by stage.</summary>
+    IReadOnlyList<IntelligenceStageReport> Trace);
