@@ -110,7 +110,8 @@ jobs:
                    32_LifeStage.sql 33_Procs_Profile.sql \
                    34_ContentTargeting.sql 35_Procs_ContentTargeting.sql \
                    36_Timeline.sql 37_Procs_Timeline.sql \
-                   38_LifeDomain.sql 39_KnowledgeGraph.sql 40_Procs_Knowledge.sql; do
+                   38_LifeDomain.sql 39_KnowledgeGraph.sql 40_Procs_Knowledge.sql \
+                   41_Dashboard.sql 42_Procs_Dashboard.sql; do
             echo "--- $f"
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
@@ -132,7 +133,8 @@ jobs:
                    32_LifeStage.sql 33_Procs_Profile.sql \
                    34_ContentTargeting.sql 35_Procs_ContentTargeting.sql \
                    36_Timeline.sql 37_Procs_Timeline.sql \
-                   38_LifeDomain.sql 39_KnowledgeGraph.sql 40_Procs_Knowledge.sql; do
+                   38_LifeDomain.sql 39_KnowledgeGraph.sql 40_Procs_Knowledge.sql \
+                   41_Dashboard.sql 42_Procs_Dashboard.sql; do
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
 
@@ -231,6 +233,17 @@ jobs:
           out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/knowledge_graph_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Knowledge graph assertions failed"; exit 1; }
+
+      - name: SQL assertion suite — dashboard engine
+        # A dashboard is generated, so the only way to know it is right is to
+        # generate one. Assertion 14 is the important one: a suppressed card
+        # must disappear rather than rank last, which is the difference between
+        # a quiet day and a dashboard that nags.
+        working-directory: src/Maren.Database
+        run: |
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/dashboard_engine_test.sql)
+          echo "$out"
+          echo "$out" | grep -q "FAILED: 0" || { echo "::error::Dashboard engine assertions failed"; exit 1; }
 
       - name: Integration tests
         env:

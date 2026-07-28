@@ -34,7 +34,8 @@ for f in 01_Schemas.sql 02_Identity.sql 03_Administration.sql 04_Health.sql \
          32_LifeStage.sql 33_Procs_Profile.sql \
          34_ContentTargeting.sql 35_Procs_ContentTargeting.sql \
          36_Timeline.sql 37_Procs_Timeline.sql \
-         38_LifeDomain.sql 39_KnowledgeGraph.sql 40_Procs_Knowledge.sql; do
+         38_LifeDomain.sql 39_KnowledgeGraph.sql 40_Procs_Knowledge.sql \
+         41_Dashboard.sql 42_Procs_Dashboard.sql; do
   sqlcmd -S "(localdb)\MSSQLLocalDB" -I -d MarenPlatform -i "$f" || break
 done
 ```

@@ -20,6 +20,75 @@ GO
 IF OBJECT_ID('Knowledge.usp_Knowledge_EvaluateSignals') IS NOT NULL
     DROP PROCEDURE [Knowledge].[usp_Knowledge_EvaluateSignals];
 GO
+IF OBJECT_ID('Knowledge.fn_EvaluateSignals') IS NOT NULL
+    DROP FUNCTION [Knowledge].[fn_EvaluateSignals];
+GO
+/*  The evaluation itself, as a function so other engines can join it.
+
+    The procedure below is a thin wrapper over this and keeps the shape its
+    existing callers expect. The function exists because T-SQL forbids nesting
+    INSERT ... EXEC: the dashboard engine collects signals and is itself
+    collected by its caller, and with a procedure that second nesting fails at
+    runtime while quietly producing an empty set - so every card silently falls
+    back to its baseline priority and nothing looks broken.
+
+    Composition beats duplication here. The alternative was a second copy of
+    this logic inside the dashboard, which would have disagreed with this one
+    the first time either changed. */
+CREATE FUNCTION [Knowledge].[fn_EvaluateSignals]
+    (@UserId UNIQUEIDENTIFIER, @AsOfDate DATE)
+RETURNS TABLE
+AS
+RETURN
+    WITH daily AS (
+        SELECT
+            e.EventTypeCode,
+            e.OccurredLocalDate,
+            CASE WHEN t.IsCumulative = 1 THEN SUM(e.ValueNumeric) ELSE AVG(e.ValueNumeric) END AS DayValue
+        FROM [Timeline].[Event] e
+        JOIN [Timeline].[EventType] t ON t.EventTypeCode = e.EventTypeCode
+        WHERE e.UserId = @UserId
+          AND e.IsDeleted = 0
+          AND e.ValueNumeric IS NOT NULL
+          /*  Bounded by the widest rule window, as a subquery rather than a
+              variable: an inline function has no procedural body to hold one. */
+          AND e.OccurredLocalDate > DATEADD(DAY,
+                -(SELECT ISNULL(MAX(WindowDays), 1) FROM [Knowledge].[SignalRule] WHERE IsActive = 1),
+                @AsOfDate)
+          AND e.OccurredLocalDate <= @AsOfDate
+        GROUP BY e.EventTypeCode, e.OccurredLocalDate, t.IsCumulative
+    ),
+    breaches AS (
+        SELECT
+            r.SignalCode,
+            r.MinBreachDays,
+            COUNT(*) AS BreachDays
+        FROM [Knowledge].[SignalRule] r
+        JOIN daily d
+              ON d.EventTypeCode = r.EventTypeCode
+             AND d.OccurredLocalDate > DATEADD(DAY, -r.WindowDays, @AsOfDate)
+        WHERE r.IsActive = 1
+          AND ((r.Comparator = 'lt'  AND d.DayValue <  r.Threshold)
+            OR (r.Comparator = 'lte' AND d.DayValue <= r.Threshold)
+            OR (r.Comparator = 'gt'  AND d.DayValue >  r.Threshold)
+            OR (r.Comparator = 'gte' AND d.DayValue >= r.Threshold))
+        GROUP BY r.SignalCode, r.SignalRuleId, r.MinBreachDays
+    )
+    SELECT
+        s.SignalCode,
+        s.DisplayName,
+        s.DomainCode,
+        s.ObservationText,
+        s.IsHealthSensitive,
+        MAX(b.BreachDays) AS BreachDays,
+        s.SortOrder
+    FROM breaches b
+    JOIN [Knowledge].[Signal] s ON s.SignalCode = b.SignalCode
+    WHERE b.BreachDays >= b.MinBreachDays
+      AND s.IsActive = 1
+    GROUP BY s.SignalCode, s.DisplayName, s.DomainCode, s.ObservationText,
+             s.IsHealthSensitive, s.SortOrder;
+GO
 /*  Which signals are currently raised for her.
 
     Reads the timeline through the same daily aggregation the score engine will
@@ -43,58 +112,18 @@ BEGIN
 
     IF @AsOfDate IS NULL SET @AsOfDate = CAST(SYSUTCDATETIME() AS DATE);
 
-    /*  One pass over her recent events, aggregated per day per type. The
-        widest rule window bounds how far back to read. */
-    DECLARE @maxWindow INT =
-        (SELECT ISNULL(MAX(WindowDays), 1) FROM [Knowledge].[SignalRule] WHERE IsActive = 1);
-
-    ;WITH daily AS (
-        SELECT
-            e.EventTypeCode,
-            e.OccurredLocalDate,
-            CASE WHEN t.IsCumulative = 1 THEN SUM(e.ValueNumeric) ELSE AVG(e.ValueNumeric) END AS DayValue
-        FROM [Timeline].[Event] e
-        JOIN [Timeline].[EventType] t ON t.EventTypeCode = e.EventTypeCode
-        WHERE e.UserId = @UserId
-          AND e.IsDeleted = 0
-          AND e.ValueNumeric IS NOT NULL
-          AND e.OccurredLocalDate > DATEADD(DAY, -@maxWindow, @AsOfDate)
-          AND e.OccurredLocalDate <= @AsOfDate
-        /*  IsCumulative is grouped as well as tested: it appears in the CASE
-            above, and a column in a select list must be aggregated or grouped.
-            It is functionally dependent on EventTypeCode, so grouping by it
-            changes nothing about the result. */
-        GROUP BY e.EventTypeCode, e.OccurredLocalDate, t.IsCumulative
-    ),
-    breaches AS (
-        SELECT
-            r.SignalCode,
-            r.SignalRuleId,
-            r.MinBreachDays,
-            COUNT(*) AS BreachDays
-        FROM [Knowledge].[SignalRule] r
-        JOIN daily d
-              ON d.EventTypeCode = r.EventTypeCode
-             AND d.OccurredLocalDate > DATEADD(DAY, -r.WindowDays, @AsOfDate)
-        WHERE r.IsActive = 1
-          AND ((r.Comparator = 'lt'  AND d.DayValue <  r.Threshold)
-            OR (r.Comparator = 'lte' AND d.DayValue <= r.Threshold)
-            OR (r.Comparator = 'gt'  AND d.DayValue >  r.Threshold)
-            OR (r.Comparator = 'gte' AND d.DayValue >= r.Threshold))
-        GROUP BY r.SignalCode, r.SignalRuleId, r.MinBreachDays
-    )
+    /*  A wrapper over fn_EvaluateSignals, which holds the logic. Kept so the
+        existing callers and their result shape are unchanged; anything that
+        needs to join rather than execute should use the function. */
     SELECT
-        s.SignalCode,
-        s.DisplayName,
-        s.DomainCode,
-        s.ObservationText,
-        s.IsHealthSensitive,
-        b.BreachDays
-    FROM breaches b
-    JOIN [Knowledge].[Signal] s ON s.SignalCode = b.SignalCode
-    WHERE b.BreachDays >= b.MinBreachDays
-      AND s.IsActive = 1
-    ORDER BY s.SortOrder;
+        f.SignalCode,
+        f.DisplayName,
+        f.DomainCode,
+        f.ObservationText,
+        f.IsHealthSensitive,
+        f.BreachDays
+    FROM [Knowledge].[fn_EvaluateSignals](@UserId, @AsOfDate) f
+    ORDER BY f.SortOrder;
 END
 GO
 
