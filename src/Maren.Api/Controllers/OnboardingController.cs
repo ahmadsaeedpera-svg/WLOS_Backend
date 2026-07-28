@@ -1,5 +1,6 @@
 using Maren.Application.Abstractions;
 using Maren.Application.Onboarding;
+using Maren.Application.Wlos;
 using Maren.Contracts;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -106,6 +107,29 @@ public sealed class OnboardingController(ISender sender, ICurrentUser currentUse
     {
         if (currentUser.UserId is not { } userId) return Unauthenticated();
         return FromResult(await sender.Send(new GetMyLifeStageHistoryQuery(userId), ct));
+    }
+
+    /// <summary>What the platform thinks she should see right now.</summary>
+    /// <remarks>
+    /// <para>
+    /// The one question every surface asks. A dashboard, a widget, a
+    /// notification scheduler and eventually an AI companion all call this and
+    /// render what comes back; none of them decides anything, because a client
+    /// that decided would be a second copy of rules that live in the database.
+    /// </para>
+    /// <para>
+    /// Every decision carries its reason, evidence, confidence and source, and
+    /// the response includes the engine trace — including stages whose engines
+    /// do not exist yet, which report themselves rather than returning silence
+    /// that could be mistaken for a considered answer.
+    /// </para>
+    /// </remarks>
+    [HttpGet("today")]
+    [ProducesResponseType(typeof(ApiResponse<LifeOsResponse>), 200)]
+    public async Task<IActionResult> Today(CancellationToken ct)
+    {
+        if (currentUser.UserId is not { } userId) return Unauthenticated();
+        return FromResult(await sender.Send(new ResolveLifeOsQuery(userId), ct));
     }
 
     /*  A token that passed authentication but carries no usable subject claim.

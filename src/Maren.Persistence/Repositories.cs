@@ -4,6 +4,7 @@ using Maren.Application.Abstractions;
 using Maren.Application.Access;
 using Maren.Application.Config;
 using Maren.Application.Onboarding;
+using Maren.Application.Wlos;
 using Maren.Contracts;
 using Maren.Shared;
 using Microsoft.Data.SqlClient;
@@ -302,6 +303,24 @@ public static class PersistenceRegistration
         services.AddScoped<IAccessRepository, AccessRepository>();
         services.AddScoped<ISettingRepository, SettingRepository>();
         services.AddScoped<IOnboardingRepository, OnboardingRepository>();
+        services.AddScoped<ILifeOsRepository, LifeOsRepository>();
+
+        /*  The Women's Life OS pipeline, in order.
+
+            Registration order is execution order, and it lives here rather
+            than inside the handler so the whole pipeline is readable in one
+            place. Stages whose engines do not exist yet are registered
+            deliberately: they report themselves as unavailable in the trace,
+            which is how an operator sees what the platform cannot yet decide
+            instead of inferring it from silence. */
+        services.AddScoped<ILifeOsStage, ContextResolutionStage>();
+        services.AddScoped<ILifeOsStage, SignalAnalysisStage>();
+        services.AddScoped<ILifeOsStage, DashboardResolutionStage>();
+        services.AddScoped<ILifeOsStage, RoutineResolutionStage>();
+        services.AddScoped<ILifeOsStage, RecommendationResolutionStage>();
+        services.AddScoped<ILifeOsStage, NotificationResolutionStage>();
+        services.AddScoped<ILifeOsStage, PredictionResolutionStage>();
+        services.AddScoped<ILifeOsStage, AiContextResolutionStage>();
         return services;
     }
 }
