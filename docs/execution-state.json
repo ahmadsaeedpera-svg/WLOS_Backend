@@ -2,8 +2,8 @@
   "$comment": "Machine-readable execution state. Companion to EXECUTION_LEDGER.md, which carries the reasoning. Update both in the same commit; if they disagree, the ledger is authoritative for prose and this file for state.",
   "updatedUtc": "2026-07-28",
   "epic": "Intelligence Platform",
-  "slice": "Personal Growth Platform — goals and routines",
-  "feature": "Routines as a thin layer over Behaviour; goals measured by Behaviour",
+  "slice": "Behaviour arithmetic split — simulation unblocked",
+  "feature": "fn_Observe split so the real path and the inspector share one implementation",
   "track": "A+B",
   "status": "Complete",
   "tracks": {
@@ -14,13 +14,13 @@
   },
   "git": {
     "backendBranch": "feature/backend-v2",
-    "backendHead": "0ec3f20",
+    "backendHead": "26854dc",
     "frontendBranch": "feature/portal-v2",
     "frontendHead": "f905e5b",
     "mainTouched": false
   },
   "versions": {
-    "databaseScripts": 43,
+    "databaseScripts": 44,
     "highestScript": "57_AuditContract_Apply.sql",
     "api": "v1",
     "portal": "react19-mui9-vite8",
@@ -31,7 +31,7 @@
   "tests": {
     "backendIntegration": 203,
     "sqlAssertionSuites": 17,
-    "sqlAssertions": 221,
+    "sqlAssertions": 223,
     "portal": 75,
     "flutter": null,
     "flutterNote": "Static count only; never executed. No SDK."
@@ -46,17 +46,36 @@
     "portalTestsExitCode": 0,
     "portalProductionBuild": "pass",
     "mutationChecks": [
-      "routine completion: counting any logged step rather than required ones failed 2 assertions",
-      "routine soft delete: letting a deleted event count failed 1 assertion",
-      "goal silence guard: removing both code guards made the schema constraint throw (Msg 547)",
-      "portal impossible-routine detection: disabling it failed 1 test"
+      "inspector privacy guard: an inspector procedure taking a @UserId parameter fails assertion 1",
+      "behaviour regression: every pre-existing number unchanged after the refactor (streak 5, best 16, consistency 92.5, span 40, confidence 71)",
+      "simulation equivalence: the fixture day pattern reproduces the real path across all 13 measures, 0 disagreements",
+      "routine completion / soft delete / goal silence guard / portal impossible-routine — all still caught"
     ],
     "endpointsUnauthenticated": 401,
     "openApiDocumented": true,
     "ciOnRunner": "never-executed",
     "containerImage": "not-built-no-docker"
   },
-  "defectsFoundThisSession": [],
+  "defectsFoundThisSession": [
+    {
+      "id": "inspector-script-ordering",
+      "severity": "high",
+      "fixedIn": "26854dc",
+      "summary": "usp_Inspector_SimulateBehaviour was defined in 47_Procs_Inspector.sql (position 36) but declares variables of types created by 49_Behaviour.sql (position 37). A fresh ordered deployment stopped dead at script 36 of 44.",
+      "whyHidden": "Incremental testing applied 47 after the types already existed. Same class as the audit-contract ordering defect.",
+      "fix": "Moved to 51_Procs_Inspector_Behaviour.sql so position carries the dependency.",
+      "foundBy": "clean-room build from the documented script list"
+    },
+    {
+      "id": "textual-assertions",
+      "severity": "high",
+      "fixedIn": "26854dc",
+      "summary": "The inspector privacy guard and the new arithmetic guard both scanned sys.sql_modules text, and failed on doc comments mentioning the things they forbid.",
+      "whyItMattered": "A textual guard is not only trippable by prose but defeatable by formatting - [Timeline].[Event], extra whitespace or a synonym slips past a literal search. This is the guard that stops the platform impersonating a woman.",
+      "fix": "Both now use sys.parameters and sys.sql_expression_dependencies, which report what SQL Server resolved.",
+      "foundBy": "the new behaviour assertion failing on its own comment"
+    }
+  ],
   "engines": [
     "LifeStage",
     "RoleMode",
@@ -138,23 +157,27 @@
       "evidence": "SIMPLE recovery, zero backups, no deploy config in any repo"
     }
   ],
-  "maturity": 52,
-  "maturityNote": "Up two from 50. Routines proved the Behaviour investment: the whole layer is configuration plus a planning view, with no new behavioural computation. Deployment, backups and monitoring remain at zero and the mobile client has still never been executed.",
+  "maturity": 54,
+  "maturityNote": "Up two from 52. The behavioural arithmetic now has exactly one implementation serving both the real path and simulation, proven by equivalence rather than asserted. Deployment, backups and monitoring remain at zero and the mobile client has still never been executed.",
   "next": {
-    "feature": "Recommendation Assembly, then Coach, then Prediction",
+    "feature": "Recommendation Assembly",
     "track": "A then B",
-    "reason": "Every input a recommendation needs now exists: behaviour, knowledge, signals, rules, life stage, role modes, goals, routines, timeline and state. Recommendations are assembled from them and decide nothing themselves.",
-    "constraint": "Recommendation assembles. Coach explains recommendations and generates no advice. Prediction predicts behaviour only - routine completion, goal completion, habit continuation, engagement, drop-off, streak survival, reminder timing - never anything clinical, never deterministic.",
-    "blockedPrerequisite": "The Decision Inspector still cannot render behaviour, goals or routines until fn_Observe is split so the measure arithmetic consumes a day set rather than calling fn_SubjectDays itself. Simulating any of them another way would create a second source of behavioural truth. This now blocks three engines rather than one and should be done first.",
+    "reason": "The blocking prerequisite is done. Every input a recommendation needs now exists and is reachable through published interfaces: Behaviour.fn_Read, Behaviour.fn_ReadSteps, Growth.fn_ResolveGoals, Growth.fn_ResolveRoutines, Knowledge.fn_EvaluateSignals, Rules.fn_Match, Intelligence.fn_ResolveState.",
+    "constraint": "A recommendation is ASSEMBLED and decides nothing. Every one returns priority, confidence, reasoning, evidence, contributing engines, supporting observations, expiry, expected benefit, expected effort and version. It computes no behaviour - Behaviour.fn_Measure is the only arithmetic.",
+    "readyNow": "The Decision Inspector can now simulate behaviour via usp_Inspector_SimulateBehaviour. The same pattern extends to goals and routines: give fn_ResolveGoals and fn_ResolveRoutines a simulated observation set rather than a user id.",
     "scope": [
-      "split fn_Observe so simulation and the real path share one arithmetic",
-      "recommendation assembly with confidence, reasoning, evidence, contributing engines, priority, benefit, effort, expiry and version",
-      "coach explanation over recommendations",
-      "prediction: behavioural only",
-      "daily planner, weekly and monthly review"
+      "recommendation schema: templates, inputs, applicability via Rules scope",
+      "fn_AssembleRecommendations reading only published interfaces",
+      "recommendationResolution stage",
+      "contracts, CQRS, repository, controller",
+      "SQL assertions incl. an assembles-never-computes dependency assertion",
+      "portal recommendation library",
+      "inspector: render simulated recommendations",
+      "then coach, prediction, planner"
     ]
   },
   "architecturalInvariants": [
+    "Behaviour.fn_Measure is the ONLY copy of the measure arithmetic. It consumes a DaySet and an HourSet and reads no per-user source — verified by dependency graph, not by text. The real observer and the Decision Inspector both feed it.",
     "Behaviour.fn_Observe is the only computation of behaviour. Consumption goes through Behaviour.fn_Read and Behaviour.fn_ReadSteps.",
     "Growth.Routine NEVER owns a step list. It references Behaviour.Subject. Asserted structurally: no Step/EventType/Percent column may exist on Growth.Routine.",
     "Routine completion is derived from logged events every time. No stored percentage, no mark-complete command, no completion endpoint. Asserted at the contract boundary too.",
