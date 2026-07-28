@@ -2,8 +2,8 @@
   "$comment": "Machine-readable execution state. Companion to EXECUTION_LEDGER.md, which carries the reasoning. Update both in the same commit; if they disagree, the ledger is authoritative for prose and this file for state.",
   "updatedUtc": "2026-07-28",
   "epic": "Intelligence Platform",
-  "slice": "Personal Growth Platform — goals",
-  "feature": "Goals as first-class desired outcomes, measured by Behaviour",
+  "slice": "Personal Growth Platform — goals and routines",
+  "feature": "Routines as a thin layer over Behaviour; goals measured by Behaviour",
   "track": "A+B",
   "status": "Complete",
   "tracks": {
@@ -14,14 +14,14 @@
   },
   "git": {
     "backendBranch": "feature/backend-v2",
-    "backendHead": "66d63f9",
+    "backendHead": "0ec3f20",
     "frontendBranch": "feature/portal-v2",
-    "frontendHead": "bfef851",
+    "frontendHead": "f905e5b",
     "mainTouched": false
   },
   "versions": {
-    "databaseScripts": 41,
-    "highestScript": "54_AuditContract_Apply.sql",
+    "databaseScripts": 43,
+    "highestScript": "57_AuditContract_Apply.sql",
     "api": "v1",
     "portal": "react19-mui9-vite8",
     "flutter": "architecture-only-never-compiled",
@@ -29,10 +29,10 @@
     "infrastructure": "none-deployed"
   },
   "tests": {
-    "backendIntegration": 191,
-    "sqlAssertionSuites": 16,
-    "sqlAssertions": 205,
-    "portal": 65,
+    "backendIntegration": 203,
+    "sqlAssertionSuites": 17,
+    "sqlAssertions": 221,
+    "portal": 75,
     "flutter": null,
     "flutterNote": "Static count only; never executed. No SDK."
   },
@@ -46,26 +46,17 @@
     "portalTestsExitCode": 0,
     "portalProductionBuild": "pass",
     "mutationChecks": [
-      "goal silence guard: removing both code guards made the schema constraint throw (Msg 547) and failed 2 assertions",
-      "portal goal rule chip: renaming \"offered to everyone\" failed 1 test",
-      "portal behaviour span chip: replacing it with a bare label failed 1 test"
+      "routine completion: counting any logged step rather than required ones failed 2 assertions",
+      "routine soft delete: letting a deleted event count failed 1 assertion",
+      "goal silence guard: removing both code guards made the schema constraint throw (Msg 547)",
+      "portal impossible-routine detection: disabling it failed 1 test"
     ],
     "endpointsUnauthenticated": 401,
     "openApiDocumented": true,
     "ciOnRunner": "never-executed",
     "containerImage": "not-built-no-docker"
   },
-  "defectsFoundThisSession": [
-    {
-      "id": "verification-harness-truncation",
-      "severity": "medium",
-      "fixedIn": "66d63f9",
-      "summary": "The verification harness extracted the script list from the runbook with a .sql$ filter, which silently dropped the final entry because it carries a trailing semicolon. 41 scripts were verified as 40, and the dropped one was the audit contract.",
-      "whyItMattered": "The harness reported a clean full-order build while never running the script that applies the audit contract to late tables - the same class of silent truncation the audit-contract defect itself came from.",
-      "fix": "Strip the loop syntax before tokenising, and assert the documented list count equals the scripts on disk.",
-      "foundBy": "a second pass showing script 08 adding 227 columns that the first pass should already have added"
-    }
-  ],
+  "defectsFoundThisSession": [],
   "engines": [
     "LifeStage",
     "RoleMode",
@@ -100,10 +91,10 @@
       "dashboardResolution",
       "behaviourResolution",
       "habitResolution",
-      "goalResolution"
+      "goalResolution",
+      "routinePlanResolution"
     ],
     "unbuiltStages": [
-      "routinePlanResolution",
       "recommendationResolution",
       "coachResolution",
       "notificationResolution",
@@ -147,20 +138,27 @@
       "evidence": "SIMPLE recovery, zero backups, no deploy config in any repo"
     }
   ],
-  "maturity": 50,
-  "maturityNote": "Up two from 48. Goals are first-class and measured entirely from Behaviour, with the single-source rule now asserted in two directions. Deployment, backups and monitoring remain at zero and the mobile client has still never been executed - that is what the remaining fifty points are.",
+  "maturity": 52,
+  "maturityNote": "Up two from 50. Routines proved the Behaviour investment: the whole layer is configuration plus a planning view, with no new behavioural computation. Deployment, backups and monitoring remain at zero and the mobile client has still never been executed.",
   "next": {
-    "feature": "Routines, then Recommendation Assembly",
+    "feature": "Recommendation Assembly, then Coach, then Prediction",
     "track": "A then B",
-    "reason": "A routine is multiple behaviours executed together, and Behaviour already models one as a subject with required parts - so routines are largely configuration over existing machinery plus a planning layer. Recommendation assembly then has every input it needs: behaviour, knowledge, signals, rules, stage, roles, goals, timeline and state.",
-    "constraint": "Every engine is orchestration over IntelligenceKeys.Behaviour and IntelligenceKeys.Goals. None computes a habit, streak, consistency figure or probability. Recommendations are assembled, never inferred.",
-    "blockedPrerequisite": "The Decision Inspector still cannot render behaviour or goals until fn_Observe is split so the measure arithmetic consumes a day set rather than calling fn_SubjectDays itself. Simulating either any other way would create a second source of behavioural truth.",
+    "reason": "Every input a recommendation needs now exists: behaviour, knowledge, signals, rules, life stage, role modes, goals, routines, timeline and state. Recommendations are assembled from them and decide nothing themselves.",
+    "constraint": "Recommendation assembles. Coach explains recommendations and generates no advice. Prediction predicts behaviour only - routine completion, goal completion, habit continuation, engagement, drop-off, streak survival, reminder timing - never anything clinical, never deterministic.",
+    "blockedPrerequisite": "The Decision Inspector still cannot render behaviour, goals or routines until fn_Observe is split so the measure arithmetic consumes a day set rather than calling fn_SubjectDays itself. Simulating any of them another way would create a second source of behavioural truth. This now blocks three engines rather than one and should be done first.",
     "scope": [
-      "routine schema over Behaviour subjects with required parts",
-      "routine planning as configuration",
-      "recommendation assembly with confidence, reasoning, evidence, contributing engines, priority, effort, expiry and version",
-      "coach explains recommendations and generates nothing",
-      "prediction: completion, engagement, drop-off only; never clinical"
+      "split fn_Observe so simulation and the real path share one arithmetic",
+      "recommendation assembly with confidence, reasoning, evidence, contributing engines, priority, benefit, effort, expiry and version",
+      "coach explanation over recommendations",
+      "prediction: behavioural only",
+      "daily planner, weekly and monthly review"
     ]
-  }
+  },
+  "architecturalInvariants": [
+    "Behaviour.fn_Observe is the only computation of behaviour. Consumption goes through Behaviour.fn_Read and Behaviour.fn_ReadSteps.",
+    "Growth.Routine NEVER owns a step list. It references Behaviour.Subject. Asserted structurally: no Step/EventType/Percent column may exist on Growth.Routine.",
+    "Routine completion is derived from logged events every time. No stored percentage, no mark-complete command, no completion endpoint. Asserted at the contract boundary too.",
+    "Goal achievement is earned from the timeline, forward-only, and refused to clients by validator and procedure.",
+    "Applicability for content, dashboard cards, goals and routines all go through Rules.fn_Match. One matcher."
+  ]
 }

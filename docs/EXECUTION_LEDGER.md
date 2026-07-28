@@ -5,7 +5,7 @@ first and updates it last. Never depend on conversation history.
 
 Machine-readable companion: [`execution-state.json`](execution-state.json).
 
-**Last updated:** 2026-07-28 · backend `66d63f9` · portal `bfef851`
+**Last updated:** 2026-07-28 · backend `0ec3f20` · portal `f905e5b`
 
 ---
 
@@ -26,7 +26,30 @@ compute nothing. Routine, recommendation, coach and prediction must be the same.
 references the observation store or the day-counting function, so this is
 structural rather than a convention somebody remembers.
 
-**Consumption goes through `Behaviour.fn_Read`**, the published interface. The
+### The permanent invariant
+
+**`Growth.Routine` must never own a step list.** It references
+`Behaviour.Subject`, and composition, required parts and the done-today rule all
+live there. Two step lists are two answers to "what is in my evening routine",
+and the day they disagree is the day her checklist shows four steps while her
+streak counts three.
+
+Held in four places, because one is not enough for something this load-bearing:
+
+| Where | What it stops |
+|---|---|
+| `growth_routines_test.sql` #2 | Any `Step`, `EventType` or `Percent` column appearing on `Growth.Routine` |
+| `tr_Routine_SubjectMustBeRoutine` | A routine pointing at an event subject — aimed at `hydration` it would complete on one glass of water |
+| `growth_routines_test.sql` #16 | Any Growth procedure reaching the observation store, the day-counting function or the timeline |
+| `RoutineIntegrationTests` | `RoutineToday` growing a mutable setter or a `Percent` property |
+
+**Completion is derived, never stored.** No percentage column, no mark-complete
+command, no completion endpoint. To finish a routine she logs its steps.
+
+---
+
+**Consumption goes through `Behaviour.fn_Read`**, the published interface, and
+`Behaviour.fn_ReadSteps` for where she is up to today. The
 assertion forbids recomputation and direct storage access, not reading — and
 when Growth needed behaviour it forced that interface into existence rather than
 merely blocking the work. `growth_goals_test.sql` assertion 18 holds the same
@@ -57,16 +80,17 @@ designed in.
 
 ## Current Feature
 
-**Personal Growth Platform — goals.** Complete vertical slice: schema,
-resolution function, procedures, contracts, CQRS, repository, controller,
-pipeline stage, integration tests, SQL assertions and the portal library screen.
+**Personal Growth Platform — goals and routines.** Both complete vertical
+slices: schema, resolution functions, procedures, contracts, CQRS, repositories,
+controllers, pipeline stages, integration tests, SQL assertions and portal
+library screens.
 
 ## Current Epic / Slice / Track
 
 | | |
 |---|---|
 | Epic | 1 — Intelligence Platform |
-| Slice | Growth: goals — **closed** |
+| Slice | Growth: goals + routines — **closed** |
 | Track | A (backend) complete · B (portal) complete · C blocked · D ongoing |
 
 ---
@@ -101,7 +125,8 @@ Verified from code, in commit order on `feature/backend-v2`:
 | Audit contract applied after every table exists | `3f6520a` |
 | **Behaviour Intelligence — one model, six lenses** | `b769372` |
 | Behaviour measure vocabulary for operators | `9a3c192` |
-| **Goals as desired outcomes, measured by behaviour** | `66d63f9` |
+| Goals as desired outcomes, measured by behaviour | `66d63f9` |
+| **Routines as a thin layer over Behaviour** | `0ec3f20` |
 
 On `feature/portal-v2` (Maren-Frontend):
 
@@ -113,7 +138,8 @@ On `feature/portal-v2` (Maren-Frontend):
 | Life profile Flutter architecture (unverified) | `e83471d` |
 | Decision Inspector screen | `2480e78` |
 | Behaviour configuration screen | `35567a6` |
-| **Goal library screen** | `bfef851` |
+| Goal library screen | `bfef851` |
+| **Routine library screen** | `f905e5b` |
 
 ---
 
@@ -249,9 +275,9 @@ Decisions that constrain future work. Reversing any of these needs a reason.
 
 | Layer | Version / state |
 |---|---|
-| Database | 41 numbered scripts (`01`–`54`), 16 assertion suites |
+| Database | 43 numbered scripts (`01`–`57`), 17 assertion suites |
 | API | v1 · `/api/v1/me`, `/api/v1/admin/*` |
-| Portal | React 19 / MUI 9 / Vite 8, 65 tests |
+| Portal | React 19 / MUI 9 / Vite 8, 75 tests |
 | Flutter | Architecture only, **never compiled** |
 | AI | Specs + safety ledger. **No model integration** |
 | Infrastructure | None deployed |
@@ -264,13 +290,13 @@ Executed on this machine, not claimed:
 
 | Check | Result |
 |---|---|
-| Database created empty and applied **once, in order**, 41 scripts (list read from the runbook, count asserted against disk) | PASS |
+| Database created empty and applied **once, in order**, 43 scripts (list read from the runbook, count asserted against disk) | PASS |
 | Idempotency (second apply adds 0 columns, 0 indexes) | PASS |
-| SQL assertion suites | **16 suites, 205 assertions, 0 failures** |
+| SQL assertion suites | **17 suites, 221 assertions, 0 failures** |
 | Clean Release build `-warnaserror` (never incremental) | 0 errors, 0 warnings |
-| Integration tests | **191 passed, exit 0** |
+| Integration tests | **203 passed, exit 0** |
 | Portal `tsc -b --force` | exit 0 |
-| Portal tests | **65 passed, exit 0** |
+| Portal tests | **75 passed, exit 0** |
 | Portal production build | succeeds; inspector is a 2.69 kB gzip chunk |
 | Mutation check — inspector inert-signal assertion | fails as intended (5 inert) |
 | Mutation check — portal suppression split | fails 2 tests as intended |
@@ -305,39 +331,36 @@ never been executed. Application quality does not compensate for those.
 
 ## Next Feature
 
-**Routines, then Recommendation Assembly.**
+**Split `fn_Observe` first. Then Recommendation Assembly, Coach, Prediction.**
 
-**Why routines first.** A routine is multiple behaviours executed together, and
-Behaviour already models exactly that: a subject with required parts and a
-target number per day. `evening_routine` is one today. So routines are largely
-configuration over existing machinery plus a planning layer — not a new engine,
-which is the point of having built Behaviour as one model.
+**The prerequisite is now blocking three engines, not one.** The Decision
+Inspector cannot render behaviour, goals or routines. It is account-free by
+construction — no inspector procedure may reference a user id or the timeline,
+asserted in SQL — and all three need a woman's timeline. Simulating any of them
+as things stand would mean a second implementation of `fn_Observe`, which is the
+one thing this architecture forbids.
 
-**Then recommendation assembly**, which by then has every input it needs:
-behaviour, knowledge, signals, rules, life stage, role modes, goals, timeline
-and state. A recommendation is **assembled, never inferred** — it decides
-nothing itself, and every one returns confidence, reasoning, evidence,
-contributing engines, priority, expected benefit, expected effort, expiry and
-version.
+The fix: split `fn_Observe` so the measure arithmetic consumes a day set rather
+than calling `fn_SubjectDays` itself. The real path and a simulated one then
+feed the same arithmetic and there is still one definition. Do this **before**
+the engines below, not after — each one added makes the inspector gap wider.
 
-**Then coach** — which explains why a recommendation exists and generates no
-advice of its own — and **prediction**, restricted to behaviour: routine
-completion, goal completion, habit continuation, engagement, drop-off, streak
-survival, reminder timing. Never clinical, never deterministic.
+**Then recommendation assembly.** Every input now exists: behaviour, knowledge,
+signals, rules, life stage, role modes, goals, routines, timeline and state. A
+recommendation is **assembled** from them and decides nothing itself. Each one
+returns confidence, reasoning, evidence, contributing engines, supporting
+observations, priority, expected benefit, expected effort, expiry and version.
+
+**Then coach**, which explains why a recommendation exists and generates no
+advice of its own. **Then prediction**, behavioural only: routine completion,
+goal completion, habit continuation, engagement, drop-off, streak survival,
+reminder timing. Never clinical, never deterministic.
+
+**Then the planner and reviews** — daily focus, weekly and monthly review — all
+assembled from what the engines already produce.
 
 **The constraint that governs all of them:** each is orchestration over
-`IntelligenceKeys.Behaviour` and `IntelligenceKeys.Goals`. None computes a
-habit, streak, consistency figure or probability. Two assertions now hold that
-line from both sides.
-
-**Known gap, unchanged, and still a prerequisite.** The Decision Inspector
-cannot render behaviour or goals. The inspector is account-free by construction
-— no inspector procedure may reference a user id or the timeline, asserted in
-SQL — and both need a woman's timeline. Simulating either would mean a second
-implementation of `fn_Observe`, which is the one thing this architecture
-forbids.
-
-The fix is to split `fn_Observe` so the measure arithmetic consumes a day set
-rather than calling `fn_SubjectDays` itself. Then the real and simulated paths
-feed the same arithmetic and there is still one definition. That refactor must
-come **before** any inspector work on behaviour or goals, not be worked around.
+`IntelligenceKeys.Behaviour`, `.Goals` and `.Routines`. None computes a habit,
+streak, consistency figure or probability. Routines proved this works — the
+entire layer is configuration plus a planning view, with no new behavioural
+computation anywhere in it.
