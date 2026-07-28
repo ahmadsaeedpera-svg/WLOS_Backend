@@ -3,6 +3,7 @@ using Dapper;
 using Maren.Application.Abstractions;
 using Maren.Application.Access;
 using Maren.Application.Config;
+using Maren.Application.Onboarding;
 using Maren.Contracts;
 using Maren.Shared;
 using Microsoft.Data.SqlClient;
@@ -300,6 +301,7 @@ public static class PersistenceRegistration
         services.AddScoped<IContentRepository, ContentRepository>();
         services.AddScoped<IAccessRepository, AccessRepository>();
         services.AddScoped<ISettingRepository, SettingRepository>();
+        services.AddScoped<IOnboardingRepository, OnboardingRepository>();
         return services;
     }
 }

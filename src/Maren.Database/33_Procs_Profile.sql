@@ -64,9 +64,15 @@ BEGIN
     WHERE uls.UserId = @UserId
       AND uls.EndedOn IS NULL;
 
+    /*  The same four columns usp_LifeStage_List returns for a role mode, in
+        the same order. A client renders her roles and the pickable roles with
+        one shape, and a narrower result set here would force a second type
+        that means the same thing. */
     SELECT
         urm.RoleModeCode,
-        rm.DisplayName
+        rm.DisplayName,
+        rm.[Description],
+        rm.SortOrder
     FROM [Identity].[UserRoleMode] urm
     JOIN [Identity].[RoleMode] rm ON rm.RoleModeCode = urm.RoleModeCode
     WHERE urm.UserId = @UserId
