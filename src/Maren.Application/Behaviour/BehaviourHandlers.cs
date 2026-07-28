@@ -34,6 +34,8 @@ public interface IBehaviourRepository
         CancellationToken ct);
 
     Task<IReadOnlyList<BehaviourSubject>> ListSubjectsAsync(CancellationToken ct);
+
+    Task<IReadOnlyList<BehaviourMeasure>> ListMeasuresAsync(CancellationToken ct);
 }
 
 // ---------------------------------------------------------------------------
@@ -128,4 +130,26 @@ public sealed class ListBehaviourSubjectsHandler(IBehaviourRepository repository
         ListBehaviourSubjectsQuery query, CancellationToken ct) =>
         Result<IReadOnlyList<BehaviourSubject>>.Success(
             await repository.ListSubjectsAsync(ct));
+}
+
+/// <summary>
+/// The measure vocabulary and the spans that gate it.
+/// </summary>
+/// <remarks>
+/// Same gate as the subject catalogue, and for the same reason: it is
+/// configuration, not anybody's data.
+/// </remarks>
+public sealed record ListBehaviourMeasuresQuery
+    : IRequest<Result<IReadOnlyList<BehaviourMeasure>>>, IRequirePermission
+{
+    public string Permission => PlatformPermissions.ContentRead;
+}
+
+public sealed class ListBehaviourMeasuresHandler(IBehaviourRepository repository)
+    : IRequestHandler<ListBehaviourMeasuresQuery, Result<IReadOnlyList<BehaviourMeasure>>>
+{
+    public async Task<Result<IReadOnlyList<BehaviourMeasure>>> Handle(
+        ListBehaviourMeasuresQuery query, CancellationToken ct) =>
+        Result<IReadOnlyList<BehaviourMeasure>>.Success(
+            await repository.ListMeasuresAsync(ct));
 }

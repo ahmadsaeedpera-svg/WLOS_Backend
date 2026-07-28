@@ -715,5 +715,40 @@ BEGIN
 END
 GO
 
+-- ---------------------------------------------------------------------------
+-- usp_Behaviour_ListMeasures
+-- ---------------------------------------------------------------------------
+IF OBJECT_ID('Behaviour.usp_Behaviour_ListMeasures') IS NOT NULL
+    DROP PROCEDURE [Behaviour].[usp_Behaviour_ListMeasures];
+GO
+/*  The measure vocabulary, with the spans that gate it.
+
+    MinSpanDays and FullSpanDays are the honesty controls of the whole engine,
+    and an operator cannot reason about a woman's empty behaviour screen without
+    seeing them. "She has nine days of history and the weekly rhythm needs
+    fourteen" is an answer; "it shows nothing" is a support ticket. */
+CREATE PROCEDURE [Behaviour].[usp_Behaviour_ListMeasures]
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        m.MeasureCode,
+        m.DisplayName,
+        m.Family,
+        m.ValueKind,
+        m.Unit,
+        m.MinSpanDays,
+        m.FullSpanDays,
+        m.UnknownText,
+        m.[Description],
+        m.IsActive,
+        (SELECT COUNT(*) FROM [Behaviour].[SubjectMeasure] sm
+         WHERE sm.MeasureCode = m.MeasureCode) AS SubjectCount
+    FROM [Behaviour].[MeasureType] m
+    ORDER BY m.SortOrder, m.MeasureCode;
+END
+GO
+
 PRINT 'Behaviour Intelligence procedures ready.';
 GO

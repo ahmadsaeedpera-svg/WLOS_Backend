@@ -95,3 +95,33 @@ public sealed record BehaviourSubject(
 
     /// <summary>The timeline event types that compose it.</summary>
     IReadOnlyList<string> EventTypes);
+
+/// <summary>
+/// A measure as configured, with the spans that gate it.
+/// </summary>
+/// <remarks>
+/// <see cref="MinSpanDays"/> and <see cref="FullSpanDays"/> are the engine's
+/// honesty controls, and an operator cannot reason about an empty behaviour
+/// screen without seeing them. "She has nine days of history and the weekly
+/// rhythm needs fourteen" is an answer; "it shows nothing" is a support ticket.
+/// </remarks>
+public sealed record BehaviourMeasure(
+    string MeasureCode,
+    string DisplayName,
+
+    /// <summary>habit, rhythm, trend, preference or probability.</summary>
+    string Family,
+    string ValueKind,
+    string? Unit,
+
+    /// <summary>Below this much history the measure is withheld entirely, not reported as zero.</summary>
+    int MinSpanDays,
+
+    /// <summary>The span at which confidence reaches 100.</summary>
+    int FullSpanDays,
+
+    /// <summary>What she is told when there is not enough to say anything.</summary>
+    string UnknownText,
+    string? Description,
+    bool IsActive,
+    int SubjectCount);

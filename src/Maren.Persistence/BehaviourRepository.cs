@@ -102,6 +102,21 @@ public sealed class BehaviourRepository(IDbConnectionFactory factory) : IBehavio
             r.PartCount, r.MeasureCount, Split(r.EventTypesCsv))).ToList();
     }
 
+    public async Task<IReadOnlyList<BehaviourMeasure>> ListMeasuresAsync(CancellationToken ct)
+    {
+        using var connection = await factory.CreateAsync(ct);
+
+        var rows = await connection.QueryAsync<MeasureRow>(new CommandDefinition(
+            "[Behaviour].[usp_Behaviour_ListMeasures]",
+            commandType: CommandType.StoredProcedure,
+            cancellationToken: ct));
+
+        return rows.Select(r => new BehaviourMeasure(
+            r.MeasureCode, r.DisplayName, r.Family, r.ValueKind, r.Unit,
+            r.MinSpanDays, r.FullSpanDays, r.UnknownText, r.Description,
+            r.IsActive, r.SubjectCount)).ToList();
+    }
+
     // -----------------------------------------------------------------------
 
     private static BehaviourObservation Map(ObservationRow r) => new(
@@ -151,6 +166,21 @@ public sealed class BehaviourRepository(IDbConnectionFactory factory) : IBehavio
         public int SpanDays { get; init; }
         public int SupportingEventCount { get; init; }
         public string EngineVersion { get; init; } = "";
+    }
+
+    private sealed class MeasureRow
+    {
+        public string MeasureCode { get; init; } = "";
+        public string DisplayName { get; init; } = "";
+        public string Family { get; init; } = "";
+        public string ValueKind { get; init; } = "";
+        public string? Unit { get; init; }
+        public int MinSpanDays { get; init; }
+        public int FullSpanDays { get; init; }
+        public string UnknownText { get; init; } = "";
+        public string? Description { get; init; }
+        public bool IsActive { get; init; }
+        public int SubjectCount { get; init; }
     }
 
     private sealed class SubjectRow

@@ -86,4 +86,17 @@ public sealed class BehaviourAdminController(ISender sender) : MarenControllerBa
     [ProducesResponseType(typeof(ApiResponse<object>), 403)]
     public async Task<IActionResult> ListSubjects(CancellationToken ct)
         => FromResult(await sender.Send(new ListBehaviourSubjectsQuery(), ct));
+
+    /// <summary>The measure vocabulary, with the spans that gate it.</summary>
+    /// <remarks>
+    /// The minimum and full spans are the engine's honesty controls. Without
+    /// them an operator cannot explain an empty behaviour screen: "she has nine
+    /// days of history and the weekly rhythm needs fourteen" is an answer,
+    /// "it shows nothing" is a support ticket.
+    /// </remarks>
+    [HttpGet("measures")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<BehaviourMeasure>>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 403)]
+    public async Task<IActionResult> ListMeasures(CancellationToken ct)
+        => FromResult(await sender.Send(new ListBehaviourMeasuresQuery(), ct));
 }
