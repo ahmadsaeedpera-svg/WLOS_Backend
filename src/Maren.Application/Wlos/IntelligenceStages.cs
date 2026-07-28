@@ -1,5 +1,6 @@
 using System.Globalization;
 using Maren.Application.Behaviour;
+using Maren.Application.Growth;
 using Maren.Contracts;
 
 namespace Maren.Application.Wlos;
@@ -471,8 +472,72 @@ public sealed class HabitResolutionStage : IIntelligenceStage
 // Stages whose engines do not exist yet
 // ---------------------------------------------------------------------------
 
-public sealed class GoalResolutionStage()
-    : UnbuiltStage("goalResolution", "No goal engine yet.");
+/// <summary>Where she stands on what she is working towards.</summary>
+/// <remarks>
+/// <para>
+/// Orchestration over Behaviour, like <c>habitResolution</c>. The engine
+/// resolves progress from <c>Growth.fn_ResolveGoals</c>, which reads Behaviour
+/// through its published interface; nothing here counts a day, derives a streak
+/// or decides whether a goal is met.
+/// </para>
+/// <para>
+/// Publishes under <see cref="IntelligenceKeys.Goals"/> because recommendation
+/// assembly reads it. A recommendation that ignores what she is actually trying
+/// to do is advice about somebody else.
+/// </para>
+/// </remarks>
+public sealed class GoalResolutionStage(IGoalRepository repository) : IIntelligenceStage
+{
+    public string Name => "goalResolution";
+    public string Version => "1.0";
+
+    public async Task<IntelligenceResult> ExecuteAsync(
+        IntelligenceContext context, CancellationToken ct)
+    {
+        var goals = await repository.ResolveAsync(
+            context.UserId, context.AsOfLocalDate, ct);
+
+        context.Publish(IntelligenceKeys.Goals, goals);
+
+        if (goals.Count == 0)
+            return IntelligenceResult.NoResult("She has not taken on any goals yet.");
+
+        /*  Inherited from the observations behind each goal, never invented
+            here. A goal resting on nine days of history is not a confident 40%. */
+        var confidence = Math.Round(
+            (decimal)goals.Sum(g => g.Confidence) / goals.Count / 100m, 2);
+
+        var achieved = goals.Count(g => g.IsComplete);
+        var measurable = goals.Count(g => g.ProgressPercent.HasValue);
+
+        var warnings = new List<string>();
+
+        /*  Said plainly. A goal the platform cannot yet measure is not a failure,
+            but a consumer treating its silence as zero progress would be. */
+        var unmeasured = goals.Count - measurable;
+        if (unmeasured > 0)
+            warnings.Add($"{unmeasured} goal(s) have too little logged to measure yet.");
+
+        return IntelligenceResult.Contributed(
+            confidence: confidence,
+            factors:
+            [
+                new ConfidenceFactor("observed", confidence,
+                    "Inherited from Behaviour Intelligence; nothing recomputed here."),
+                new ConfidenceFactor("measurable",
+                    goals.Count == 0 ? 0m : Math.Round((decimal)measurable / goals.Count, 2),
+                    $"{measurable} of {goals.Count} goal(s) have enough behind them to measure."),
+            ],
+            evidence: goals.SelectMany(g => g.Evidence).Distinct().ToList(),
+            warnings: warnings,
+            diagnostics: new Dictionary<string, string>
+            {
+                ["goals"] = goals.Count.ToString(CultureInfo.InvariantCulture),
+                ["met"] = achieved.ToString(CultureInfo.InvariantCulture),
+                ["engineVersion"] = goals[0].EngineVersion,
+            });
+    }
+}
 
 public sealed class RoutinePlanResolutionStage()
     : UnbuiltStage("routinePlanResolution",

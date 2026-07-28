@@ -4,6 +4,7 @@ using Maren.Application.Abstractions;
 using Maren.Application.Access;
 using Maren.Application.Behaviour;
 using Maren.Application.Config;
+using Maren.Application.Growth;
 using Maren.Application.Inspector;
 using Maren.Application.Onboarding;
 using Maren.Application.Wlos;
@@ -308,6 +309,7 @@ public static class PersistenceRegistration
         services.AddScoped<ILifeOsRepository, LifeOsRepository>();
         services.AddScoped<IInspectorRepository, InspectorRepository>();
         services.AddScoped<IBehaviourRepository, BehaviourRepository>();
+        services.AddScoped<IGoalRepository, GoalRepository>();
 
         /*  The Women's Life OS pipeline, in order.
 
@@ -338,6 +340,8 @@ public static class PersistenceRegistration
             prediction are all orchestration over what this stage publishes. */
         services.AddScoped<IIntelligenceStage, BehaviourResolutionStage>();
         services.AddScoped<IIntelligenceStage, HabitResolutionStage>();
+        /*  Goals after behaviour, because goal progress is the distance
+            between what behaviour observed and what the goal asks for. */
         services.AddScoped<IIntelligenceStage, GoalResolutionStage>();
         services.AddScoped<IIntelligenceStage, RoutinePlanResolutionStage>();
         services.AddScoped<IIntelligenceStage, RecommendationResolutionStage>();

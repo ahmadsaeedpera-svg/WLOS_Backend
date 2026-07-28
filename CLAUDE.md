@@ -65,7 +65,8 @@ for f in 01_Schemas.sql 02_Identity.sql 03_Administration.sql 04_Health.sql \
          43_Intelligence.sql 44_Procs_Intelligence.sql \
          45_RuleEngine.sql 46_Procs_RuleEngine.sql 47_Procs_Inspector.sql \
          49_Behaviour.sql 50_Procs_Behaviour.sql \
-         51_AuditContract_Apply.sql; do
+         52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
+         54_AuditContract_Apply.sql; do
   sqlcmd -S "(localdb)\MSSQLLocalDB" -I -d MarenPlatform -i "$f" || break
 done
 ```
@@ -75,9 +76,9 @@ indexes fail to create.
 
 **Never add a `USE` statement** to a script. The database name comes from `-d`.
 
-**`51_AuditContract_Apply.sql` must stay last.** It was 48 until the behaviour
-scripts were added, and renumbering it was the required step — exactly the case
-this rule exists for. `08_AuditContract.sql` applies
+**`54_AuditContract_Apply.sql` must stay last.** It has been 48, then 51, now
+54 — renumbered each time a script added tables, which is exactly the case this
+rule exists for. `08_AuditContract.sql` applies
 the audit contract with a cursor over `sys.tables`, and it runs ninth — it
 cannot see anything created by the scripts after it. One ordered pass on an
 empty server left 19 tables short by 147 columns and 19 filtered indexes,

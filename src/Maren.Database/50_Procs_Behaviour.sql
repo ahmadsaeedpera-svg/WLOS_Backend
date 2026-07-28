@@ -716,6 +716,55 @@ END
 GO
 
 -- ---------------------------------------------------------------------------
+-- fn_Read — the consumption interface
+-- ---------------------------------------------------------------------------
+IF OBJECT_ID('Behaviour.fn_Read') IS NOT NULL
+    DROP FUNCTION [Behaviour].[fn_Read];
+GO
+/*  What every other engine reads.
+
+    behaviour_test.sql assertion 19 fails if any schema outside Behaviour
+    references the observation table or the day-counting function. That is
+    deliberate, and this function is the reason it is not merely restrictive:
+    the rule forbids recomputation and direct storage access, not consumption.
+    Goals, routines, recommendations, coaching and prediction all read through
+    here.
+
+    A function rather than the procedure, because a procedure cannot be joined
+    to and INSERT ... EXEC cannot nest - a consuming engine inside its own
+    INSERT ... EXEC would silently receive nothing, which has already cost this
+    platform one defect in the dashboard engine.
+
+    Resolves to the most recent day at or before the one asked for. A woman who
+    has not opened the app since Friday still has behaviour; pinning to today
+    would return nothing and every engine downstream would treat her as new. */
+CREATE FUNCTION [Behaviour].[fn_Read]
+    (@UserId UNIQUEIDENTIFIER, @AsOfDate DATE)
+RETURNS TABLE
+AS
+RETURN
+    SELECT
+        o.SubjectKey,
+        o.MeasureCode,
+        o.ValueNumeric,
+        o.ValueText,
+        o.Confidence,
+        o.SpanDays,
+        o.SupportingEventCount,
+        o.FirstObservedDate,
+        o.LastObservedDate,
+        o.Reason,
+        o.EvidenceCsv,
+        o.EngineVersion,
+        o.ForLocalDate
+    FROM [Behaviour].[Observation] o
+    WHERE o.UserId = @UserId
+      AND o.ForLocalDate = (
+            SELECT MAX(x.ForLocalDate) FROM [Behaviour].[Observation] x
+            WHERE x.UserId = @UserId AND x.ForLocalDate <= @AsOfDate);
+GO
+
+-- ---------------------------------------------------------------------------
 -- usp_Behaviour_ListMeasures
 -- ---------------------------------------------------------------------------
 IF OBJECT_ID('Behaviour.usp_Behaviour_ListMeasures') IS NOT NULL

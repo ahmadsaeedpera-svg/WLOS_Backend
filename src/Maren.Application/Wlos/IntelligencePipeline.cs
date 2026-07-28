@@ -44,6 +44,14 @@ public static class IntelligenceKeys
     /// disagree about her own week.
     /// </remarks>
     public const string Behaviour = "behaviour";
+
+    /// <summary>Where she stands on what she is working towards.</summary>
+    /// <remarks>
+    /// Published by <c>goalResolution</c>, read by recommendation assembly. A
+    /// recommendation that ignores what she is actually trying to do is advice
+    /// about somebody else.
+    /// </remarks>
+    public const string Goals = "goals";
 }
 
 /// <summary>What a stage may read, publish and emit.</summary>
