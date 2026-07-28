@@ -113,7 +113,8 @@ jobs:
                    38_LifeDomain.sql 39_KnowledgeGraph.sql 40_Procs_Knowledge.sql \
                    41_Dashboard.sql 42_Procs_Dashboard.sql \
                    43_Intelligence.sql 44_Procs_Intelligence.sql \
-                   45_RuleEngine.sql 46_Procs_RuleEngine.sql 47_Procs_Inspector.sql; do
+                   45_RuleEngine.sql 46_Procs_RuleEngine.sql 47_Procs_Inspector.sql \
+                   48_AuditContract_Apply.sql; do
             echo "--- $f"
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
@@ -138,7 +139,8 @@ jobs:
                    38_LifeDomain.sql 39_KnowledgeGraph.sql 40_Procs_Knowledge.sql \
                    41_Dashboard.sql 42_Procs_Dashboard.sql \
                    43_Intelligence.sql 44_Procs_Intelligence.sql \
-                   45_RuleEngine.sql 46_Procs_RuleEngine.sql 47_Procs_Inspector.sql; do
+                   45_RuleEngine.sql 46_Procs_RuleEngine.sql 47_Procs_Inspector.sql \
+                   48_AuditContract_Apply.sql; do
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
 
@@ -281,6 +283,20 @@ jobs:
           out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/inspector_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Inspector assertions failed"; exit 1; }
+
+      - name: Audit contract assertions
+        # Ordering, not compliance. 08_AuditContract.sql applies the contract
+        # with a cursor over sys.tables at position 9 of 37, so every table
+        # created after it was invisible to that pass. A single ordered run on
+        # an empty server left 19 tables short by 147 columns and 19 filtered
+        # indexes. It stayed hidden because verification databases had been
+        # re-applied more than once. This step runs against what one ordered
+        # pass actually produces.
+        working-directory: src/Maren.Database
+        run: |
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/audit_contract_test.sql)
+          echo "$out"
+          echo "$out" | grep -q "FAILED: 0" || { echo "::error::Audit contract assertions failed"; exit 1; }
 
       - name: Integration tests
         env:

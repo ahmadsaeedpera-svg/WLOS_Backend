@@ -63,7 +63,8 @@ for f in 01_Schemas.sql 02_Identity.sql 03_Administration.sql 04_Health.sql \
          38_LifeDomain.sql 39_KnowledgeGraph.sql 40_Procs_Knowledge.sql \
          41_Dashboard.sql 42_Procs_Dashboard.sql \
          43_Intelligence.sql 44_Procs_Intelligence.sql \
-         45_RuleEngine.sql 46_Procs_RuleEngine.sql 47_Procs_Inspector.sql; do
+         45_RuleEngine.sql 46_Procs_RuleEngine.sql 47_Procs_Inspector.sql \
+         48_AuditContract_Apply.sql; do
   sqlcmd -S "(localdb)\MSSQLLocalDB" -I -d MarenPlatform -i "$f" || break
 done
 ```
@@ -72,6 +73,16 @@ done
 indexes fail to create.
 
 **Never add a `USE` statement** to a script. The database name comes from `-d`.
+
+**`48_AuditContract_Apply.sql` must stay last.** `08_AuditContract.sql` applies
+the audit contract with a cursor over `sys.tables`, and it runs ninth — it
+cannot see anything created by the scripts after it. One ordered pass on an
+empty server left 19 tables short by 147 columns and 19 filtered indexes,
+including `Timeline.Event` and `Intelligence.UserStateSnapshot`. It went
+unnoticed for weeks because every verification database had been re-applied
+more than once, which picks the later tables up by accident. When you add a
+script that creates a table, renumber this one so it stays at the end;
+`tests/audit_contract_test.sql` fails if you forget.
 
 ### SQL assertion suites
 

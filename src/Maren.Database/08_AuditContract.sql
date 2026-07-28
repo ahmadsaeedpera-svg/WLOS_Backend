@@ -86,6 +86,27 @@ GO
 -- ---------------------------------------------------------------------------
 -- Apply the contract
 -- ---------------------------------------------------------------------------
+/*  A procedure rather than a loose batch, because it has to run more than once.
+    This script sits at position 9 of the deployment order, and every script
+    after it that creates a table creates one this cursor has already passed.
+    Run once, in order, on an empty server, it left 19 tables without the
+    contract — 147 columns and 19 filtered indexes — including Timeline.Event
+    and Intelligence.UserStateSnapshot, which hold what a woman logs and what
+    the platform infers from it. Earlier databases looked compliant only
+    because this file happened to be applied a second time.
+
+    So the logic lives here once and the last numbered script calls it again,
+    after every table exists. Both callers share this body; a second copy would
+    drift and the drift would be invisible until a table was silently missing
+    its soft-delete columns. */
+IF OBJECT_ID('dbo.usp_ApplyAuditContract') IS NOT NULL
+    DROP PROCEDURE dbo.usp_ApplyAuditContract;
+GO
+CREATE PROCEDURE dbo.usp_ApplyAuditContract
+AS
+BEGIN
+SET NOCOUNT ON;
+
 DECLARE @schema SYSNAME, @table SYSNAME, @object_id INT;
 DECLARE @sql NVARCHAR(MAX);
 DECLARE @qualified NVARCHAR(300);
@@ -214,7 +235,6 @@ CLOSE table_cursor;
 DEALLOCATE table_cursor;
 
 PRINT CONCAT('Audit contract applied. Renamed: ', @renamed, '. Added: ', @added, '.');
-GO
 
 -- ---------------------------------------------------------------------------
 -- Soft-delete filtered indexes
@@ -258,4 +278,10 @@ CLOSE idx_cursor;
 DEALLOCATE idx_cursor;
 
 PRINT CONCAT('Soft-delete indexes created: ', @indexed, '.');
+END
+GO
+
+/*  Applied here for the tables that already exist, and again by the last
+    numbered script for every table created after this point. */
+EXEC dbo.usp_ApplyAuditContract;
 GO
