@@ -216,7 +216,13 @@ public sealed class LifeOsIntegrationTests(DatabaseFixture fixture)
 
             var unavailable = response.Trace.Where(t => t.Status == "unavailable").ToList();
             unavailable.Should().NotBeEmpty();
-            unavailable.Should().Contain(t => t.Stage == "recommendationResolution");
+            /*  recommendationResolution used to be named here. It is built now,
+                so this names stages that genuinely are not — the assertion is
+                that the pipeline still admits its gaps, not that any particular
+                engine is missing. When the last of these is built, replace them
+                rather than deleting the test: a pipeline reporting no
+                unavailable stages should be true, not merely unasserted. */
+            unavailable.Should().Contain(t => t.Stage == "coachResolution");
             unavailable.Should().Contain(t => t.Stage == "aiContextResolution");
             unavailable.Should().OnlyContain(t => !string.IsNullOrWhiteSpace(t.Reason),
                 "an operator must be told why, not just that");

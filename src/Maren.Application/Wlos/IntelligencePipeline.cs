@@ -60,6 +60,14 @@ public static class IntelligenceKeys
     /// a consumer cannot show a completed routine beside a broken streak.
     /// </remarks>
     public const string Routines = "routines";
+
+    /// <summary>What the platform is suggesting to her, with the reasoning for each.</summary>
+    /// <remarks>
+    /// Published by <c>recommendationResolution</c> and read by the coach, which
+    /// explains these rather than generating advice of its own. A coach that
+    /// reassembled would be a second opinion about the same woman.
+    /// </remarks>
+    public const string Recommendations = "recommendations";
 }
 
 /// <summary>What a stage may read, publish and emit.</summary>

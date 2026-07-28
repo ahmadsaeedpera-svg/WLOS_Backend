@@ -1,6 +1,7 @@
 using System.Globalization;
 using Maren.Application.Behaviour;
 using Maren.Application.Growth;
+using Maren.Application.Recommend;
 using Maren.Contracts;
 
 namespace Maren.Application.Wlos;
@@ -606,9 +607,76 @@ public sealed class RoutinePlanResolutionStage(IRoutineRepository repository)
     }
 }
 
-public sealed class RecommendationResolutionStage()
-    : UnbuiltStage("recommendationResolution",
-        "No recommendation engine yet. It will consume signals and the knowledge graph.");
+/// <summary>What the platform is suggesting to her, and why each thing.</summary>
+/// <remarks>
+/// <para>
+/// Assembly only. Every suggestion comes from <c>Recommend.fn_AssembleFrom</c>,
+/// which reads an evidence set gathered from published interfaces. This stage
+/// decides nothing, computes no behavioural number and applies no threshold.
+/// </para>
+/// <para>
+/// Registered after behaviour, goals and routines, because a recommendation is
+/// the sentence you get when several of those line up. It publishes under
+/// <see cref="IntelligenceKeys.Recommendations"/> so the coach can explain them
+/// without reassembling them.
+/// </para>
+/// </remarks>
+public sealed class RecommendationResolutionStage(IRecommendationRepository repository)
+    : IIntelligenceStage
+{
+    public string Name => "recommendationResolution";
+    public string Version => "1.0";
+
+    public async Task<IntelligenceResult> ExecuteAsync(
+        IntelligenceContext context, CancellationToken ct)
+    {
+        /*  The targeting context the earlier stages derived, so who a
+            recommendation is for stays with Rules rather than being decided
+            here. Absent means universal, matching every other scope. */
+        context.TryGet<string>(IntelligenceKeys.TargetingContext, out var targeting);
+
+        var assembled = await repository.ResolveAsync(
+            context.UserId, context.AsOfLocalDate, targeting, ct);
+
+        context.Publish(IntelligenceKeys.Recommendations, assembled);
+
+        if (assembled.Count == 0)
+            return IntelligenceResult.NoResult(
+                "Nothing she has logged supports a suggestion today.");
+
+        /*  Inherited from the observations that matched. A suggestion resting
+            on thin history reports thin confidence, and the pipeline says so
+            rather than averaging it away. */
+        var confidence = Math.Round(
+            (decimal)assembled.Sum(a => a.Confidence) / assembled.Count / 100m, 2);
+
+        var warnings = new List<string>();
+
+        /*  Said plainly. A low-effort suggestion is the one a tired woman can
+            act on, and a day with none of those is worth flagging to whatever
+            chooses what to show her. */
+        if (!assembled.Any(a => a.ExpectedEffort <= 2))
+            warnings.Add("Every suggestion today asks for real effort.");
+
+        return IntelligenceResult.Contributed(
+            confidence: confidence,
+            factors:
+            [
+                new ConfidenceFactor("assembled", confidence,
+                    "Inherited from the observations that matched; nothing inferred."),
+            ],
+            evidence: assembled.SelectMany(a => a.Evidence).Distinct().ToList(),
+            warnings: warnings,
+            diagnostics: new Dictionary<string, string>
+            {
+                ["recommendations"] = assembled.Count.ToString(CultureInfo.InvariantCulture),
+                ["engines"] = string.Join(",",
+                    assembled.SelectMany(a => a.Engines).Distinct().Order()),
+                ["topPriority"] = assembled.Max(a => a.Priority)
+                    .ToString(CultureInfo.InvariantCulture),
+            });
+    }
+}
 
 public sealed class CoachResolutionStage()
     : UnbuiltStage("coachResolution", "No coaching engine yet.");

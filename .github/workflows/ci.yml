@@ -116,8 +116,8 @@ jobs:
                    45_RuleEngine.sql 46_Procs_RuleEngine.sql 47_Procs_Inspector.sql \
                    49_Behaviour.sql 50_Procs_Behaviour.sql 51_Procs_Inspector_Behaviour.sql \
                    52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
-                   55_Growth_Routines.sql 56_Procs_Growth_Routines.sql \
-                   57_AuditContract_Apply.sql; do
+                   55_Growth_Routines.sql 56_Procs_Growth_Routines.sql 58_Recommendation.sql \
+                   59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 61_AuditContract_Apply.sql; do
             echo "--- $f"
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
@@ -145,8 +145,8 @@ jobs:
                    45_RuleEngine.sql 46_Procs_RuleEngine.sql 47_Procs_Inspector.sql \
                    49_Behaviour.sql 50_Procs_Behaviour.sql 51_Procs_Inspector_Behaviour.sql \
                    52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
-                   55_Growth_Routines.sql 56_Procs_Growth_Routines.sql \
-                   57_AuditContract_Apply.sql; do
+                   55_Growth_Routines.sql 56_Procs_Growth_Routines.sql 58_Recommendation.sql \
+                   59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 61_AuditContract_Apply.sql; do
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
 
@@ -325,6 +325,18 @@ jobs:
           out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/growth_routines_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Routine assertions failed"; exit 1; }
+
+      - name: Recommendation assertions
+        # A recommendation is assembled and decides nothing. These cover what
+        # that has to mean: assembly reads only published interfaces, an unmet
+        # required input blocks it however much else lined up, nothing is ever
+        # assembled from no evidence, and the operator shorthand runs the same
+        # assembly as the live path.
+        working-directory: src/Maren.Database
+        run: |
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/recommendation_test.sql)
+          echo "$out"
+          echo "$out" | grep -q "FAILED: 0" || { echo "::error::Recommendation assertions failed"; exit 1; }
 
       - name: Audit contract assertions
         # Ordering, not compliance. 08_AuditContract.sql applies the contract
