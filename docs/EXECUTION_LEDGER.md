@@ -5,7 +5,7 @@ first and updates it last. Never depend on conversation history.
 
 Machine-readable companion: [`execution-state.json`](execution-state.json).
 
-**Last updated:** 2026-07-28 · backend `2061132` · portal `0f77a14`
+**Last updated:** 2026-07-28 · backend `84a2a3f` · portal `857b55c`
 
 ---
 
@@ -80,18 +80,18 @@ designed in.
 
 ## Current Feature
 
-**Recommendation Platform.** Complete across every unblocked layer: schema,
-assembly function, evidence type, procedures, inspector simulation, contracts,
-CQRS, validation, repository, controller, OpenAPI, pipeline stage, SQL
-assertions, mutation tests, integration tests, portal library and simulator,
-portal tests, CI.
+**Coach Platform.** Complete across every unblocked layer: schema, tone
+profiles and rules, explanation function, procedures, inspector simulation,
+contracts, CQRS, validation, repository, controller, OpenAPI, pipeline stage,
+SQL assertions, mutation tests, integration tests, portal library and
+simulator, portal tests, CI — plus a new guard on CI itself.
 
 ## Current Epic / Slice / Track
 
 | | |
 |---|---|
 | Epic | 1 — Intelligence Platform |
-| Slice | Recommendation — **closed** |
+| Slice | Coach — **closed** |
 | Track | A (backend) complete · B (portal) complete · C blocked · D ongoing |
 
 ---
@@ -129,7 +129,8 @@ Verified from code, in commit order on `feature/backend-v2`:
 | Goals as desired outcomes, measured by behaviour | `66d63f9` |
 | Routines as a thin layer over Behaviour | `0ec3f20` |
 | fn_Observe split — simulation shares one implementation | `26854dc` |
-| **Recommendation Platform** | `2061132` |
+| Recommendation Platform | `2061132` |
+| **Coach Platform** | `84a2a3f` |
 
 On `feature/portal-v2` (Maren-Frontend):
 
@@ -143,7 +144,8 @@ On `feature/portal-v2` (Maren-Frontend):
 | Behaviour configuration screen | `35567a6` |
 | Goal library screen | `bfef851` |
 | Routine library screen | `f905e5b` |
-| **Recommendation library + simulator** | `0f77a14` |
+| Recommendation library + simulator | `0f77a14` |
+| **Coach library + simulator** | `857b55c` |
 
 ---
 
@@ -279,9 +281,9 @@ Decisions that constrain future work. Reversing any of these needs a reason.
 
 | Layer | Version / state |
 |---|---|
-| Database | 47 numbered scripts (`01`–`61`), 18 assertion suites |
+| Database | 50 numbered scripts (`01`–`65`), 19 assertion suites |
 | API | v1 · `/api/v1/me`, `/api/v1/admin/*` |
-| Portal | React 19 / MUI 9 / Vite 8, 86 tests |
+| Portal | React 19 / MUI 9 / Vite 8, 97 tests |
 | Flutter | Architecture only, **never compiled** |
 | AI | Specs + safety ledger. **No model integration** |
 | Infrastructure | None deployed |
@@ -294,13 +296,13 @@ Executed on this machine, not claimed:
 
 | Check | Result |
 |---|---|
-| Database created empty and applied **once, in order**, 47 scripts (list read from the runbook, count asserted against disk) | PASS |
+| Database created empty and applied **once, in order**, 50 scripts (list read from the runbook, count asserted against disk) | PASS |
 | Idempotency (second apply adds 0 columns, 0 indexes) | PASS |
-| SQL assertion suites | **18 suites, 241 assertions, 0 failures** |
+| SQL assertion suites | **19 suites, 257 assertions, 0 failures** |
 | Clean Release build `-warnaserror` (never incremental) | 0 errors, 0 warnings |
-| Integration tests | **217 passed, exit 0** |
+| Integration tests | **229 passed, exit 0** |
 | Portal `tsc -b --force` | exit 0 |
-| Portal tests | **86 passed, exit 0** |
+| Portal tests | **97 passed, exit 0** |
 | Portal production build | succeeds; inspector is a 2.69 kB gzip chunk |
 | Mutation check — inspector inert-signal assertion | fails as intended (5 inert) |
 | Mutation check — portal suppression split | fails 2 tests as intended |
