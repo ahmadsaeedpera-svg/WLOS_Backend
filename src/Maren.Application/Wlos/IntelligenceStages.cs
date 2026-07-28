@@ -1,4 +1,5 @@
 using System.Globalization;
+using Maren.Application.Behaviour;
 using Maren.Contracts;
 
 namespace Maren.Application.Wlos;
@@ -326,11 +327,149 @@ public sealed class DashboardResolutionStage(ILifeOsRepository repository) : IIn
 }
 
 // ---------------------------------------------------------------------------
-// Stages whose engines do not exist yet
+// Behaviour Intelligence
 // ---------------------------------------------------------------------------
 
-public sealed class HabitResolutionStage()
-    : UnbuiltStage("habitResolution", "No habit engine yet.");
+/// <summary>Observes how she lives, and publishes it for everything downstream.</summary>
+/// <remarks>
+/// <para>
+/// The only stage that computes behaviour. It resolves and persists the day's
+/// observations, then publishes them under
+/// <see cref="IntelligenceKeys.Behaviour"/>. Habit, routine, goal,
+/// recommendation, coach and prediction all read that key; none of them counts
+/// a day, derives a streak or estimates a probability of its own.
+/// </para>
+/// <para>
+/// Resolving here rather than in each consumer is the reason it is a stage at
+/// all: six engines each triggering a recomputation would observe the same
+/// woman six times in one page load.
+/// </para>
+/// </remarks>
+public sealed class BehaviourResolutionStage(IBehaviourRepository repository)
+    : IIntelligenceStage
+{
+    public string Name => "behaviourResolution";
+    public string Version => "1.0";
+
+    public async Task<IntelligenceResult> ExecuteAsync(
+        IntelligenceContext context, CancellationToken ct)
+    {
+        /*  Eight weeks. Long enough for the momentum and rhythm measures to
+            reach full confidence, short enough that the read stays a seek on
+            the timeline's clustered index. Measures needing more than this
+            report lower confidence rather than nothing, which is the honest
+            degradation. */
+        const int windowDays = 56;
+
+        var observations = await repository.ResolveAsync(
+            context.UserId, context.AsOfLocalDate, windowDays, ct);
+
+        context.Publish(IntelligenceKeys.Behaviour, observations);
+
+        if (observations.Count == 0)
+            return IntelligenceResult.NoResult(
+                "Nothing logged yet, so there is no behaviour to observe.");
+
+        /*  The mean of what the observations computed from her span. Not a
+            figure invented here: a woman who joined yesterday produces low
+            confidence because that is what one day supports. */
+        var confidence = Math.Round(
+            (decimal)observations.Sum(o => o.Confidence) / observations.Count / 100m, 2);
+
+        var subjects = observations.Select(o => o.SubjectKey).Distinct().ToList();
+
+        var factors = new List<ConfidenceFactor>
+        {
+            new("span",
+                confidence,
+                $"Mean coverage of the history each measure needs, across "
+                + $"{observations.Count} observation(s)."),
+            new("subjects",
+                subjects.Count == 0 ? 0m : 1.00m,
+                $"{subjects.Count} subject(s) had enough logged to observe."),
+        };
+
+        var warnings = new List<string>();
+
+        /*  Said plainly rather than hidden. A thin span is not a fault, but a
+            consumer treating a two-day observation as settled would be. */
+        var thin = observations.Count(o => o.Confidence < 50);
+        if (thin > 0)
+            warnings.Add($"{thin} observation(s) rest on less history than they need.");
+
+        return IntelligenceResult.Contributed(
+            confidence: confidence,
+            factors: factors,
+            evidence: observations.SelectMany(o => o.Evidence).Distinct().ToList(),
+            warnings: warnings,
+            diagnostics: new Dictionary<string, string>
+            {
+                ["observations"] = observations.Count.ToString(CultureInfo.InvariantCulture),
+                ["subjects"] = subjects.Count.ToString(CultureInfo.InvariantCulture),
+                ["engineVersion"] = observations[0].EngineVersion,
+            });
+    }
+}
+
+/// <summary>Her habits — the habit-family view of what behaviour observed.</summary>
+/// <remarks>
+/// Orchestration only, and deliberately so. It selects from what
+/// <c>behaviourResolution</c> published and computes nothing. If this stage
+/// ever counts a day or derives a streak it has become a second source of
+/// truth, and the second source is always the one that is wrong.
+/// </remarks>
+public sealed class HabitResolutionStage : IIntelligenceStage
+{
+    public string Name => "habitResolution";
+    public string Version => "1.0";
+
+    public Task<IntelligenceResult> ExecuteAsync(
+        IntelligenceContext context, CancellationToken ct)
+    {
+        /*  Degrades rather than throwing when behaviour is absent. A stage
+            whose input never arrived must not take the pipeline down with it. */
+        if (!context.TryGet<IReadOnlyList<BehaviourObservation>>(
+                IntelligenceKeys.Behaviour, out var observations))
+            return Task.FromResult(IntelligenceResult.NoResult(
+                "Behaviour was not observed for this request."));
+
+        var habits = observations!.Where(o => o.Family == "habit").ToList();
+
+        if (habits.Count == 0)
+            return Task.FromResult(IntelligenceResult.NoResult(
+                "Nothing logged often enough to read as a habit yet."));
+
+        var confidence = Math.Round(
+            (decimal)habits.Sum(o => o.Confidence) / habits.Count / 100m, 2);
+
+        /*  Streaks she is actually on, taken from the observation rather than
+            recounted. The number and the reason travel together, so anything
+            that shows it can also explain it. */
+        var live = habits
+            .Where(o => o.MeasureCode == "streak_current" && o.ValueNumeric > 0)
+            .ToList();
+
+        return Task.FromResult(IntelligenceResult.Contributed(
+            confidence: confidence,
+            factors:
+            [
+                new ConfidenceFactor("observed", confidence,
+                    "Inherited from Behaviour Intelligence; nothing recomputed here."),
+            ],
+            evidence: habits.SelectMany(o => o.Evidence).Distinct().ToList(),
+            diagnostics: new Dictionary<string, string>
+            {
+                ["habitMeasures"] = habits.Count.ToString(CultureInfo.InvariantCulture),
+                ["liveStreaks"] = live.Count.ToString(CultureInfo.InvariantCulture),
+                ["subjects"] = habits.Select(o => o.SubjectKey).Distinct().Count()
+                    .ToString(CultureInfo.InvariantCulture),
+            }));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Stages whose engines do not exist yet
+// ---------------------------------------------------------------------------
 
 public sealed class GoalResolutionStage()
     : UnbuiltStage("goalResolution", "No goal engine yet.");

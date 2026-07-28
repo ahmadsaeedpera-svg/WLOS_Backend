@@ -132,10 +132,4 @@ public sealed class OnboardingController(ISender sender, ICurrentUser currentUse
         return FromResult(await sender.Send(new ResolveLifeOsQuery(userId), ct));
     }
 
-    /*  A token that passed authentication but carries no usable subject claim.
-        Should not happen, and returning 401 rather than throwing means a
-        malformed token produces a sign-in prompt instead of a 500. */
-    private IActionResult Unauthenticated() =>
-        StatusCode(401, ApiResponse<object>.Fail(
-            "UNAUTHENTICATED", "Please sign in again."));
 }

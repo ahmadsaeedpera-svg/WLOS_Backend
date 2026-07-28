@@ -29,6 +29,21 @@ public static class IntelligenceKeys
     public const string TargetingContext = "targetingContext";
     public const string RaisedSignals = "raisedSignals";
     public const string StateReadings = "stateReadings";
+
+    /// <summary>
+    /// Every behavioural observation about her: habits, rhythms, trends,
+    /// preferences and probabilities.
+    /// </summary>
+    /// <remarks>
+    /// Published once, by <c>behaviourResolution</c>, and read by every engine
+    /// that has anything to say about how she lives. The habit, routine, goal,
+    /// recommendation, coach and prediction stages are orchestration over this
+    /// key — none of them counts a day or derives a streak. Six stages each
+    /// deciding "did she do this on that day" is six chances to decide it
+    /// differently, and the failure mode is a woman reading two screens that
+    /// disagree about her own week.
+    /// </remarks>
+    public const string Behaviour = "behaviour";
 }
 
 /// <summary>What a stage may read, publish and emit.</summary>

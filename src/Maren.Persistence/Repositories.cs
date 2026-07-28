@@ -2,6 +2,7 @@ using System.Data;
 using Dapper;
 using Maren.Application.Abstractions;
 using Maren.Application.Access;
+using Maren.Application.Behaviour;
 using Maren.Application.Config;
 using Maren.Application.Inspector;
 using Maren.Application.Onboarding;
@@ -306,6 +307,7 @@ public static class PersistenceRegistration
         services.AddScoped<IOnboardingRepository, OnboardingRepository>();
         services.AddScoped<ILifeOsRepository, LifeOsRepository>();
         services.AddScoped<IInspectorRepository, InspectorRepository>();
+        services.AddScoped<IBehaviourRepository, BehaviourRepository>();
 
         /*  The Women's Life OS pipeline, in order.
 
@@ -331,6 +333,10 @@ public static class PersistenceRegistration
         services.AddScoped<IIntelligenceStage, LoadResolutionStage>();
         services.AddScoped<IIntelligenceStage, RiskResolutionStage>();
 
+        /*  Behaviour before every engine that reads it. Registration order is
+            execution order, and habit, routine, goal, recommendation, coach and
+            prediction are all orchestration over what this stage publishes. */
+        services.AddScoped<IIntelligenceStage, BehaviourResolutionStage>();
         services.AddScoped<IIntelligenceStage, HabitResolutionStage>();
         services.AddScoped<IIntelligenceStage, GoalResolutionStage>();
         services.AddScoped<IIntelligenceStage, RoutinePlanResolutionStage>();

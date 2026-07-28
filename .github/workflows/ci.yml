@@ -114,7 +114,8 @@ jobs:
                    41_Dashboard.sql 42_Procs_Dashboard.sql \
                    43_Intelligence.sql 44_Procs_Intelligence.sql \
                    45_RuleEngine.sql 46_Procs_RuleEngine.sql 47_Procs_Inspector.sql \
-                   48_AuditContract_Apply.sql; do
+                   49_Behaviour.sql 50_Procs_Behaviour.sql \
+                   51_AuditContract_Apply.sql; do
             echo "--- $f"
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
@@ -140,7 +141,8 @@ jobs:
                    41_Dashboard.sql 42_Procs_Dashboard.sql \
                    43_Intelligence.sql 44_Procs_Intelligence.sql \
                    45_RuleEngine.sql 46_Procs_RuleEngine.sql 47_Procs_Inspector.sql \
-                   48_AuditContract_Apply.sql; do
+                   49_Behaviour.sql 50_Procs_Behaviour.sql \
+                   51_AuditContract_Apply.sql; do
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
 
@@ -283,6 +285,18 @@ jobs:
           out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/inspector_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Inspector assertions failed"; exit 1; }
+
+      - name: Behaviour assertions
+        # Behaviour is the single source of truth every later engine reads
+        # without checking, so these cover what those engines assume: a day
+        # counted once, a half-finished routine not credited, a measure without
+        # enough history absent rather than zero, and no second schema
+        # computing any of it.
+        working-directory: src/Maren.Database
+        run: |
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/behaviour_test.sql)
+          echo "$out"
+          echo "$out" | grep -q "FAILED: 0" || { echo "::error::Behaviour assertions failed"; exit 1; }
 
       - name: Audit contract assertions
         # Ordering, not compliance. 08_AuditContract.sql applies the contract

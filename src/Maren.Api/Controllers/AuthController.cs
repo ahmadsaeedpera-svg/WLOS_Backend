@@ -40,6 +40,19 @@ public abstract class MarenControllerBase : ControllerBase
             : StatusCode(StatusFor(result.FailureCode),
                 ApiResponse<object>.Fail(result.FailureCode!, result.Message));
 
+    /// <summary>A token that authenticated but carries no usable subject claim.</summary>
+    /// <remarks>
+    /// Should not happen. Returning 401 rather than throwing means a malformed
+    /// token produces a sign-in prompt instead of a 500.
+    ///
+    /// Lives on the base because every <c>/api/v1/me</c> controller needs it,
+    /// and a second private copy would be a second chance to return the wrong
+    /// status for the same condition.
+    /// </remarks>
+    protected IActionResult Unauthenticated() =>
+        StatusCode(StatusCodes.Status401Unauthorized, ApiResponse<object>.Fail(
+            "UNAUTHENTICATED", "Please sign in again."));
+
     private static int StatusFor(string? code) => code switch
     {
         FailureCodes.InvalidCredentials => StatusCodes.Status401Unauthorized,
