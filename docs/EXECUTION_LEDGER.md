@@ -5,22 +5,28 @@ first and updates it last. Never depend on conversation history.
 
 Machine-readable companion: [`execution-state.json`](execution-state.json).
 
-**Last updated:** 2026-07-27 · commit `9de8ebc`+ (see below)
+**Last updated:** 2026-07-28 · backend `3f6520a` · portal `2480e78`
 
 ---
 
 ## Current Feature
 
-**Decision Inspector — API + Application + Repository + Controller** (Track A of
-the portal slice). Complete and verified. The React screen is not built.
+**Decision Inspector — complete vertical slice.** SQL, contracts, CQRS,
+repository, controller, signal endpoint and the React screen are all built and
+verified. The slice is closed.
+
+One defect was found while verifying it and fixed under its own commit: the
+audit contract was being applied before most of the platform's tables existed.
+See *Defects found by verification* below — it is the most consequential thing
+this session produced, and it had nothing to do with the inspector.
 
 ## Current Epic / Slice / Track
 
 | | |
 |---|---|
 | Epic | 1 — Intelligence Platform |
-| Slice | Decision Inspector |
-| Track | A (backend) complete · **B (portal) next** · C blocked · D ongoing |
+| Slice | Decision Inspector — **closed** |
+| Track | A (backend) complete · B (portal) complete · C blocked · D ongoing |
 
 ---
 
@@ -49,7 +55,9 @@ Verified from code, in commit order on `feature/backend-v2`:
 | Pipeline refactor — 23 stages, zero-modification | `1d11215` |
 | One rule engine (consolidated two matchers) | `b6613a2` |
 | Decision inspector — SQL | `9de8ebc` |
-| **Decision inspector — API/CQRS/repository** | this commit |
+| Decision inspector — API/CQRS/repository | `e83a2c1` |
+| Inspector signal endpoint | `978c1b6` |
+| **Audit contract applied after every table exists** | `3f6520a` |
 
 On `feature/portal-v2` (Maren-Frontend):
 
@@ -59,6 +67,45 @@ On `feature/portal-v2` (Maren-Frontend):
 | First portal tests (client + auth) | `87be8e0` |
 | Onboarding configuration + adaptive preview | `89f7199` |
 | Life profile Flutter architecture (unverified) | `e83471d` |
+| **Decision Inspector screen** | `2480e78` |
+
+---
+
+## Defects Found by Verification
+
+### The audit contract was applied before most tables existed
+
+**Severity: high. Found this session, fixed in `3f6520a`.**
+
+A database built by following the documented deployment procedure once, in
+order, on an empty server failed the platform's own audit contract: **19 tables
+short by 147 columns and 19 filtered indexes.**
+
+`08_AuditContract.sql` applies the contract with a cursor over `sys.tables`. It
+runs ninth of thirty-seven, so it never sees anything created by scripts 30–47 —
+the entire Women's Life OS. The exposed tables included `Timeline.Event` and
+`Intelligence.UserStateSnapshot`, which hold what a woman logs and what the
+platform infers from it. Those are the last two tables in the platform that
+should be missing attribution and soft delete.
+
+**Why it stayed hidden.** `AuditContractTests` had been green for weeks — but
+every database it ran against had been re-applied more than once, and a second
+pass over an already-built database picks the later tables up by accident. The
+test was correct; the environment was quietly compensating. A first production
+deployment would not have had that accident.
+
+**The lesson, which generalises past this defect:** a green test on a database
+that has been incrementally re-applied proves the schema *converges*, not that
+the documented procedure *produces* it. Verification has to run against what one
+ordered pass actually builds. This is the same class of error as the stale-binary
+trap — the artefact under test was not the artefact the procedure produces.
+
+**Fix:** the cursor moved into `dbo.usp_ApplyAuditContract`, called by `08` as
+before and again by `48_AuditContract_Apply.sql` after every table exists. The
+ordering requirement is carried by the number, not a comment, so a future script
+49 makes it 50 and the constraint stays visible.
+`tests/audit_contract_test.sql` (6 assertions) fails if it is forgotten, and
+runs in CI as its own step.
 
 ---
 
@@ -135,9 +182,9 @@ Decisions that constrain future work. Reversing any of these needs a reason.
 
 | Layer | Version / state |
 |---|---|
-| Database | 36 numbered scripts (`01`–`47`), 13 assertion suites |
+| Database | 37 numbered scripts (`01`–`48`), 14 assertion suites |
 | API | v1 · `/api/v1/me`, `/api/v1/admin/*` |
-| Portal | React 19 / MUI 9 / Vite 8, 35 tests |
+| Portal | React 19 / MUI 9 / Vite 8, 47 tests |
 | Flutter | Architecture only, **never compiled** |
 | AI | Specs + safety ledger. **No model integration** |
 | Infrastructure | None deployed |
@@ -150,14 +197,21 @@ Executed on this machine, not claimed:
 
 | Check | Result |
 |---|---|
-| Fresh database, 36 scripts | PASS |
-| Idempotency (second apply) | PASS |
-| SQL assertion suites | **13 suites, 157 assertions, 0 failures** |
-| Clean Release build `-warnaserror` | 0 errors |
-| Integration tests | **161 passed, exit 0** |
-| Inspector endpoints unauthenticated | `401` |
-| OpenAPI documents both inspector routes | yes |
-| Portal build + tests | strict build, 35 tests |
+| Database created empty and applied **once, in order**, 37 scripts | PASS |
+| Idempotency (second apply adds 0 columns, 0 indexes) | PASS |
+| SQL assertion suites | **14 suites, 167 assertions, 0 failures** |
+| Clean Release build `-warnaserror` (never incremental) | 0 errors, 0 warnings |
+| Integration tests | **164 passed, exit 0** |
+| Portal `tsc -b --force` | exit 0 |
+| Portal tests | **47 passed, exit 0** |
+| Portal production build | succeeds; inspector is a 2.69 kB gzip chunk |
+| Mutation check — inspector inert-signal assertion | fails as intended (5 inert) |
+| Mutation check — portal suppression split | fails 2 tests as intended |
+
+The first row is deliberately worded. It used to read "fresh database", which
+was true of a database that had been re-applied, and that wording is exactly
+what hid `3f6520a` for weeks. It now means what it says: `CREATE DATABASE`,
+then one ordered pass.
 
 **Not verified:** Flutter (no SDK), container image (no Docker), CI on a runner,
 portal screens against a live API.
@@ -184,18 +238,38 @@ never been executed. Application quality does not compensate for those.
 
 ## Next Feature
 
-**Decision Inspector — Track B (portal screen).**
+**Habit resolution — the first of the nine unbuilt pipeline stages.**
 
-**Why selected:** the backend now exposes simulation and per-card explanation,
-and nothing renders either. The pipeline publishes confidence factors, observed
-inputs and outputs, evidence, warnings, diagnostics and version across 23
-stages; an explainable platform nobody can inspect is explainable only in
-theory. This is the smallest remaining step that turns explainability from a
-property of the code into a tool an operator can use.
+**Why selected.** Priority 2 in the execution contract is the intelligence
+pipeline, and fourteen of its twenty-three stages are built. Everything built so
+far answers *what is true about her right now*: her stage, her state, her energy,
+her load, the cards that follow. Nothing yet answers *what she keeps doing*.
 
-**Scope:** `src/api/inspector.ts`; a screen with stage and role pickers, signal
-toggles, resulting cards ordered by priority with reason and evidence, and a
-distinct **suppressed** section answering "why is my card missing"; per-card
-explanation showing failing rules alongside passing ones. Accessibility to the
-standard set in `OnboardingConfig` — labelled controls, an `h1`, a live region,
-meaning carried in text rather than colour. Vitest coverage on client and screen.
+That gap is why the dashboard can only ever react. A card that says "sleep has
+been short recently" is an observation; the same platform knowing she has kept a
+wind-down routine for eleven days and it lapsed on Tuesday is the difference
+between a health app and a companion. Every remaining stage — routine plans,
+recommendations, coaching, notifications, prediction — reads habit state. Built
+in the wrong order they each invent their own, and the pipeline's guarantee that
+a stage observes rather than declares its inputs stops meaning anything.
+
+It also has to come before recommendation for a safety reason. A recommendation
+derived from a single day is a prescription dressed as encouragement, and the
+platform is a general-wellness product under the FDA exclusion. Habit gives
+recommendations something observational to stand on: repetition she can see in
+her own timeline, not an inference about her health.
+
+**Scope — complete vertical slice, all 22 layers.** Habit tables and procedures
+in a numbered script with assertions; streak and lapse computed from
+`Timeline.Event` and nowhere else, so the timeline stays the single source of
+truth; `habitResolution` registered as a stage with **zero modification to any
+existing stage**; observed inputs and outputs; confidence from coverage — a habit
+with four days of history reports low confidence rather than a number that looks
+certain; contracts, CQRS, repository, controller, permission, audit, feature
+flag; integration tests; inspector support so an operator can see why a habit
+resolved as it did; portal surfacing. Never a causal verb, never a diagnosis.
+
+**First check before writing any of it:** re-read `43_Intelligence.sql`. If habit
+state can be expressed as a state dimension rather than a new table, it should
+be — a second mechanism for "a thing the platform knows about her" is the kind of
+duplication the rule-engine consolidation already had to undo once.

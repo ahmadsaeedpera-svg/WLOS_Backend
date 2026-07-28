@@ -1,28 +1,30 @@
 {
   "$comment": "Machine-readable execution state. Companion to EXECUTION_LEDGER.md, which carries the reasoning. Update both in the same commit; if they disagree, the ledger is authoritative for prose and this file for state.",
-  "updatedUtc": "2026-07-27",
+  "updatedUtc": "2026-07-28",
   "epic": "Intelligence Platform",
   "slice": "Decision Inspector",
-  "feature": "Decision Inspector — API, Application, Repository, Controller",
-  "track": "A",
+  "feature": "Decision Inspector — complete vertical slice, closed",
+  "track": "A+B",
   "status": "Complete",
 
   "tracks": {
     "backend": "Complete",
-    "portal": "Not started",
+    "portal": "Complete",
     "flutter": "Blocked",
     "documentation": "Complete"
   },
 
   "git": {
     "backendBranch": "feature/backend-v2",
+    "backendHead": "3f6520a",
     "frontendBranch": "feature/portal-v2",
+    "frontendHead": "2480e78",
     "mainTouched": false
   },
 
   "versions": {
-    "databaseScripts": 36,
-    "highestScript": "47_Procs_Inspector.sql",
+    "databaseScripts": 37,
+    "highestScript": "48_AuditContract_Apply.sql",
     "api": "v1",
     "portal": "react19-mui9-vite8",
     "flutter": "architecture-only-never-compiled",
@@ -31,24 +33,44 @@
   },
 
   "tests": {
-    "backendIntegration": 161,
-    "sqlAssertionSuites": 13,
-    "sqlAssertions": 157,
-    "portal": 35,
+    "backendIntegration": 164,
+    "sqlAssertionSuites": 14,
+    "sqlAssertions": 167,
+    "portal": 47,
     "flutter": null,
     "flutterNote": "Static count only; never executed. No SDK."
   },
 
   "verification": {
-    "freshDatabase": "pass",
+    "$comment": "createDatabaseThenOneOrderedPass replaces the old 'freshDatabase' key. The old wording was satisfied by a re-applied database, which is precisely what hid the audit-contract ordering defect for weeks.",
+    "createDatabaseThenOneOrderedPass": "pass",
     "idempotency": "pass",
     "cleanReleaseBuildWarnAsError": "pass",
     "integrationTestsExitCode": 0,
+    "portalTypeCheckExitCode": 0,
+    "portalTestsExitCode": 0,
+    "portalProductionBuild": "pass",
+    "mutationChecks": [
+      "inspector inert-signal assertion: LEFT JOIN mutation reported 5 inert and failed",
+      "portal suppression split: removing the filter failed 2 tests"
+    ],
     "endpointsUnauthenticated": 401,
     "openApiDocumented": true,
     "ciOnRunner": "never-executed",
     "containerImage": "not-built-no-docker"
   },
+
+  "defectsFoundThisSession": [
+    {
+      "id": "audit-contract-ordering",
+      "severity": "high",
+      "fixedIn": "3f6520a",
+      "summary": "08_AuditContract.sql applies the contract with a cursor over sys.tables at position 9 of 37, so tables created by scripts 30-47 never received it. One ordered pass on an empty server left 19 tables short by 147 columns and 19 filtered indexes, including Timeline.Event and Intelligence.UserStateSnapshot.",
+      "whyHidden": "Every verification database had been re-applied more than once; a second pass picks the later tables up by accident. AuditContractTests was correct and green throughout.",
+      "fix": "Cursor extracted to dbo.usp_ApplyAuditContract, called by 08 and again by 48_AuditContract_Apply.sql after every table exists. tests/audit_contract_test.sql guards it, and CI runs it as its own step.",
+      "lesson": "A green test on an incrementally re-applied database proves the schema converges, not that the documented procedure produces it."
+    }
+  ],
 
   "engines": [
     "LifeStage", "RoleMode", "Targeting", "Timeline", "KnowledgeGraph",
@@ -79,24 +101,28 @@
     { "id": "docker", "type": "environment", "evidence": "docker --version -> command not found" },
     { "id": "ci-runner", "type": "environment", "evidence": "workflows never executed; verified by equivalent commands only" },
     { "id": "pd-1-networking", "type": "legal", "evidence": "About screen claims no network code; part of Play Data Safety declaration" },
-    { "id": "multi-tenancy", "type": "product", "openSessions": 7, "evidence": "no tenant dimension on any table; blocks Health procedure layer" },
+    { "id": "multi-tenancy", "type": "product", "openSessions": 8, "evidence": "no tenant dimension on any table; blocks the Health procedure layer" },
     { "id": "infrastructure", "type": "infrastructure", "evidence": "SIMPLE recovery, zero backups, no deploy config in any repo" }
   ],
 
-  "maturity": 43,
+  "maturity": 45,
+  "maturityNote": "Up two from 43. The inspector closes the explainability loop, and a real deployment-ordering defect was found and fixed rather than assumed absent. Deployment, backups and monitoring remain at zero and the mobile client has still never been executed, which is what holds this below 50.",
 
   "next": {
-    "feature": "Decision Inspector — portal screen",
-    "track": "B",
-    "reason": "Backend exposes simulation and per-card explanation; nothing renders either. Explainability that cannot be inspected is theoretical.",
+    "feature": "Habit resolution — pipeline stage",
+    "track": "A then B",
+    "reason": "Priority 2 is the intelligence pipeline; 14 of 23 stages are built and every one answers what is true about her now, none what she keeps doing. Routine plans, recommendations, coaching, notifications and prediction all read habit state, so building it first stops five stages inventing their own. It also has to precede recommendation for safety: a recommendation from a single day is a prescription dressed as encouragement, and habit gives it something observational to stand on.",
     "scope": [
-      "src/api/inspector.ts typed client",
-      "stage and role pickers, signal toggles",
-      "cards by priority with reason and evidence",
-      "distinct suppressed section answering 'why is my card missing'",
-      "per-card explanation showing failing rules alongside passing",
-      "accessibility to the OnboardingConfig standard",
-      "vitest coverage on client and screen"
+      "re-read 43_Intelligence.sql first: prefer a state dimension over a new table if habit fits one",
+      "habit tables and procedures in a numbered script, with assertions",
+      "streak and lapse computed from Timeline.Event only, keeping the timeline the single source of truth",
+      "habitResolution registered as a stage with zero modification to existing stages",
+      "observed inputs and outputs; confidence from coverage, low on thin history",
+      "contracts, CQRS, repository, controller, permission, audit, feature flag",
+      "integration tests and SQL assertions",
+      "inspector support so an operator can see why a habit resolved as it did",
+      "portal surfacing",
+      "no causal verb, no diagnosis"
     ]
   }
 }
