@@ -1,0 +1,102 @@
+{
+  "$comment": "Machine-readable execution state. Companion to EXECUTION_LEDGER.md, which carries the reasoning. Update both in the same commit; if they disagree, the ledger is authoritative for prose and this file for state.",
+  "updatedUtc": "2026-07-27",
+  "epic": "Intelligence Platform",
+  "slice": "Decision Inspector",
+  "feature": "Decision Inspector — API, Application, Repository, Controller",
+  "track": "A",
+  "status": "Complete",
+
+  "tracks": {
+    "backend": "Complete",
+    "portal": "Not started",
+    "flutter": "Blocked",
+    "documentation": "Complete"
+  },
+
+  "git": {
+    "backendBranch": "feature/backend-v2",
+    "frontendBranch": "feature/portal-v2",
+    "mainTouched": false
+  },
+
+  "versions": {
+    "databaseScripts": 36,
+    "highestScript": "47_Procs_Inspector.sql",
+    "api": "v1",
+    "portal": "react19-mui9-vite8",
+    "flutter": "architecture-only-never-compiled",
+    "ai": "specs-and-safety-ledger-no-model",
+    "infrastructure": "none-deployed"
+  },
+
+  "tests": {
+    "backendIntegration": 161,
+    "sqlAssertionSuites": 13,
+    "sqlAssertions": 157,
+    "portal": 35,
+    "flutter": null,
+    "flutterNote": "Static count only; never executed. No SDK."
+  },
+
+  "verification": {
+    "freshDatabase": "pass",
+    "idempotency": "pass",
+    "cleanReleaseBuildWarnAsError": "pass",
+    "integrationTestsExitCode": 0,
+    "endpointsUnauthenticated": 401,
+    "openApiDocumented": true,
+    "ciOnRunner": "never-executed",
+    "containerImage": "not-built-no-docker"
+  },
+
+  "engines": [
+    "LifeStage", "RoleMode", "Targeting", "Timeline", "KnowledgeGraph",
+    "Signal", "Dashboard", "IntelligenceCore", "RuleEngine",
+    "WlosPipeline", "DecisionInspector"
+  ],
+
+  "pipeline": {
+    "registeredStages": 23,
+    "builtStages": [
+      "contextResolution", "profileResolution", "signalAnalysis",
+      "stateResolution", "energyResolution", "focusResolution",
+      "consistencyResolution", "wellnessResolution", "balanceResolution",
+      "routineResolution", "momentumResolution", "loadResolution",
+      "riskResolution", "dashboardResolution"
+    ],
+    "unbuiltStages": [
+      "habitResolution", "goalResolution", "routinePlanResolution",
+      "recommendationResolution", "coachResolution", "notificationResolution",
+      "predictionResolution", "conversationContextResolution",
+      "aiContextResolution"
+    ],
+    "addingAStageRequires": "registration only"
+  },
+
+  "blockers": [
+    { "id": "flutter-sdk", "type": "environment", "evidence": "flutter --version -> command not found" },
+    { "id": "docker", "type": "environment", "evidence": "docker --version -> command not found" },
+    { "id": "ci-runner", "type": "environment", "evidence": "workflows never executed; verified by equivalent commands only" },
+    { "id": "pd-1-networking", "type": "legal", "evidence": "About screen claims no network code; part of Play Data Safety declaration" },
+    { "id": "multi-tenancy", "type": "product", "openSessions": 7, "evidence": "no tenant dimension on any table; blocks Health procedure layer" },
+    { "id": "infrastructure", "type": "infrastructure", "evidence": "SIMPLE recovery, zero backups, no deploy config in any repo" }
+  ],
+
+  "maturity": 43,
+
+  "next": {
+    "feature": "Decision Inspector — portal screen",
+    "track": "B",
+    "reason": "Backend exposes simulation and per-card explanation; nothing renders either. Explainability that cannot be inspected is theoretical.",
+    "scope": [
+      "src/api/inspector.ts typed client",
+      "stage and role pickers, signal toggles",
+      "cards by priority with reason and evidence",
+      "distinct suppressed section answering 'why is my card missing'",
+      "per-card explanation showing failing rules alongside passing",
+      "accessibility to the OnboardingConfig standard",
+      "vitest coverage on client and screen"
+    ]
+  }
+}

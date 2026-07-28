@@ -3,6 +3,7 @@ using Dapper;
 using Maren.Application.Abstractions;
 using Maren.Application.Access;
 using Maren.Application.Config;
+using Maren.Application.Inspector;
 using Maren.Application.Onboarding;
 using Maren.Application.Wlos;
 using Maren.Contracts;
@@ -304,6 +305,7 @@ public static class PersistenceRegistration
         services.AddScoped<ISettingRepository, SettingRepository>();
         services.AddScoped<IOnboardingRepository, OnboardingRepository>();
         services.AddScoped<ILifeOsRepository, LifeOsRepository>();
+        services.AddScoped<IInspectorRepository, InspectorRepository>();
 
         /*  The Women's Life OS pipeline, in order.
 
