@@ -2,8 +2,8 @@
   "$comment": "Machine-readable execution state. Companion to EXECUTION_LEDGER.md, which carries the reasoning. Update both in the same commit; if they disagree, the ledger is authoritative for prose and this file for state.",
   "updatedUtc": "2026-07-28",
   "epic": "Intelligence Platform",
-  "slice": "Behaviour Intelligence",
-  "feature": "Behaviour Intelligence — complete vertical slice, closed",
+  "slice": "Personal Growth Platform — goals",
+  "feature": "Goals as first-class desired outcomes, measured by Behaviour",
   "track": "A+B",
   "status": "Complete",
   "tracks": {
@@ -14,14 +14,14 @@
   },
   "git": {
     "backendBranch": "feature/backend-v2",
-    "backendHead": "9a3c192",
+    "backendHead": "66d63f9",
     "frontendBranch": "feature/portal-v2",
-    "frontendHead": "35567a6",
+    "frontendHead": "bfef851",
     "mainTouched": false
   },
   "versions": {
-    "databaseScripts": 39,
-    "highestScript": "51_AuditContract_Apply.sql",
+    "databaseScripts": 41,
+    "highestScript": "54_AuditContract_Apply.sql",
     "api": "v1",
     "portal": "react19-mui9-vite8",
     "flutter": "architecture-only-never-compiled",
@@ -29,10 +29,10 @@
     "infrastructure": "none-deployed"
   },
   "tests": {
-    "backendIntegration": 179,
-    "sqlAssertionSuites": 15,
-    "sqlAssertions": 187,
-    "portal": 56,
+    "backendIntegration": 191,
+    "sqlAssertionSuites": 16,
+    "sqlAssertions": 205,
+    "portal": 65,
     "flutter": null,
     "flutterNote": "Static count only; never executed. No SDK."
   },
@@ -46,9 +46,9 @@
     "portalTestsExitCode": 0,
     "portalProductionBuild": "pass",
     "mutationChecks": [
-      "behaviour inert-signal / inert-measure: LEFT JOIN mutation reported 5 inert and failed",
-      "portal behaviour span chip: replacing it with a bare label failed 1 test",
-      "portal suppression split: removing the filter failed 2 tests"
+      "goal silence guard: removing both code guards made the schema constraint throw (Msg 547) and failed 2 assertions",
+      "portal goal rule chip: renaming \"offered to everyone\" failed 1 test",
+      "portal behaviour span chip: replacing it with a bare label failed 1 test"
     ],
     "endpointsUnauthenticated": 401,
     "openApiDocumented": true,
@@ -57,22 +57,13 @@
   },
   "defectsFoundThisSession": [
     {
-      "id": "behaviour-cold-start",
+      "id": "verification-harness-truncation",
       "severity": "medium",
-      "fixedIn": "b769372",
-      "summary": "A woman who logged something today received no observations at all, because the lowest MinSpanDays was 3.",
-      "whyItMattered": "An empty behaviour screen for her first three days, and every downstream engine treating her as having done nothing.",
-      "fix": "days_active and days_since_last report from day one. Counting is not inferring; streak still needs three days because calling one day a streak is encouragement inflation.",
-      "foundBy": "behaviour_test.sql assertion 12"
-    },
-    {
-      "id": "behaviour-unindexed-fks",
-      "severity": "medium",
-      "fixedIn": "b769372",
-      "summary": "Behaviour.Observation had two foreign keys no index led with; both the clustered PK and the series index lead with UserId.",
-      "whyItMattered": "Deactivating a subject would scan every observation the platform had ever recorded, getting slower every day it runs.",
-      "fix": "Non-filtered IX_Observation_Subject and IX_Observation_Measure, added outside the creation block so existing databases get them.",
-      "foundBy": "index_coverage_test.sql"
+      "fixedIn": "66d63f9",
+      "summary": "The verification harness extracted the script list from the runbook with a .sql$ filter, which silently dropped the final entry because it carries a trailing semicolon. 41 scripts were verified as 40, and the dropped one was the audit contract.",
+      "whyItMattered": "The harness reported a clean full-order build while never running the script that applies the audit contract to late tables - the same class of silent truncation the audit-contract defect itself came from.",
+      "fix": "Strip the loop syntax before tokenising, and assert the documented list count equals the scripts on disk.",
+      "foundBy": "a second pass showing script 08 adding 227 columns that the first pass should already have added"
     }
   ],
   "engines": [
@@ -87,7 +78,8 @@
     "RuleEngine",
     "WlosPipeline",
     "DecisionInspector",
-    "BehaviourIntelligence"
+    "BehaviourIntelligence",
+    "PersonalGrowth"
   ],
   "pipeline": {
     "registeredStages": 24,
@@ -107,10 +99,10 @@
       "riskResolution",
       "dashboardResolution",
       "behaviourResolution",
-      "habitResolution"
+      "habitResolution",
+      "goalResolution"
     ],
     "unbuiltStages": [
-      "goalResolution",
       "routinePlanResolution",
       "recommendationResolution",
       "coachResolution",
@@ -155,19 +147,18 @@
       "evidence": "SIMPLE recovery, zero backups, no deploy config in any repo"
     }
   ],
-  "maturity": 48,
-  "maturityNote": "Up three from 45. The platform now understands how she lives, from one model rather than six, with the duplication ban asserted structurally. Deployment, backups and monitoring remain at zero and the mobile client has still never been executed, which is what holds this below 50.",
+  "maturity": 50,
+  "maturityNote": "Up two from 48. Goals are first-class and measured entirely from Behaviour, with the single-source rule now asserted in two directions. Deployment, backups and monitoring remain at zero and the mobile client has still never been executed - that is what the remaining fifty points are.",
   "next": {
-    "feature": "Goal Resolution, then Recommendation Assembly",
+    "feature": "Routines, then Recommendation Assembly",
     "track": "A then B",
-    "reason": "A recommendation must be assembled from behaviour, knowledge, signals, rules, life stage, role modes, goals, timeline and state, and decide nothing itself. Goals are the only one of those inputs that does not exist, so building recommendation first would mean ignoring her goals or inventing them.",
-    "constraint": "Every consuming engine is orchestration over IntelligenceKeys.Behaviour. None computes a habit, streak, consistency figure or probability.",
-    "blockedPrerequisite": "The Decision Inspector cannot render behaviour until fn_Observe is split so the measure arithmetic consumes a day set rather than calling fn_SubjectDays itself. Simulating behaviour any other way would create a second source of behavioural truth.",
+    "reason": "A routine is multiple behaviours executed together, and Behaviour already models one as a subject with required parts - so routines are largely configuration over existing machinery plus a planning layer. Recommendation assembly then has every input it needs: behaviour, knowledge, signals, rules, stage, roles, goals, timeline and state.",
+    "constraint": "Every engine is orchestration over IntelligenceKeys.Behaviour and IntelligenceKeys.Goals. None computes a habit, streak, consistency figure or probability. Recommendations are assembled, never inferred.",
+    "blockedPrerequisite": "The Decision Inspector still cannot render behaviour or goals until fn_Observe is split so the measure arithmetic consumes a day set rather than calling fn_SubjectDays itself. Simulating either any other way would create a second source of behavioural truth.",
     "scope": [
-      "goal schema and procedures with assertions",
-      "goalResolution as orchestration over behaviour",
-      "routine planning",
-      "recommendation assembly - assembled never inferred",
+      "routine schema over Behaviour subjects with required parts",
+      "routine planning as configuration",
+      "recommendation assembly with confidence, reasoning, evidence, contributing engines, priority, effort, expiry and version",
       "coach explains recommendations and generates nothing",
       "prediction: completion, engagement, drop-off only; never clinical"
     ]
