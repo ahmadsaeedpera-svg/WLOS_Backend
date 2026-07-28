@@ -2,8 +2,8 @@
   "$comment": "Machine-readable execution state. Companion to EXECUTION_LEDGER.md, which carries the reasoning. Update both in the same commit; if they disagree, the ledger is authoritative for prose and this file for state.",
   "updatedUtc": "2026-07-28",
   "epic": "Intelligence Platform",
-  "slice": "Behaviour arithmetic split — simulation unblocked",
-  "feature": "fn_Observe split so the real path and the inspector share one implementation",
+  "slice": "Recommendation Platform",
+  "feature": "Recommendations assembled from published interfaces, never inferred",
   "track": "A+B",
   "status": "Complete",
   "tracks": {
@@ -14,14 +14,14 @@
   },
   "git": {
     "backendBranch": "feature/backend-v2",
-    "backendHead": "26854dc",
+    "backendHead": "2061132",
     "frontendBranch": "feature/portal-v2",
-    "frontendHead": "f905e5b",
+    "frontendHead": "0f77a14",
     "mainTouched": false
   },
   "versions": {
-    "databaseScripts": 44,
-    "highestScript": "57_AuditContract_Apply.sql",
+    "databaseScripts": 47,
+    "highestScript": "61_AuditContract_Apply.sql",
     "api": "v1",
     "portal": "react19-mui9-vite8",
     "flutter": "architecture-only-never-compiled",
@@ -29,10 +29,10 @@
     "infrastructure": "none-deployed"
   },
   "tests": {
-    "backendIntegration": 203,
-    "sqlAssertionSuites": 17,
-    "sqlAssertions": 223,
-    "portal": 75,
+    "backendIntegration": 217,
+    "sqlAssertionSuites": 18,
+    "sqlAssertions": 241,
+    "portal": 86,
     "flutter": null,
     "flutterNote": "Static count only; never executed. No SDK."
   },
@@ -46,10 +46,10 @@
     "portalTestsExitCode": 0,
     "portalProductionBuild": "pass",
     "mutationChecks": [
+      "recommendation input states: collapsing did-not-match into not-described failed 1 portal test",
       "inspector privacy guard: an inspector procedure taking a @UserId parameter fails assertion 1",
-      "behaviour regression: every pre-existing number unchanged after the refactor (streak 5, best 16, consistency 92.5, span 40, confidence 71)",
-      "simulation equivalence: the fixture day pattern reproduces the real path across all 13 measures, 0 disagreements",
-      "routine completion / soft delete / goal silence guard / portal impossible-routine — all still caught"
+      "behaviour simulation equivalence: 13 measures, 0 disagreements",
+      "routine completion and soft delete, goal silence guard, portal impossible-routine — all still caught"
     ],
     "endpointsUnauthenticated": 401,
     "openApiDocumented": true,
@@ -58,22 +58,31 @@
   },
   "defectsFoundThisSession": [
     {
-      "id": "inspector-script-ordering",
+      "id": "nearly-there-null-aggregate",
       "severity": "high",
-      "fixedIn": "26854dc",
-      "summary": "usp_Inspector_SimulateBehaviour was defined in 47_Procs_Inspector.sql (position 36) but declares variables of types created by 49_Behaviour.sql (position 37). A fresh ordered deployment stopped dead at script 36 of 44.",
-      "whyHidden": "Incremental testing applied 47 after the types already existed. Same class as the audit-contract ordering defect.",
-      "fix": "Moved to 51_Procs_Inspector_Behaviour.sql so position carries the dependency.",
-      "foundBy": "clean-room build from the documented script list"
+      "fixedIn": "2061132",
+      "summary": "An aggregate with no GROUP BY returns a row even when nothing matched, so a woman with no nearly-finished goal produced a nearly_there evidence row of NULLs.",
+      "whyItMattered": "The evidence set refuses a null confidence, so the whole assembly failed rather than quietly suggesting nothing.",
+      "fix": "HAVING COUNT(*) > 0.",
+      "foundBy": "integration test"
     },
     {
-      "id": "textual-assertions",
+      "id": "expiry-from-midnight",
       "severity": "high",
-      "fixedIn": "26854dc",
-      "summary": "The inspector privacy guard and the new arithmetic guard both scanned sys.sql_modules text, and failed on doc comments mentioning the things they forbid.",
-      "whyItMattered": "A textual guard is not only trippable by prose but defeatable by formatting - [Timeline].[Event], extra whitespace or a synonym slips past a literal search. This is the guard that stops the platform impersonating a woman.",
-      "fix": "Both now use sys.parameters and sys.sql_expression_dependencies, which report what SQL Server resolved.",
-      "foundBy": "the new behaviour assertion failing on its own comment"
+      "fixedIn": "2061132",
+      "summary": "Expiry was measured from midnight of the date rather than from assembly, so a twelve-hour suggestion assembled at 18:00 had expired six hours before it was made.",
+      "whyItMattered": "Nothing survived to be read; every recommendation vanished on the same request that created it.",
+      "fix": "Lifetime runs from SYSUTCDATETIME().",
+      "foundBy": "integration test"
+    },
+    {
+      "id": "ci-step-never-ran",
+      "severity": "medium",
+      "fixedIn": "2061132",
+      "summary": "The CI step for the recommendation assertions was authored with a shell capture bash evaluated at authoring time, leaving it empty.",
+      "whyItMattered": "The step would have passed unconditionally forever, reporting green for assertions it never ran.",
+      "fix": "Rewritten with the Edit tool; all 18 sqlcmd captures verified non-empty.",
+      "foundBy": "reading the committed YAML"
     }
   ],
   "engines": [
@@ -89,7 +98,8 @@
     "WlosPipeline",
     "DecisionInspector",
     "BehaviourIntelligence",
-    "PersonalGrowth"
+    "PersonalGrowth",
+    "Recommendation"
   ],
   "pipeline": {
     "registeredStages": 24,
@@ -111,10 +121,10 @@
       "behaviourResolution",
       "habitResolution",
       "goalResolution",
-      "routinePlanResolution"
+      "routinePlanResolution",
+      "recommendationResolution"
     ],
     "unbuiltStages": [
-      "recommendationResolution",
       "coachResolution",
       "notificationResolution",
       "predictionResolution",
@@ -157,26 +167,26 @@
       "evidence": "SIMPLE recovery, zero backups, no deploy config in any repo"
     }
   ],
-  "maturity": 54,
-  "maturityNote": "Up two from 52. The behavioural arithmetic now has exactly one implementation serving both the real path and simulation, proven by equivalence rather than asserted. Deployment, backups and monitoring remain at zero and the mobile client has still never been executed.",
+  "maturity": 57,
+  "maturityNote": "Up three from 54. Recommendation is the first engine that consumes every other one, and it does so through published interfaces with the assembly proven identical between the live path and simulation. Deployment, backups and monitoring remain at zero and the mobile client has still never been executed.",
   "next": {
-    "feature": "Recommendation Assembly",
+    "feature": "Coach Platform",
     "track": "A then B",
-    "reason": "The blocking prerequisite is done. Every input a recommendation needs now exists and is reachable through published interfaces: Behaviour.fn_Read, Behaviour.fn_ReadSteps, Growth.fn_ResolveGoals, Growth.fn_ResolveRoutines, Knowledge.fn_EvaluateSignals, Rules.fn_Match, Intelligence.fn_ResolveState.",
-    "constraint": "A recommendation is ASSEMBLED and decides nothing. Every one returns priority, confidence, reasoning, evidence, contributing engines, supporting observations, expiry, expected benefit, expected effort and version. It computes no behaviour - Behaviour.fn_Measure is the only arithmetic.",
-    "readyNow": "The Decision Inspector can now simulate behaviour via usp_Inspector_SimulateBehaviour. The same pattern extends to goals and routines: give fn_ResolveGoals and fn_ResolveRoutines a simulated observation set rather than a user id.",
+    "reason": "Recommendations exist and carry their reasoning. The coach explains why one exists - it generates no advice, decides nothing and predicts nothing. It reads IntelligenceKeys.Recommendations and adapts tone from behaviour, state, life stage, energy, stress, momentum and goals.",
+    "constraint": "Coach explains only. It must never assemble, infer or reassemble a recommendation; a coach that reassembled would be a second opinion about the same woman. Tone is configuration, not code.",
     "scope": [
-      "recommendation schema: templates, inputs, applicability via Rules scope",
-      "fn_AssembleRecommendations reading only published interfaces",
-      "recommendationResolution stage",
+      "coach schema: tone rules and explanation templates as data",
+      "fn_ExplainFrom consuming a recommendation plus state, mirroring fn_AssembleFrom",
+      "coachResolution stage",
       "contracts, CQRS, repository, controller",
-      "SQL assertions incl. an assembles-never-computes dependency assertion",
-      "portal recommendation library",
-      "inspector: render simulated recommendations",
-      "then coach, prediction, planner"
+      "SQL assertions incl. an explains-never-decides dependency assertion",
+      "inspector: coach explanation over simulated recommendations",
+      "portal coach template library",
+      "then prediction, then planner"
     ]
   },
   "architecturalInvariants": [
+    "Recommend.fn_AssembleFrom is the ONLY assembly logic. It consumes an EvidenceSet and reads no raw store — verified by dependency graph. The live path and the Decision Inspector both feed it.",
     "Behaviour.fn_Measure is the ONLY copy of the measure arithmetic. It consumes a DaySet and an HourSet and reads no per-user source — verified by dependency graph, not by text. The real observer and the Decision Inspector both feed it.",
     "Behaviour.fn_Observe is the only computation of behaviour. Consumption goes through Behaviour.fn_Read and Behaviour.fn_ReadSteps.",
     "Growth.Routine NEVER owns a step list. It references Behaviour.Subject. Asserted structurally: no Step/EventType/Percent column may exist on Growth.Routine.",
