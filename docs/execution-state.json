@@ -2,45 +2,40 @@
   "$comment": "Machine-readable execution state. Companion to EXECUTION_LEDGER.md, which carries the reasoning. Update both in the same commit; if they disagree, the ledger is authoritative for prose and this file for state.",
   "updatedUtc": "2026-07-28",
   "epic": "Intelligence Platform",
-  "slice": "Decision Inspector",
-  "feature": "Decision Inspector — complete vertical slice, closed",
+  "slice": "Behaviour Intelligence",
+  "feature": "Behaviour Intelligence — complete vertical slice, closed",
   "track": "A+B",
   "status": "Complete",
-
   "tracks": {
     "backend": "Complete",
     "portal": "Complete",
     "flutter": "Blocked",
     "documentation": "Complete"
   },
-
   "git": {
     "backendBranch": "feature/backend-v2",
-    "backendHead": "3f6520a",
+    "backendHead": "9a3c192",
     "frontendBranch": "feature/portal-v2",
-    "frontendHead": "2480e78",
+    "frontendHead": "35567a6",
     "mainTouched": false
   },
-
   "versions": {
-    "databaseScripts": 37,
-    "highestScript": "48_AuditContract_Apply.sql",
+    "databaseScripts": 39,
+    "highestScript": "51_AuditContract_Apply.sql",
     "api": "v1",
     "portal": "react19-mui9-vite8",
     "flutter": "architecture-only-never-compiled",
     "ai": "specs-and-safety-ledger-no-model",
     "infrastructure": "none-deployed"
   },
-
   "tests": {
-    "backendIntegration": 164,
-    "sqlAssertionSuites": 14,
-    "sqlAssertions": 167,
-    "portal": 47,
+    "backendIntegration": 179,
+    "sqlAssertionSuites": 15,
+    "sqlAssertions": 187,
+    "portal": 56,
     "flutter": null,
     "flutterNote": "Static count only; never executed. No SDK."
   },
-
   "verification": {
     "$comment": "createDatabaseThenOneOrderedPass replaces the old 'freshDatabase' key. The old wording was satisfied by a re-applied database, which is precisely what hid the audit-contract ordering defect for weeks.",
     "createDatabaseThenOneOrderedPass": "pass",
@@ -51,7 +46,8 @@
     "portalTestsExitCode": 0,
     "portalProductionBuild": "pass",
     "mutationChecks": [
-      "inspector inert-signal assertion: LEFT JOIN mutation reported 5 inert and failed",
+      "behaviour inert-signal / inert-measure: LEFT JOIN mutation reported 5 inert and failed",
+      "portal behaviour span chip: replacing it with a bare label failed 1 test",
       "portal suppression split: removing the filter failed 2 tests"
     ],
     "endpointsUnauthenticated": 401,
@@ -59,70 +55,121 @@
     "ciOnRunner": "never-executed",
     "containerImage": "not-built-no-docker"
   },
-
   "defectsFoundThisSession": [
     {
-      "id": "audit-contract-ordering",
-      "severity": "high",
-      "fixedIn": "3f6520a",
-      "summary": "08_AuditContract.sql applies the contract with a cursor over sys.tables at position 9 of 37, so tables created by scripts 30-47 never received it. One ordered pass on an empty server left 19 tables short by 147 columns and 19 filtered indexes, including Timeline.Event and Intelligence.UserStateSnapshot.",
-      "whyHidden": "Every verification database had been re-applied more than once; a second pass picks the later tables up by accident. AuditContractTests was correct and green throughout.",
-      "fix": "Cursor extracted to dbo.usp_ApplyAuditContract, called by 08 and again by 48_AuditContract_Apply.sql after every table exists. tests/audit_contract_test.sql guards it, and CI runs it as its own step.",
-      "lesson": "A green test on an incrementally re-applied database proves the schema converges, not that the documented procedure produces it."
+      "id": "behaviour-cold-start",
+      "severity": "medium",
+      "fixedIn": "b769372",
+      "summary": "A woman who logged something today received no observations at all, because the lowest MinSpanDays was 3.",
+      "whyItMattered": "An empty behaviour screen for her first three days, and every downstream engine treating her as having done nothing.",
+      "fix": "days_active and days_since_last report from day one. Counting is not inferring; streak still needs three days because calling one day a streak is encouragement inflation.",
+      "foundBy": "behaviour_test.sql assertion 12"
+    },
+    {
+      "id": "behaviour-unindexed-fks",
+      "severity": "medium",
+      "fixedIn": "b769372",
+      "summary": "Behaviour.Observation had two foreign keys no index led with; both the clustered PK and the series index lead with UserId.",
+      "whyItMattered": "Deactivating a subject would scan every observation the platform had ever recorded, getting slower every day it runs.",
+      "fix": "Non-filtered IX_Observation_Subject and IX_Observation_Measure, added outside the creation block so existing databases get them.",
+      "foundBy": "index_coverage_test.sql"
     }
   ],
-
   "engines": [
-    "LifeStage", "RoleMode", "Targeting", "Timeline", "KnowledgeGraph",
-    "Signal", "Dashboard", "IntelligenceCore", "RuleEngine",
-    "WlosPipeline", "DecisionInspector"
+    "LifeStage",
+    "RoleMode",
+    "Targeting",
+    "Timeline",
+    "KnowledgeGraph",
+    "Signal",
+    "Dashboard",
+    "IntelligenceCore",
+    "RuleEngine",
+    "WlosPipeline",
+    "DecisionInspector",
+    "BehaviourIntelligence"
   ],
-
   "pipeline": {
-    "registeredStages": 23,
+    "registeredStages": 24,
     "builtStages": [
-      "contextResolution", "profileResolution", "signalAnalysis",
-      "stateResolution", "energyResolution", "focusResolution",
-      "consistencyResolution", "wellnessResolution", "balanceResolution",
-      "routineResolution", "momentumResolution", "loadResolution",
-      "riskResolution", "dashboardResolution"
+      "contextResolution",
+      "profileResolution",
+      "signalAnalysis",
+      "stateResolution",
+      "energyResolution",
+      "focusResolution",
+      "consistencyResolution",
+      "wellnessResolution",
+      "balanceResolution",
+      "routineResolution",
+      "momentumResolution",
+      "loadResolution",
+      "riskResolution",
+      "dashboardResolution",
+      "behaviourResolution",
+      "habitResolution"
     ],
     "unbuiltStages": [
-      "habitResolution", "goalResolution", "routinePlanResolution",
-      "recommendationResolution", "coachResolution", "notificationResolution",
-      "predictionResolution", "conversationContextResolution",
+      "goalResolution",
+      "routinePlanResolution",
+      "recommendationResolution",
+      "coachResolution",
+      "notificationResolution",
+      "predictionResolution",
+      "conversationContextResolution",
       "aiContextResolution"
     ],
-    "addingAStageRequires": "registration only"
+    "addingAStageRequires": "registration only",
+    "behaviouralSourceOfTruth": "Behaviour.fn_Observe — no engine computes a habit, streak, consistency figure or probability; asserted by behaviour_test.sql assertion 19"
   },
-
   "blockers": [
-    { "id": "flutter-sdk", "type": "environment", "evidence": "flutter --version -> command not found" },
-    { "id": "docker", "type": "environment", "evidence": "docker --version -> command not found" },
-    { "id": "ci-runner", "type": "environment", "evidence": "workflows never executed; verified by equivalent commands only" },
-    { "id": "pd-1-networking", "type": "legal", "evidence": "About screen claims no network code; part of Play Data Safety declaration" },
-    { "id": "multi-tenancy", "type": "product", "openSessions": 8, "evidence": "no tenant dimension on any table; blocks the Health procedure layer" },
-    { "id": "infrastructure", "type": "infrastructure", "evidence": "SIMPLE recovery, zero backups, no deploy config in any repo" }
+    {
+      "id": "flutter-sdk",
+      "type": "environment",
+      "evidence": "flutter --version -> command not found"
+    },
+    {
+      "id": "docker",
+      "type": "environment",
+      "evidence": "docker --version -> command not found"
+    },
+    {
+      "id": "ci-runner",
+      "type": "environment",
+      "evidence": "workflows never executed; verified by equivalent commands only"
+    },
+    {
+      "id": "pd-1-networking",
+      "type": "legal",
+      "evidence": "About screen claims no network code; part of Play Data Safety declaration"
+    },
+    {
+      "id": "multi-tenancy",
+      "type": "product",
+      "openSessions": 8,
+      "evidence": "no tenant dimension on any table; blocks the Health procedure layer"
+    },
+    {
+      "id": "infrastructure",
+      "type": "infrastructure",
+      "evidence": "SIMPLE recovery, zero backups, no deploy config in any repo"
+    }
   ],
-
-  "maturity": 45,
-  "maturityNote": "Up two from 43. The inspector closes the explainability loop, and a real deployment-ordering defect was found and fixed rather than assumed absent. Deployment, backups and monitoring remain at zero and the mobile client has still never been executed, which is what holds this below 50.",
-
+  "maturity": 48,
+  "maturityNote": "Up three from 45. The platform now understands how she lives, from one model rather than six, with the duplication ban asserted structurally. Deployment, backups and monitoring remain at zero and the mobile client has still never been executed, which is what holds this below 50.",
   "next": {
-    "feature": "Habit resolution — pipeline stage",
+    "feature": "Goal Resolution, then Recommendation Assembly",
     "track": "A then B",
-    "reason": "Priority 2 is the intelligence pipeline; 14 of 23 stages are built and every one answers what is true about her now, none what she keeps doing. Routine plans, recommendations, coaching, notifications and prediction all read habit state, so building it first stops five stages inventing their own. It also has to precede recommendation for safety: a recommendation from a single day is a prescription dressed as encouragement, and habit gives it something observational to stand on.",
+    "reason": "A recommendation must be assembled from behaviour, knowledge, signals, rules, life stage, role modes, goals, timeline and state, and decide nothing itself. Goals are the only one of those inputs that does not exist, so building recommendation first would mean ignoring her goals or inventing them.",
+    "constraint": "Every consuming engine is orchestration over IntelligenceKeys.Behaviour. None computes a habit, streak, consistency figure or probability.",
+    "blockedPrerequisite": "The Decision Inspector cannot render behaviour until fn_Observe is split so the measure arithmetic consumes a day set rather than calling fn_SubjectDays itself. Simulating behaviour any other way would create a second source of behavioural truth.",
     "scope": [
-      "re-read 43_Intelligence.sql first: prefer a state dimension over a new table if habit fits one",
-      "habit tables and procedures in a numbered script, with assertions",
-      "streak and lapse computed from Timeline.Event only, keeping the timeline the single source of truth",
-      "habitResolution registered as a stage with zero modification to existing stages",
-      "observed inputs and outputs; confidence from coverage, low on thin history",
-      "contracts, CQRS, repository, controller, permission, audit, feature flag",
-      "integration tests and SQL assertions",
-      "inspector support so an operator can see why a habit resolved as it did",
-      "portal surfacing",
-      "no causal verb, no diagnosis"
+      "goal schema and procedures with assertions",
+      "goalResolution as orchestration over behaviour",
+      "routine planning",
+      "recommendation assembly - assembled never inferred",
+      "coach explains recommendations and generates nothing",
+      "prediction: completion, engagement, drop-off only; never clinical"
     ]
   }
 }

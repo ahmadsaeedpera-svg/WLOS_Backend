@@ -5,27 +5,61 @@ first and updates it last. Never depend on conversation history.
 
 Machine-readable companion: [`execution-state.json`](execution-state.json).
 
-**Last updated:** 2026-07-28 · backend `3f6520a` · portal `2480e78`
+**Last updated:** 2026-07-28 · backend `9a3c192` · portal `35567a6`
+
+---
+
+## Behaviour Intelligence — the architectural decision of this session
+
+**Read this before building any of the six consuming engines.**
+
+Habits, routines, streaks, consistency, momentum, rhythm, preferences and
+probabilities are **one behavioural model seen through different lenses**, not
+six engines. There is exactly one definition of a subject
+(`Behaviour.Subject` + `SubjectEvent`), exactly one function that observes it
+(`Behaviour.fn_Observe`), and every engine reads what it produces.
+
+`habitResolution` is already orchestration over it and computes nothing. Goal,
+routine, recommendation, coach and prediction must be the same.
+`behaviour_test.sql` assertion 19 fails if any schema outside `Behaviour`
+references the observation store or the day-counting function, so this is
+structural rather than a convention somebody remembers.
+
+Everything derives from `Timeline.Event`. No profile field, no assumed routine,
+no default. Days are counted on `OccurredLocalDate`, so a woman in Karachi
+logging water at 2am does not break her own streak by doing the thing she is
+trying to keep doing.
+
+**The honesty controls, which are the engine's whole credibility:**
+
+| Rule | Why |
+|---|---|
+| A measure below `MinSpanDays` is **absent**, not zero | A zero streak and an unknown streak look identical on a screen and mean opposite things |
+| Confidence is coverage of the span she has actually shown | 30 days of a 56-day measure is 54, not 100 |
+| No probability is ever 0 or 100 | A woman who has done something daily for a month is not certain to do it tomorrow |
+| Every observation carries confidence, span, supporting events, dates, reasoning, evidence and engine version | A recommendation built on one must show why; a change in the line must be tellable from a change in the definition |
+| Nothing clinical, nothing causal | Asserted, like the knowledge graph's ban on causal verbs |
+
+**Counting is not inferring.** `days_active` and `days_since_last` report from
+day one; `streak_current` needs three, because calling one day a streak is
+encouragement inflation. This distinction was found by a failing test, not
+designed in.
 
 ---
 
 ## Current Feature
 
-**Decision Inspector — complete vertical slice.** SQL, contracts, CQRS,
-repository, controller, signal endpoint and the React screen are all built and
-verified. The slice is closed.
-
-One defect was found while verifying it and fixed under its own commit: the
-audit contract was being applied before most of the platform's tables existed.
-See *Defects found by verification* below — it is the most consequential thing
-this session produced, and it had nothing to do with the inspector.
+**Behaviour Intelligence — complete vertical slice.** Schema, the single
+observation function, procedures, contracts, CQRS, repository, controller,
+pipeline stage, integration tests, SQL assertions and the portal configuration
+screen are all built and verified.
 
 ## Current Epic / Slice / Track
 
 | | |
 |---|---|
 | Epic | 1 — Intelligence Platform |
-| Slice | Decision Inspector — **closed** |
+| Slice | Behaviour Intelligence — **closed** |
 | Track | A (backend) complete · B (portal) complete · C blocked · D ongoing |
 
 ---
@@ -57,7 +91,9 @@ Verified from code, in commit order on `feature/backend-v2`:
 | Decision inspector — SQL | `9de8ebc` |
 | Decision inspector — API/CQRS/repository | `e83a2c1` |
 | Inspector signal endpoint | `978c1b6` |
-| **Audit contract applied after every table exists** | `3f6520a` |
+| Audit contract applied after every table exists | `3f6520a` |
+| **Behaviour Intelligence — one model, six lenses** | `b769372` |
+| **Behaviour measure vocabulary for operators** | `9a3c192` |
 
 On `feature/portal-v2` (Maren-Frontend):
 
@@ -67,7 +103,8 @@ On `feature/portal-v2` (Maren-Frontend):
 | First portal tests (client + auth) | `87be8e0` |
 | Onboarding configuration + adaptive preview | `89f7199` |
 | Life profile Flutter architecture (unverified) | `e83471d` |
-| **Decision Inspector screen** | `2480e78` |
+| Decision Inspector screen | `2480e78` |
+| **Behaviour configuration screen** | `35567a6` |
 
 ---
 
@@ -129,7 +166,8 @@ Decisions that constrain future work. Reversing any of these needs a reason.
 7. **One rule engine.** `Rules.fn_Match` is the only matcher. Cost accepted:
    no foreign key to targets, replaced by an asserted invariant and cleanup
    triggers.
-8. **The inspector simulates, never impersonates.** No inspector procedure may
+8. **Behaviour Intelligence is the only source of behavioural truth.** No engine computes a habit, streak, consistency figure or probability. Asserted in SQL against every schema.
+9. **The inspector simulates, never impersonates.** No inspector procedure may
    reference a user id, the timeline or a state snapshot; asserted in SQL.
 9. **Nineteen user categories are two dimensions**, life stage × role mode,
    not nineteen experiences.
@@ -182,9 +220,9 @@ Decisions that constrain future work. Reversing any of these needs a reason.
 
 | Layer | Version / state |
 |---|---|
-| Database | 37 numbered scripts (`01`–`48`), 14 assertion suites |
+| Database | 39 numbered scripts (`01`–`51`), 15 assertion suites |
 | API | v1 · `/api/v1/me`, `/api/v1/admin/*` |
-| Portal | React 19 / MUI 9 / Vite 8, 47 tests |
+| Portal | React 19 / MUI 9 / Vite 8, 56 tests |
 | Flutter | Architecture only, **never compiled** |
 | AI | Specs + safety ledger. **No model integration** |
 | Infrastructure | None deployed |
@@ -197,13 +235,13 @@ Executed on this machine, not claimed:
 
 | Check | Result |
 |---|---|
-| Database created empty and applied **once, in order**, 37 scripts | PASS |
+| Database created empty and applied **once, in order**, 39 scripts (list read from the runbook itself) | PASS |
 | Idempotency (second apply adds 0 columns, 0 indexes) | PASS |
-| SQL assertion suites | **14 suites, 167 assertions, 0 failures** |
+| SQL assertion suites | **15 suites, 187 assertions, 0 failures** |
 | Clean Release build `-warnaserror` (never incremental) | 0 errors, 0 warnings |
-| Integration tests | **164 passed, exit 0** |
+| Integration tests | **179 passed, exit 0** |
 | Portal `tsc -b --force` | exit 0 |
-| Portal tests | **47 passed, exit 0** |
+| Portal tests | **56 passed, exit 0** |
 | Portal production build | succeeds; inspector is a 2.69 kB gzip chunk |
 | Mutation check — inspector inert-signal assertion | fails as intended (5 inert) |
 | Mutation check — portal suppression split | fails 2 tests as intended |
@@ -238,38 +276,32 @@ never been executed. Application quality does not compensate for those.
 
 ## Next Feature
 
-**Habit resolution — the first of the nine unbuilt pipeline stages.**
+**Goal Resolution, then Recommendation Assembly.**
 
-**Why selected.** Priority 2 in the execution contract is the intelligence
-pipeline, and fourteen of its twenty-three stages are built. Everything built so
-far answers *what is true about her right now*: her stage, her state, her energy,
-her load, the cards that follow. Nothing yet answers *what she keeps doing*.
+**Why in that order.** A recommendation must be *assembled*, never inferred —
+it consumes behaviour, knowledge, signals, rules, life stage, role modes,
+goals, timeline and state, and decides nothing itself. Goals are the only one
+of those inputs that does not exist. Building recommendation first would mean
+it either ignored her goals or invented them, and a recommendation that ignores
+what she is actually trying to do is advice about somebody else.
 
-That gap is why the dashboard can only ever react. A card that says "sleep has
-been short recently" is an observation; the same platform knowing she has kept a
-wind-down routine for eleven days and it lapsed on Tuesday is the difference
-between a health app and a companion. Every remaining stage — routine plans,
-recommendations, coaching, notifications, prediction — reads habit state. Built
-in the wrong order they each invent their own, and the pipeline's guarantee that
-a stage observes rather than declares its inputs stops meaning anything.
+**Then, in order:** routine planning, recommendation assembly, coach (which
+explains recommendations and generates nothing), prediction (behavioural only —
+completion, engagement, drop-off; never clinical).
 
-It also has to come before recommendation for a safety reason. A recommendation
-derived from a single day is a prescription dressed as encouragement, and the
-platform is a general-wellness product under the FDA exclusion. Habit gives
-recommendations something observational to stand on: repetition she can see in
-her own timeline, not an inference about her health.
+**The constraint that governs all of them:** each is orchestration over
+`IntelligenceKeys.Behaviour`. None computes a habit, streak, consistency figure
+or probability. `behaviour_test.sql` assertion 19 fails if one tries.
 
-**Scope — complete vertical slice, all 22 layers.** Habit tables and procedures
-in a numbered script with assertions; streak and lapse computed from
-`Timeline.Event` and nowhere else, so the timeline stays the single source of
-truth; `habitResolution` registered as a stage with **zero modification to any
-existing stage**; observed inputs and outputs; confidence from coverage — a habit
-with four days of history reports low confidence rather than a number that looks
-certain; contracts, CQRS, repository, controller, permission, audit, feature
-flag; integration tests; inspector support so an operator can see why a habit
-resolved as it did; portal surfacing. Never a causal verb, never a diagnosis.
+**Known gap, and the prerequisite for closing it.** The Decision Inspector
+cannot render behaviour. The inspector is account-free by construction — no
+inspector procedure may reference a user id or the timeline, asserted in SQL —
+and behaviour needs a woman's timeline. Simulating it as things stand would mean
+re-implementing `fn_Observe` over hypothetical inputs, which is a second source
+of behavioural truth and the one thing this architecture forbids.
 
-**First check before writing any of it:** re-read `43_Intelligence.sql`. If habit
-state can be expressed as a state dimension rather than a new table, it should
-be — a second mechanism for "a thing the platform knows about her" is the kind of
-duplication the rule-engine consolidation already had to undo once.
+The fix is to split `fn_Observe` so the measure arithmetic consumes a day set
+rather than calling `fn_SubjectDays` itself. Then the real path and a simulated
+one feed the same arithmetic and there is still only one definition. That
+refactor must come *before* any inspector work on behaviour, not be worked
+around.
