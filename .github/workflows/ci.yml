@@ -113,7 +113,7 @@ jobs:
                    38_LifeDomain.sql 39_KnowledgeGraph.sql 40_Procs_Knowledge.sql \
                    41_Dashboard.sql 42_Procs_Dashboard.sql \
                    43_Intelligence.sql 44_Procs_Intelligence.sql \
-                   45_RuleEngine.sql 46_Procs_RuleEngine.sql; do
+                   45_RuleEngine.sql 46_Procs_RuleEngine.sql 47_Procs_Inspector.sql; do
             echo "--- $f"
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
@@ -138,7 +138,7 @@ jobs:
                    38_LifeDomain.sql 39_KnowledgeGraph.sql 40_Procs_Knowledge.sql \
                    41_Dashboard.sql 42_Procs_Dashboard.sql \
                    43_Intelligence.sql 44_Procs_Intelligence.sql \
-                   45_RuleEngine.sql 46_Procs_RuleEngine.sql; do
+                   45_RuleEngine.sql 46_Procs_RuleEngine.sql 47_Procs_Inspector.sql; do
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
 
@@ -270,6 +270,17 @@ jobs:
           out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/rule_engine_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Rule engine assertions failed"; exit 1; }
+
+      - name: SQL assertion suite — decision inspector
+        # Assertion 1 is a privacy control, not a feature check: the inspector
+        # must never be able to read a real account. It simulates a
+        # hypothetical woman, because an inspector that loaded a named user
+        # would be impersonation under another name.
+        working-directory: src/Maren.Database
+        run: |
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/inspector_test.sql)
+          echo "$out"
+          echo "$out" | grep -q "FAILED: 0" || { echo "::error::Inspector assertions failed"; exit 1; }
 
       - name: Integration tests
         env:
