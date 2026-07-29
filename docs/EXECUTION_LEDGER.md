@@ -5,7 +5,7 @@ first and updates it last. Never depend on conversation history.
 
 Machine-readable companion: [`execution-state.json`](execution-state.json).
 
-**Last updated:** 2026-07-28 · backend `84a2a3f` · portal `857b55c`
+**Last updated:** 2026-07-29 · backend `5a0e8e6` · portal `adbd99f`
 
 ---
 
@@ -139,7 +139,7 @@ commit rather than rebased, so every hash below is reachable from both:
 | fn_Observe split — simulation shares one implementation | `26854dc` |
 | Recommendation Platform | `2061132` |
 | **Coach Platform** | `84a2a3f` |
-| **Prediction Platform** | this commit |
+| **Prediction Platform** | `5a0e8e6` |
 
 On Maren-Frontend — `feature/portal-v2` up to `857b55c`, continuing on
 `feature/portal-v3` from the same commit:
@@ -156,7 +156,7 @@ On Maren-Frontend — `feature/portal-v2` up to `857b55c`, continuing on
 | Routine library screen | `f905e5b` |
 | Recommendation library + simulator | `0f77a14` |
 | **Coach library + simulator** | `857b55c` |
-| **Prediction library + simulator** | this commit |
+| **Prediction library + simulator** | `adbd99f` |
 
 ---
 

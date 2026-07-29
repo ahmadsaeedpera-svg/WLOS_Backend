@@ -14,9 +14,9 @@
   },
   "git": {
     "backendBranch": "feature/backend-v3",
-    "backendHead": "pending-commit",
+    "backendHead": "5a0e8e6",
     "frontendBranch": "feature/portal-v3",
-    "frontendHead": "pending-commit",
+    "frontendHead": "adbd99f",
     "mainTouched": false,
     "previousBranches": {
       "backend": "feature/backend-v2 (aee4d60)",
@@ -68,7 +68,7 @@
     {
       "id": "prediction-fk-indexes-missing",
       "severity": "medium",
-      "fixedIn": "this commit",
+      "fixedIn": "5a0e8e6",
       "summary": "Predict.Predicted (SubjectKey) and Predict.PredictionType (HorizonCode) were created with foreign keys and no supporting index.",
       "whyItMattered": "Predicted grows once per woman per prediction per day. The parent-side delete and every join to Behaviour.Subject would have scanned the one new table with real cardinality.",
       "fix": "Guarded IF NOT EXISTS ... CREATE INDEX outside the CREATE TABLE block, following 30_Indexes_ForeignKeys.sql. Inside the block the index would never reach a database that already had the table, so re-applying would not converge - the same shape as the audit contract defect.",
@@ -77,7 +77,7 @@
     {
       "id": "ledger-prose-stale",
       "severity": "low",
-      "fixedIn": "this commit",
+      "fixedIn": "5a0e8e6",
       "summary": "EXECUTION_LEDGER.md read maturity 43 against this file's 60, and its Next Feature still described work completed two features earlier. 69_AuditContract_Apply.sql still had '48_' in its header; CLAUDE.md called it 54 when it was 65.",
       "whyItMattered": "The continuation protocol recovers state from the repository. A stale 'next feature' sends the next session to work that is already done.",
       "fix": "Ledger status sections rewritten and the numbers reconciled. Prose sections drift because nothing executes them; this file does not, because it is written in the same commit as the work.",
@@ -86,7 +86,7 @@
     {
       "id": "midpoint-rounding-mismatch",
       "severity": "low",
-      "fixedIn": "this commit",
+      "fixedIn": "5a0e8e6",
       "summary": "T-SQL ROUND rounds half away from zero; .NET Math.Round uses banker's rounding. An observed 0.325 is 33% on the server and 32% in .NET.",
       "whyItMattered": "Caught by an integration test written against .NET's default. Not a server defect - but a client that recomputed the percent instead of using the shipped one would show a woman a different number from the one in her own statement text.",
       "fix": "The percent is computed once, server-side, and shipped. The test now asserts MidpointRounding.AwayFromZero to match the server on purpose, with the reason recorded beside it.",
