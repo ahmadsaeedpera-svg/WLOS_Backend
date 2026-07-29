@@ -44,10 +44,12 @@
 | | Item | Evidence |
 |---|---|---|
 | ❌ | **Anything deployed anywhere** | No environment exists |
-| ❌ | **Container healthcheck works** | **Broken.** Would restart-loop; masked in dev by a compose override |
-| ❌ | **Backups exist** | `SIMPLE` recovery; `backupset` has 0 rows |
-| ❌ | **Point-in-time recovery** | Impossible by definition under `SIMPLE` |
-| ❌ | **A restore has been performed** | Never attempted |
+| ⚠️ | **Container healthcheck works** | Probe implemented and verified locally by exit code (0 alive, 1 dead, incl. cold start). **Never run inside a container — no Docker here** |
+| ✅ | **Backups exist** | `ops/db/backup.sh` — full + log, `CHECKSUM`, `RESTORE VERIFYONLY`. Executed |
+| ✅ | **Point-in-time recovery** | `--enable-pitr` sets `FULL` recovery; `STOPAT` restore proven to discard a post-timestamp write |
+| ✅ | **A restore has been performed** | `ops/db/restore-drill.sh`: DBCC CHECKDB + 21 suites against the restored copy, 22/22 passed, **1034 ms measured**. Recorded in `Ops.RestoreDrill` |
+| ✅ | **A restore has been proven to FAIL when it should** | Drilling an incomplete database fails 15 of 21 checks — the database the old 45/47 gate passed |
+| ✅ | **Deployment is recorded** | `Ops.DeploymentJournal`: script, SHA-256, duration, outcome. A partial deployment is legible afterwards |
 | ❌ | **Monitoring / alerting** | None |
 | ❌ | **Log aggregation** | Console only; logs die with the container |
 | ❌ | **Correlation IDs** | Column exists, never populated |

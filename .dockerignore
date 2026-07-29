@@ -11,3 +11,30 @@ docs/
 *.md
 Dockerfile*
 docker-compose*
+
+# Never ship development configuration in a production image.
+#
+# The runtime image sets ASPNETCORE_ENVIRONMENT=Production, so these files are
+# not *read* there — but they were still being copied in, which means the
+# committed development JWT signing key and a LocalDB connection string were
+# sitting in the published artefact of every image built. Anyone who can read
+# the image layers can read the key, and the same key is the one a developer
+# might paste into a real environment. A secret that ships is a secret that
+# leaked, whether or not the process loads it.
+#
+# It also removes the failure mode where setting ASPNETCORE_ENVIRONMENT to
+# Development on a production container silently activates the committed key
+# instead of failing to start.
+**/appsettings.Development.json
+**/appsettings.*.Development.json
+
+# .gitignore classifies these as secrets and docker-compose steers developers
+# into creating one at the repository root.
+.env
+.env.*
+!.env.example
+
+# Backups, should an operator ever run the ops scripts with the repo as the
+# backup directory. They would be large and they would be data.
+*.bak
+*.trn

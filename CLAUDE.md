@@ -67,10 +67,22 @@ for f in 01_Schemas.sql 02_Identity.sql 03_Administration.sql 04_Health.sql \
          49_Behaviour.sql 50_Procs_Behaviour.sql 51_Procs_Inspector_Behaviour.sql \
          52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
          55_Growth_Routines.sql 56_Procs_Growth_Routines.sql 58_Recommendation.sql \
-         59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 69_AuditContract_Apply.sql; do
-  sqlcmd -S "(localdb)\MSSQLLocalDB" -I -d MarenPlatform -i "$f" || break
+         59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 70_Operations.sql 71_Procs_Operations.sql 72_AuditContract_Apply.sql; do
+  sqlcmd -S "(localdb)\MSSQLLocalDB" -I -b -d MarenPlatform -i "$f" || break
 done
 ```
+
+**Prefer `./ops/db/deploy.sh MarenPlatform`.** It applies this same order, read
+from the runbook rather than retyped, and records every script in
+`Ops.DeploymentJournal` with its checksum, duration and outcome — so a database
+can afterwards say what was applied to it and whether anything failed halfway.
+The loop above is kept because it is readable and needs nothing but `sqlcmd`.
+
+**`-b` is mandatory, and was missing here until 2026-07-29.** Without it
+`sqlcmd` exits 0 on a T-SQL error, so `|| break` never fires: the loop ran every
+remaining script against a broken database and finished looking successful. That
+is the failure this whole ordering discipline exists to prevent, and it was
+sitting in the documented procedure in four places.
 
 **`-I` is mandatory.** It sets `QUOTED_IDENTIFIER ON`; without it the filtered
 indexes fail to create.
@@ -109,6 +121,31 @@ sqlcmd -S "(localdb)\MSSQLLocalDB" -I -d MarenPlatform -i src/Maren.Database/tes
 tests what its author was thinking about; the platform-wide suites catch what
 they were not. Both Prediction foreign keys shipped without a supporting index
 and none of that feature's twenty assertions noticed.
+
+### Operations
+
+```bash
+./ops/db/deploy.sh MarenPlatform                    # apply + record in Ops.DeploymentJournal
+./ops/db/backup.sh MarenPlatform                    # full (+ log under FULL recovery), verified
+./ops/db/backup.sh MarenPlatform "" --enable-pitr   # switch to FULL recovery, deliberately
+./ops/db/restore-drill.sh MarenPlatform <full.bak> [log.trn] [--stopat '<utc>']
+```
+
+`MAREN_BACKUP_DIR` is a path **on the SQL Server**, not on the machine running
+the script. They are the same host for LocalDB; they are not in production, and
+writing a backup somewhere only the client can see is the usual way a backup job
+appears to work and produces nothing.
+
+Two rules worth knowing before changing any of this:
+
+- **Verify a restore by behaviour, never by counts.** This section used to say
+  "expect 45 tables, 47 procedures". The schema doubled, the numbers went stale
+  silently, and a database missing ten whole feature schemas matched them
+  exactly. The drill runs `DBCC CHECKDB` and every assertion suite on disk
+  against the restored copy instead.
+- **A drill that ran no checks cannot be recorded as passing.** A `CHECK`
+  constraint on `Ops.RestoreDrill` refuses it. `RESTORE` returning 0 proves the
+  file opened, nothing more.
 
 ---
 

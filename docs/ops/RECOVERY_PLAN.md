@@ -102,22 +102,38 @@ Every row becomes recoverable through `DEPLOYMENT_PLAN.md` §6 and `BACKUP_PLAN.
 
 Never return a restored database to service on the assumption it worked.
 
-```sql
--- structural
-SELECT COUNT(*) FROM sys.tables;        -- expect 45 (44 + AI.SafetyEvent)
-SELECT COUNT(*) FROM sys.procedures;    -- expect 47
-DBCC CHECKDB WITH NO_INFOMSGS;          -- expect no errors
-```
-
-Then the assertion suites, which check behaviour rather than shape:
-
 ```bash
-sqlcmd -I -d "$DB" -i src/Maren.Database/tests/cms_workflow_test.sql      # 17 / 0
-sqlcmd -I -d "$DB" -i src/Maren.Database/tests/access_test.sql            # 19 / 0
-sqlcmd -I -d "$DB" -i src/Maren.Database/tests/index_coverage_test.sql    #  2 / 0
-sqlcmd -I -d "$DB" -i src/Maren.Database/tests/scheduled_publish_test.sql #  6 / 0
-sqlcmd -I -d "$DB" -i src/Maren.Database/tests/ai_safety_test.sql         #  8 / 0
+./ops/db/restore-drill.sh <source-db> <full-backup> [log-backup] [--stopat '<utc>']
 ```
+
+It restores to a **scratch** database, runs `DBCC CHECKDB` and **every**
+assertion suite on disk against the restored copy, records the result in
+`Ops.RestoreDrill`, and drops the scratch database. Exit code 0 only when every
+check passed.
+
+### Why this is not a list of expected counts any more
+
+Until 2026-07-29 this section read *"expect 45 tables, expect 47 procedures"*
+and named five assertion suites.
+
+By then the schema had roughly doubled — **84 tables and 102 procedures** — and
+twenty suites existed. The thresholds had gone stale silently, because nothing
+executes a number written in a document. Worse than useless: a database
+restored from a backup taken before ten entire feature schemas existed matches
+45/47 *exactly*, so the gate would have reported a clean verification of a
+catastrophically incomplete restore, during an incident, to somebody deciding
+whether to return it to service.
+
+That was demonstrated rather than reasoned about. A real database on the
+verification instance still sits at exactly 45/47; restoring it through the
+drill fails 15 of 21 checks, where the old gate passes it.
+
+The drill therefore checks **behaviour, not shape**, and enumerates the suites
+from disk rather than from a list. Assertion suites cannot rot quietly the way a
+number can, because they gate CI.
+
+The old commands also omitted `-S`, so they could not connect to the LocalDB
+instance the rest of the documentation uses. They had never been run as written.
 
 Then spot-check recency: the newest `Audit.AuditLog` row tells you how much time the restore actually lost. Compare it against the claimed RPO — that comparison is the only honest measure of whether the backup policy works.
 

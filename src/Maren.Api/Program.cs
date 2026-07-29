@@ -15,6 +15,17 @@ using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using Serilog;
 
+/*  The container health probe, before anything else is built.
+
+    This must come first. The Dockerfile has always declared
+    `dotnet Maren.Api.dll --healthcheck` as its HEALTHCHECK, and nothing
+    implemented it — the argument fell through to the host builder, which
+    ignored it and started a second complete API inside the container every
+    thirty seconds. Returning here means the probe is a short-lived HTTP client
+    and not a web host. */
+if (args.Contains(HealthProbe.Flag))
+    return await HealthProbe.RunAsync(args);
+
 var builder = WebApplication.CreateBuilder(args);
 
 Log.Logger = new LoggerConfiguration()
@@ -191,6 +202,10 @@ app.MapControllers();
 app.MapMarenHealth();
 
 app.Run();
+
+/*  Reached only on a clean shutdown. Present because the health probe above
+    returns an exit code, and once any path returns a value every path must. */
+return 0;
 
 /// <summary>Reads the caller out of the current HTTP context.</summary>
 internal sealed class HttpCurrentUser(IHttpContextAccessor accessor) : ICurrentUser

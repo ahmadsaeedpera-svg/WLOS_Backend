@@ -80,25 +80,36 @@ designed in.
 
 ## Current Feature
 
-**Prediction Platform.** Complete across every unblocked layer: schema,
-horizons and framings as data, `fn_PredictFrom`, procedures, inspector
-simulation, contracts, CQRS, validation, repository, controller, OpenAPI,
-`predictionResolution` stage, SQL assertions, mutation tests, integration
-tests, portal library and simulator, portal tests, CI.
+**Operations: deployment and recovery.** The first slice in this repository
+that is not an engine, taken deliberately ahead of the Planner because the
+engine layer was far ahead of everything holding it up.
 
-The engine computes nothing, and that is structural rather than reviewed: a
-prediction type may only name a Behaviour measure whose family is
-`probability`, enforced by a foreign key on `(MeasureCode, Family)`. There are
-three such measures, so there can be three kinds of prediction until the
-behaviour engine observes a fourth.
+Two questions the platform could not answer about itself, and now can.
+
+**"Is this database current, and did anything fail halfway?"**
+`Ops.DeploymentJournal` records every script applied, with its SHA-256, its
+duration and its outcome. `ops/db/deploy.sh` reads the order from the runbook
+rather than a fifth hand-maintained copy, asserts the documented count against
+disk, and stops at the first failure with the journal showing exactly where.
+
+**"Has a restore ever actually been performed?"** Until this slice, no.
+`ops/db/backup.sh` takes full and log backups with `CHECKSUM` and verifies them
+by reading them back; `ops/db/restore-drill.sh` restores the chain to a scratch
+database, runs `DBCC CHECKDB` and every assertion suite **against the restored
+copy**, records the result in `Ops.RestoreDrill` and drops the scratch. A drill
+that ran no checks cannot be recorded as passed — a `CHECK` constraint refuses
+it, because "RESTORE returned 0" is not evidence of anything.
+
+Point-in-time recovery is real and demonstrated: a write made after a captured
+timestamp is gone after `STOPAT`, and the write before it survives.
 
 ## Current Epic / Slice / Track
 
 | | |
 |---|---|
-| Epic | 1 — Intelligence Platform |
-| Slice | Prediction — **closed** |
-| Track | A (backend) complete · B (portal) complete · C blocked · D ongoing |
+| Epic | 2 — Operations |
+| Slice | Deployment and recovery — **closed** |
+| Track | A (backend + tooling) complete · B (portal) not applicable · C blocked · D ongoing |
 
 ---
 
@@ -140,6 +151,7 @@ commit rather than rebased, so every hash below is reachable from both:
 | Recommendation Platform | `2061132` |
 | **Coach Platform** | `84a2a3f` |
 | **Prediction Platform** | `5a0e8e6` |
+| **Operations — deployment journal, backups, rehearsed restore** | this commit |
 
 On Maren-Frontend — `feature/portal-v2` up to `857b55c`, continuing on
 `feature/portal-v3` from the same commit:
@@ -241,6 +253,53 @@ by `30_Indexes_ForeignKeys.sql` is the one to follow. Verified both ways: it
 converges on the database that already had the tables, and a database built from
 scratch passes all 87 foreign-key checks.
 
+### The restore-verification gate would have passed a catastrophic restore
+
+**Severity: high. Found and fixed 2026-07-29.**
+
+`RECOVERY_PLAN.md` §6 told an on-call engineer to verify a restored database by
+checking `sys.tables = 45` and `sys.procedures = 47`, then running five named
+assertion suites.
+
+By then the schema was **84 tables and 102 procedures**, and twenty suites
+existed. The thresholds had gone stale silently, because nothing executes a
+number written in a document.
+
+The consequence is worse than "no check". A backup taken before ten feature
+schemas existed matches 45/47 **exactly** — so the gate would have reported a
+clean verification of a database missing Behaviour, Growth, Recommend, Coach,
+Predict, Timeline, Knowledge, Dashboard, Intelligence and Rules, to somebody
+deciding under pressure whether to return it to service.
+
+Demonstrated rather than argued: a database on the verification instance still
+sits at exactly 45/47. Backed up and put through the new drill, it fails **15 of
+21** checks. The old gate passes it.
+
+The commands were also missing `-S`, so they could not connect to the instance
+the rest of the documentation uses. They had never been run as written.
+
+**Fix:** §6 is now `./ops/db/restore-drill.sh`, which enumerates suites from
+disk instead of from a list and checks behaviour instead of shape. Assertion
+suites cannot rot quietly the way a number can, because they gate CI.
+
+### The documented deployment loop could not detect a failed script
+
+**Severity: high. Found and fixed 2026-07-29.**
+
+The apply loop published in `README.md`, `CLAUDE.md`, `PLATFORM_RUNBOOK.md` and
+both CI jobs ended `|| break` — and omitted `sqlcmd -b`. Without `-b`, `sqlcmd`
+exits 0 on a T-SQL error, so `|| break` was dead code in every copy. A failure
+at script 34 did not stop anything: the loop ran the remaining scripts against a
+broken database and finished looking exactly like success.
+
+This is the same class of defect as the audit-contract ordering bug and the
+twice-repeated silently-green CI step — a guard that cannot fire, which is
+indistinguishable from a guard that never needed to.
+
+**Fix:** `-b` added in all four documented copies, `ops/db/deploy.sh` written to
+supersede them, and `ci_workflow_test.sh` now fails if any schema-application
+line in CI omits `-b`.
+
 ### The ledger's own status sections had gone stale
 
 **Severity: low. Found and fixed this session.**
@@ -307,7 +366,7 @@ Decisions that constrain future work. Reversing any of these needs a reason.
 
 | Item | Impact |
 |---|---|
-| Container `HEALTHCHECK` calls an unhandled `--healthcheck` arg | Would restart-loop a real container deploy. Masked in dev by a compose override |
+| ~~Container `HEALTHCHECK` calls an unhandled `--healthcheck` arg~~ | **Fixed 2026-07-29.** The wording here was also wrong: plain Docker Engine never restarts a container for being unhealthy — it only marks it so. The restart loop needs an orchestrator (Swarm, Kubernetes) or a `restart` policy reacting to the probe. Under plain `docker run` the consequence was quieter and arguably worse: a container reporting unhealthy forever while serving correctly, and a load balancer refusing to route to it |
 | 42 `IX_*_NotDeleted` indexes are non-selective | Write cost on every insert, no read benefit |
 | ContentEditor destroys unsaved typing on background refetch | Operator loses work with no error |
 | ContentEditor can send `If-Match: null` | Silent last-write-wins on a CMS |
@@ -335,9 +394,10 @@ Decisions that constrain future work. Reversing any of these needs a reason.
 
 | Layer | Version / state |
 |---|---|
-| Database | 53 numbered scripts (`01`–`69`), 20 assertion suites |
+| Database | 55 numbered scripts (`01`–`72`), 21 assertion suites |
 | API | v1 · `/api/v1/me`, `/api/v1/admin/*` |
 | Portal | React 19 / MUI 9 / Vite 8, 105 tests |
+| Operations | `ops/db/{deploy,backup,restore-drill}.sh`; journals in `Ops` |
 | Flutter | Architecture only, **never compiled** |
 | AI | Specs + safety ledger. **No model integration** |
 | Infrastructure | None deployed |
@@ -350,14 +410,22 @@ Executed on this machine, not claimed:
 
 | Check | Result |
 |---|---|
-| Database created empty and applied **once, in order**, 53 scripts (list read from the runbook, count asserted against disk) | PASS |
-| Idempotency (second apply adds 0 columns, 0 indexes — 2782 and 480 both passes) | PASS |
-| SQL assertion suites | **20 suites, 277 assertions, 0 failures** |
+| Database created empty and applied **once, in order**, 55 scripts, via `ops/db/deploy.sh` (order read from the runbook, count asserted against disk) | PASS |
+| Idempotency (second apply adds 0 columns, 0 indexes — 2823 and 487 both passes) | PASS |
+| **Backup taken and verified** (`CHECKSUM` + `RESTORE VERIFYONLY`, full and log) | PASS |
+| **Restore rehearsed** — DBCC CHECKDB + 21 suites against the restored copy, 22/22, **1034 ms** | PASS |
+| **Point-in-time restore** discards a post-`STOPAT` write and keeps the earlier one | PASS |
+| **Container health probe** — exit 0 alive, exit 1 dead, exit 0 on a cold first request | PASS |
+| SQL assertion suites | **21 suites, 293 assertions, 0 failures** |
 | Clean Release build `-warnaserror` (never incremental) | 0 errors, 0 warnings |
 | Integration tests | **240 passed, exit 0** |
 | Portal `tsc -b --force` | exit 0 |
 | Portal tests | **105 passed, exit 0** |
 | Portal production build | succeeds |
+| Mutation check — restore drill | drilling a genuinely incomplete database (the one the old 45/47 gate passes) failed 15 of 21 checks |
+| Mutation check — deployment journal | a deliberately broken script 67 stopped the run at 51/55 and `usp_Deployment_Status` named it |
+| Mutation check — ops append-only guard | a procedure updating `Ops.RestoreDrill` failed assertion 10 |
+| Mutation check — CI guard | it caught `ops_test.sql` missing from CI and itself missing from CI, before those were added |
 | Mutation check — prediction never recomputes | `+5` on the percent and dropping the confidence floor failed 3 SQL assertions and 3 integration tests |
 | Mutation check — prediction never-recomputes guard | a `Predict` module doing recency-decay arithmetic failed assertion 10 |
 | Mutation check — prediction structural guards | a non-probability source, a framing without `{support}`, a framing without `{window}`, a stored row with no support and one with no evidence were each refused; a well-formed row was still accepted |
@@ -374,21 +442,26 @@ portal screens against a live API.
 
 ---
 
-## Current Maturity: **62 / 100**
+## Current Maturity: **67 / 100**
 
-Up two from 60. Four engines now share the same simulate-from-a-set split, and
-the newest of them cannot state a number the behaviour engine did not observe —
-that is a foreign key, not a policy.
+Up five from 62, and this is the first rise in a while that is not about
+application quality.
 
-This heading read **43** until this session while `execution-state.json` read
-60. The prose had not been updated for several features; the state file, which
-is written in the same commit as the work, had. Where the two disagree, believe
-the file.
+The platform can now be **deployed with a record of what was deployed**, can be
+**backed up**, and — the one that had never been true — can be **restored, with
+that restore rehearsed, verified against its own assertions, and timed**. The
+measured RTO for a database of this size is about a second; the number matters
+less than the fact that it is now a measurement rather than a hope.
 
-Deployment, backups and monitoring remain at **zero**, and the mobile client —
-the actual product — has still never been executed. Application quality does not
-compensate for those, and no amount of further engine work will move this number
-much until something is deployed somewhere.
+What is still zero, and what caps this number: **nothing is deployed anywhere**.
+There is no environment, no IaC, no image built by CI, no monitoring, no
+alerting, no log aggregation and no on-call. The mobile client — the actual
+product — has still never been executed. Backups of a database nobody is using
+protect nothing yet; they mean the capability exists before it is needed, which
+is the only useful time to build it.
+
+Honest framing: this slice moved the platform from "would lose everything" to
+"has a tested way not to". That is a real step and a small one.
 
 ---
 
@@ -405,7 +478,41 @@ much until something is deployed somewhere.
 
 ## Next Feature
 
-**The Planner — daily focus, then weekly and monthly review.**
+**Continue operations: get something deployed, then observability.**
+
+The previous entry named the Planner and attached a caveat saying deployment
+mattered more. Acting on that caveat is what produced this slice, and the same
+reasoning still applies — the engine layer remains far ahead of what holds it
+up.
+
+In order:
+
+1. **Infrastructure as code and a deployed environment.** Everything the ops
+   scripts do assumes a database that exists somewhere. There is still no
+   environment, no IaC, and CI never builds the image, so the container fixes in
+   this slice are verified only by exit code on a developer machine. This is the
+   single largest gap; it is also the one that cannot be closed here, because
+   there is no Docker and no runner on this workstation.
+2. **Observability.** `Audit.AuditLog.CorrelationId` is declared, read back, and
+   **written by nothing** — all 33 write sites omit it and no procedure accepts
+   one. There is no request correlation middleware, no structured logging sink,
+   no metrics. Logs are unstructured console text that dies with the process.
+   Deliberately not attempted in this slice: threading a correlation id means
+   changing every command procedure's signature, which is its own slice and
+   should not ride along inside a backup change.
+3. **Then the Planner**, which is still the right next engine.
+
+### Also found and not fixed here
+
+Recorded so they are not rediscovered: the CI `security` job fails on every run
+(`GHSA-v5pm-xwqc-g5wc`; the `NuGetAuditSuppress` is restore-time and does not
+suppress it); the committed-secret scan regex cannot match a key in any
+`appsettings*.json`; `UseForwardedHeaders` is never called, so behind a proxy
+every anonymous caller shares one rate-limit partition; `/health/ready` binds
+the exception but never logs it, so a 503 carries no diagnostic anywhere; and no
+test covers either health endpoint.
+
+### The Planner, when it comes
 
 Everything it needs now exists. Behaviour says how she lives, Growth what she is
 working towards, Recommendation what to suggest, Coach how to say it, Prediction

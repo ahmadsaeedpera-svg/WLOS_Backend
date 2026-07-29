@@ -41,6 +41,16 @@ ENV ASPNETCORE_URLS=http://+:8080 \
 # Liveness only. Readiness touches the database, and an orchestrator restarting
 # every instance because SQL Server blinked takes the platform down harder than
 # the blink did.
+#
+# `--healthcheck` is implemented in Program.cs and returns before any web host
+# is built. It was declared here long before it existed: the argument fell
+# through to the host builder, which ignored it, so every probe started a second
+# complete API inside the container, failed to bind the port the real one held,
+# and exited non-zero. The container therefore reported unhealthy forever while
+# serving traffic correctly.
+#
+# `dotnet` rather than curl or wget: the ASP.NET runtime image contains neither.
+# The original author's instinct was right; only the implementation was missing.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD ["dotnet", "Maren.Api.dll", "--healthcheck"]
 

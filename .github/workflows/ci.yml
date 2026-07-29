@@ -117,7 +117,7 @@ jobs:
                    49_Behaviour.sql 50_Procs_Behaviour.sql 51_Procs_Inspector_Behaviour.sql \
                    52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
                    55_Growth_Routines.sql 56_Procs_Growth_Routines.sql 58_Recommendation.sql \
-                   59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 69_AuditContract_Apply.sql; do
+                   59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 70_Operations.sql 71_Procs_Operations.sql 72_AuditContract_Apply.sql; do
             echo "--- $f"
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
@@ -146,9 +146,19 @@ jobs:
                    49_Behaviour.sql 50_Procs_Behaviour.sql 51_Procs_Inspector_Behaviour.sql \
                    52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
                    55_Growth_Routines.sql 56_Procs_Growth_Routines.sql 58_Recommendation.sql \
-                   59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 69_AuditContract_Apply.sql; do
+                   59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 70_Operations.sql 71_Procs_Operations.sql 72_AuditContract_Apply.sql; do
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
+
+      - name: CI workflow guard
+        # The guard against a silently-green CI step — and it spent its entire
+        # existence not running in CI, which is the same class of defect it was
+        # written to catch. It checks the committed workflow: no empty command
+        # captures, every capture invokes sqlcmd and is checked for FAILED: 0,
+        # every assertion suite and every schema script on disk appears here,
+        # schema application uses -b so a T-SQL error actually stops the loop,
+        # and this step exists.
+        run: bash src/Maren.Database/tests/ci_workflow_test.sh
 
       - name: Restore
         run: dotnet restore
@@ -348,6 +358,19 @@ jobs:
           out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/coach_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Coach assertions failed"; exit 1; }
+
+      - name: Operations assertions
+        # The deployment journal and the restore drill record. The load-bearing
+        # assertion is that a drill which ran no checks cannot be recorded as
+        # passed: a restore that only proves RESTORE returned zero has proved
+        # nothing, and a green tick on that basis is the failure this platform
+        # exists to refuse. Both journals are append-only, checked against the
+        # dependency graph rather than the module text.
+        working-directory: src/Maren.Database
+        run: |
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/ops_test.sql)
+          echo "$out"
+          echo "$out" | grep -q "FAILED: 0" || { echo "::error::Operations assertions failed"; exit 1; }
 
       - name: Prediction assertions
         # A prediction is framed, never computed. These hold that: it can only

@@ -1,14 +1,14 @@
 {
   "$comment": "Machine-readable execution state. Companion to EXECUTION_LEDGER.md, which carries the reasoning. Update both in the same commit; if they disagree, the ledger is authoritative for prose and this file for state. This session found the ledger's prose sections stale against this file by two features, which is the argument for reading this one first.",
   "updatedUtc": "2026-07-29",
-  "epic": "Intelligence Platform",
-  "slice": "Prediction Platform",
-  "feature": "Framing that cannot compute — a prediction restates a probability Behaviour observed",
-  "track": "A+B",
+  "epic": "Operations",
+  "slice": "Deployment and recovery",
+  "feature": "A deployment that records itself, backups that are verified, and a restore that has actually been rehearsed",
+  "track": "A",
   "status": "Complete",
   "tracks": {
     "backend": "Complete",
-    "portal": "Complete",
+    "portal": "Not applicable — no operator surface built for this slice",
     "flutter": "Blocked",
     "documentation": "Complete"
   },
@@ -25,8 +25,10 @@
     "branchNote": "Continuing on the v3 branches created after the Coach Platform. The v2 branches remain on the remote at the same commits; nothing was rebased or force-pushed."
   },
   "versions": {
-    "databaseScripts": 53,
-    "highestScript": "69_AuditContract_Apply.sql",
+    "databaseScripts": 55,
+    "highestScript": "72_AuditContract_Apply.sql",
+    "deployRunner": "ops/db/deploy.sh — reads the order from PLATFORM_RUNBOOK.md, records every script in Ops.DeploymentJournal",
+    "backupTooling": "ops/db/backup.sh, ops/db/restore-drill.sh",
     "api": "v1",
     "portal": "react19-mui9-vite8",
     "flutter": "architecture-only-never-compiled",
@@ -35,22 +37,32 @@
   },
   "tests": {
     "backendIntegration": 240,
-    "sqlAssertionSuites": 20,
-    "sqlAssertions": 277,
+    "sqlAssertionSuites": 21,
+    "sqlAssertions": 293,
+    "ciWorkflowGuardChecks": 7,
     "portal": 105,
     "flutter": null,
     "flutterNote": "Static count only; never executed. No SDK."
   },
   "verification": {
-    "$comment": "Run against MarenP3: CREATE DATABASE, then one ordered pass over the list read from PLATFORM_RUNBOOK.md, count asserted against disk. The documented order is deliberately not numeric - 14_Procs_Config.sql runs before 10-13 - so the list is read from the runbook rather than from a directory sort.",
+    "$comment": "Run against MarenOps3 via ops/db/deploy.sh: CREATE DATABASE, then one ordered pass over the list read from PLATFORM_RUNBOOK.md, count asserted against disk. The documented order is deliberately not numeric - 14_Procs_Config.sql runs before 10-13 - so the list is read from the runbook rather than from a directory sort.",
     "createDatabaseThenOneOrderedPass": "pass",
-    "idempotency": "pass (2782 columns, 480 indexes, both passes)",
+    "idempotency": "pass (2823 columns, 487 indexes, both passes)",
+    "backupTakenAndVerified": "pass — full + log, CHECKSUM, RESTORE VERIFYONLY",
+    "restoreRehearsed": "pass — DBCC CHECKDB + 21 assertion suites against the restored copy, 22/22, 1034ms measured RTO, recorded in Ops.RestoreDrill",
+    "pointInTimeRestore": "pass — a write after the captured timestamp is discarded by STOPAT, the write before it survives",
+    "containerHealthProbe": "pass locally by exit code — 0 against a live API including a cold first request, 1 against a dead port. NEVER RUN IN A CONTAINER: no Docker here.",
     "cleanReleaseBuildWarnAsError": "pass",
     "integrationTestsExitCode": 0,
     "portalTypeCheckExitCode": 0,
     "portalTestsExitCode": 0,
     "portalProductionBuild": "pass",
     "mutationChecks": [
+      "restore drill: drilling a genuinely incomplete database - the one the old 45/47 gate passes - failed 15 of 21 checks",
+      "deployment journal: a deliberately broken script 67 stopped the run at 51/55 and usp_Deployment_Status named it as the script whose latest word is a failure",
+      "ops append-only guard: a procedure updating Ops.RestoreDrill failed assertion 10; dropping it restored 16/16",
+      "ops honesty constraint: a drill with 0 checks, and one with failing checks, were each refused as 'passed'; a genuine 21/0 drill was accepted",
+      "CI guard: it caught ops_test.sql missing from CI and itself missing from CI before either was added",
       "prediction carry-through: +5 on the percent failed 2 SQL assertions and 3 integration tests",
       "prediction withholding: removing the confidence floor failed assertion 13",
       "prediction never-recomputes: a Predict module doing recency-decay arithmetic failed assertion 10",
@@ -65,6 +77,60 @@
     "ciWorkflowGuard": "ci_workflow_test.sh - 20 captures, no empty captures, every capture invokes sqlcmd and is checked, every suite on disk runs in CI; mutation-tested this session"
   },
   "defectsFoundThisSession": [
+    {
+      "id": "restore-verification-gate-stale",
+      "severity": "high",
+      "fixedIn": "this commit",
+      "summary": "RECOVERY_PLAN.md section 6 verified a restored database with 'expect 45 tables, 47 procedures' and five named suites. The schema is 84 and 102, with twenty suites.",
+      "whyItMattered": "A backup taken before ten feature schemas existed matches 45/47 EXACTLY, so the gate reports a clean verification of a catastrophically incomplete restore - during an incident, to somebody deciding whether to return it to service. Demonstrated: a real database on the instance is still 45/47 and fails 15 of 21 checks under the new drill.",
+      "fix": "Section 6 is now ops/db/restore-drill.sh, which enumerates suites from disk and checks behaviour rather than shape. The old commands also omitted -S and had never been run as written.",
+      "foundBy": "parallel operational audit, verified against the live instance"
+    },
+    {
+      "id": "documented-apply-loop-cannot-fail",
+      "severity": "high",
+      "fixedIn": "this commit",
+      "summary": "The apply loop in README, CLAUDE.md, PLATFORM_RUNBOOK and both CI jobs ended '|| break' but omitted sqlcmd -b, so sqlcmd exited 0 on a T-SQL error and the break was dead code.",
+      "whyItMattered": "A failure at script 34 did not stop anything: the loop ran the rest against a broken database and finished looking like success. Same class as the audit-contract ordering bug and the twice-repeated silently-green CI step - a guard that cannot fire.",
+      "fix": "-b added in all four copies; ops/db/deploy.sh supersedes them; ci_workflow_test.sh now fails if any schema-application line in CI omits -b.",
+      "foundBy": "parallel operational audit"
+    },
+    {
+      "id": "dev-secrets-shipped-in-production-image",
+      "severity": "medium",
+      "fixedIn": "this commit",
+      "summary": ".dockerignore excluded neither appsettings.Development.json nor .env, so the committed development JWT signing key was copied into every image built.",
+      "whyItMattered": "The runtime sets ASPNETCORE_ENVIRONMENT=Production so the file is not read - but anyone who can read the image layers can read the key, and setting the environment to Development on a production container would activate it. A secret that ships is a secret that leaked.",
+      "fix": ".dockerignore now excludes development appsettings, .env files and backup artefacts. The startup guard requiring a 32-character signing key already existed and was verified working: the API refuses to boot in Production without one.",
+      "foundBy": "parallel operational audit; the startup guard confirmed by running the API as Production"
+    },
+    {
+      "id": "container-healthcheck-never-implemented",
+      "severity": "medium",
+      "fixedIn": "this commit",
+      "summary": "Dockerfile HEALTHCHECK ran 'dotnet Maren.Api.dll --healthcheck'; Program.cs never inspected args, so the probe started a second full web host that could not bind the port and exited non-zero. The compose override that supposedly masked it shelled out to wget, which the aspnet runtime image does not contain.",
+      "whyItMattered": "The container reported unhealthy forever while serving traffic correctly. The prior ledger entry said 'would restart-loop', which overstates it: plain Docker Engine only marks a container unhealthy. A restart loop needs an orchestrator; under plain docker run the effect is a load balancer refusing to route to a healthy instance.",
+      "fix": "HealthProbe implemented in Maren.Api and returned from Program.cs before any host is built; compose now uses the same probe. Verified locally by exit code only - NO DOCKER on this machine, so it has never run inside a container.",
+      "foundBy": "reading Program.cs for the argument, confirmed by the parallel audit"
+    },
+    {
+      "id": "ci-guard-never-ran-in-ci",
+      "severity": "medium",
+      "fixedIn": "this commit",
+      "summary": "ci_workflow_test.sh — the guard against a silently-green CI step — was never invoked by any CI job.",
+      "whyItMattered": "The same class of defect it exists to catch. Nothing enforced the invariant it protects.",
+      "fix": "Added as a CI step, and the guard now asserts its own presence in the workflow. It also gained checks that every schema script is applied in CI and that schema application uses -b.",
+      "foundBy": "parallel operational audit"
+    },
+    {
+      "id": "ops-append-only-assertion-bracket-wildcard",
+      "severity": "low",
+      "fixedIn": "this commit",
+      "summary": "The first draft of the ops append-only assertion searched sys.sql_modules for '%UPDATE%[Ops].[DeploymentJournal]%'. Square brackets in a T-SQL LIKE pattern are a character class, so this asked for 'UPDATE then any one of O/p/s' and reported eight offenders that did not exist.",
+      "whyItMattered": "A guard that fires on nothing real trains people to ignore it. It failed loudly on first run rather than silently passing, which is the better direction to fail.",
+      "fix": "Resolved through sys.sql_expression_dependencies instead: which procedures reference an Ops journal at all, and do any contain a mutating verb. Mutation-tested.",
+      "foundBy": "running the suite"
+    },
     {
       "id": "prediction-fk-indexes-missing",
       "severity": "medium",
@@ -174,28 +240,41 @@
     {
       "id": "infrastructure",
       "type": "infrastructure",
-      "evidence": "SIMPLE recovery, zero backups, no deploy config in any repo"
+      "evidence": "Nothing is deployed anywhere. No IaC, no environment, no image built by CI, no registry. Backup and restore tooling now exists and is rehearsed, but against a local database only.",
+      "changedThisSession": "Backups, point-in-time recovery and a verified restore drill now exist and have been executed. Deployment target and IaC remain absent."
+    },
+    {
+      "id": "observability",
+      "type": "infrastructure",
+      "evidence": "Audit.AuditLog.CorrelationId is declared and read back but written by nothing - all 33 write sites omit it and no procedure accepts one. No correlation middleware, no structured logging sink, no metrics, no tracing. Logs are console text that dies with the process.",
+      "note": "Deliberately out of scope for the operations slice: threading a correlation id changes every command procedure signature and belongs in its own slice."
+    },
+    {
+      "id": "ci-security-job-red",
+      "type": "ci",
+      "evidence": "dotnet list package --vulnerable still reports GHSA-v5pm-xwqc-g5wc; the NuGetAuditSuppress in Maren.Api.csproj is restore-time and does not suppress it. The committed-secret scan regex also cannot match a key inside any appsettings*.json."
     }
   ],
-  "maturity": 62,
-  "maturityNote": "Up two from 60. Four engines now share the simulate-from-a-set split, and the newest cannot state a number Behaviour did not observe - that is a foreign key, not a policy. Deployment, backups and monitoring remain at zero and the mobile client has still never been executed. Further engine work will not move this much.",
+  "maturity": 67,
+  "maturityNote": "Up five from 62, and the first rise in a while that is not about application quality. The platform can now be deployed with a record of what was deployed, backed up, and - the one that had never been true - restored, with that restore rehearsed, verified against its own assertions, and timed at about a second. Still zero: nothing is deployed anywhere, no IaC, no image built by CI, no monitoring, no alerting, no log aggregation, no on-call, and the mobile client has never been executed. This slice moved the platform from 'would lose everything' to 'has a tested way not to'. A real step and a small one.",
   "next": {
-    "feature": "The Planner — daily focus, then weekly and monthly review",
-    "track": "A then B",
-    "reason": "Every input now exists. A planner selects, orders and schedules what the engines already produced; it originates nothing and writes no sentence the coach did not.",
-    "constraint": "Orchestration over IntelligenceKeys.Behaviour, .Goals, .Routines, .Recommendations, .CoachMessages and .Predictions. It computes no habit, streak, consistency figure or probability.",
+    "feature": "Continue operations — infrastructure as code and a deployed environment, then observability",
+    "track": "A",
+    "reason": "The previous entry named the Planner with a caveat that deployment mattered more. Acting on that caveat produced this slice and the reasoning still holds: the engine layer is far ahead of what holds it up. Everything the ops tooling does assumes a database that exists somewhere, and none does.",
+    "constraint": "IaC and a runner cannot be verified on this workstation - no Docker, no CI runner. Any claim about them must be marked BLOCKED rather than asserted.",
     "scope": [
-      "plan schema with slots as data rather than a hard-coded day shape",
-      "fn_PlanFrom consuming what the engines published — the fifth engine on the simulate-from-a-set split",
-      "planResolution stage",
-      "contracts, CQRS, repository, controller",
-      "SQL assertions incl. a never-originates and a never-clinical assertion",
-      "inspector simulation",
-      "portal planner library"
+      "infrastructure as code declaring the database platform, FULL recovery, retention and geo-redundancy",
+      "CI builds the container image, so the health probe fixed this session is exercised somewhere",
+      "a deploy job with an environment and a registry push",
+      "then observability: correlation ids threaded through the command surface, a structured logging sink, metrics",
+      "then the Planner, which is still the right next engine"
     ],
-    "readFirst": "The engine layer is now well ahead of everything around it. Fifteen engines are built and explainable; nothing is deployed, there are no backups, there is no monitoring, and the mobile client has never been executed. Two things are worth more than the planner and neither is engine work: (1) deploy something with backups and a rehearsed restore — the database is in SIMPLE recovery with zero rows in backupset; (2) answer PD-1 and the tenancy question while the Health domain is still nine tables and zero procedures, because tenancy stops being a design choice the moment that procedure layer is written. The planner is the right next engine; whether the next engine is the right next thing is a question for a person."
+    "readFirst": "Two things remain worth more than another engine. (1) Nothing is deployed anywhere - the backup and restore capability built this session protects a local database only. (2) PD-1 and the tenancy question are still open, and the Health domain is still nine tables and zero procedures, so tenancy stops being a design choice the moment that procedure layer is written. Observability is now the largest gap inside the application itself: CorrelationId is declared, read back, and written by nothing."
   },
   "architecturalInvariants": [
+    "Ops.RestoreDrill will not store a passing drill that ran no checks, or one with any failing check. A CHECK constraint refuses it, because 'RESTORE returned 0' is not evidence that a database was restored. Restore verification checks BEHAVIOUR - DBCC CHECKDB plus every assertion suite on disk - never counts of tables or procedures, which go stale silently and once would have passed a database missing ten feature schemas.",
+    "Both Ops journals are append-only, asserted through the dependency graph rather than module text: no procedure that references them may contain a mutating verb.",
+    "There is ONE deployment order and it lives in docs/PLATFORM_RUNBOOK.md. ops/db/deploy.sh reads it rather than carrying a copy, and asserts the documented count against the scripts on disk.",
     "Predict.fn_PredictFrom is the ONLY framing logic, and it cannot compute. A PredictionType carries a SourceFamily pinned to 'probability' by a CHECK, and (SourceMeasureCode, SourceFamily) is a foreign key into Behaviour.MeasureType (MeasureCode, Family) — so a prediction may only name a measure Behaviour publishes as a probability. A CHECK refuses a framing missing {chance}, {window} or {support}, so no configuration can state a likelihood without its window and its support.",
     "Coach.fn_ExplainFrom is the ONLY explanation logic. A message is filled into a tone pattern; a CHECK constraint refuses a pattern missing {body} or {reason}, so no configuration can encourage without evidence. The coach never reassembles.",
     "Recommend.fn_AssembleFrom is the ONLY assembly logic. It consumes an EvidenceSet and reads no raw store — verified by dependency graph. The live path and the Decision Inspector both feed it.",
