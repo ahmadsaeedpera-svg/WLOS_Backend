@@ -14,7 +14,7 @@
   },
   "git": {
     "backendBranch": "feature/backend-v3",
-    "backendHead": "5a0e8e6",
+    "backendHead": "2fe17e7",
     "frontendBranch": "feature/portal-v3",
     "frontendHead": "adbd99f",
     "mainTouched": false,
@@ -74,13 +74,13 @@
     "openApiDocumented": true,
     "ciOnRunner": "never-executed",
     "containerImage": "not-built-no-docker",
-    "ciWorkflowGuard": "ci_workflow_test.sh - 20 captures, no empty captures, every capture invokes sqlcmd and is checked, every suite on disk runs in CI; mutation-tested this session"
+    "ciWorkflowGuard": "ci_workflow_test.sh - 7 checks over 21 captures: no empty captures, every capture invokes sqlcmd and is checked for FAILED: 0, every assertion suite and every schema script on disk appears in CI, schema application uses -b, and the guard itself runs in CI. It now runs in CI, which it never did before this session."
   },
   "defectsFoundThisSession": [
     {
       "id": "restore-verification-gate-stale",
       "severity": "high",
-      "fixedIn": "this commit",
+      "fixedIn": "2fe17e7",
       "summary": "RECOVERY_PLAN.md section 6 verified a restored database with 'expect 45 tables, 47 procedures' and five named suites. The schema is 84 and 102, with twenty suites.",
       "whyItMattered": "A backup taken before ten feature schemas existed matches 45/47 EXACTLY, so the gate reports a clean verification of a catastrophically incomplete restore - during an incident, to somebody deciding whether to return it to service. Demonstrated: a real database on the instance is still 45/47 and fails 15 of 21 checks under the new drill.",
       "fix": "Section 6 is now ops/db/restore-drill.sh, which enumerates suites from disk and checks behaviour rather than shape. The old commands also omitted -S and had never been run as written.",
@@ -89,7 +89,7 @@
     {
       "id": "documented-apply-loop-cannot-fail",
       "severity": "high",
-      "fixedIn": "this commit",
+      "fixedIn": "2fe17e7",
       "summary": "The apply loop in README, CLAUDE.md, PLATFORM_RUNBOOK and both CI jobs ended '|| break' but omitted sqlcmd -b, so sqlcmd exited 0 on a T-SQL error and the break was dead code.",
       "whyItMattered": "A failure at script 34 did not stop anything: the loop ran the rest against a broken database and finished looking like success. Same class as the audit-contract ordering bug and the twice-repeated silently-green CI step - a guard that cannot fire.",
       "fix": "-b added in all four copies; ops/db/deploy.sh supersedes them; ci_workflow_test.sh now fails if any schema-application line in CI omits -b.",
@@ -98,7 +98,7 @@
     {
       "id": "dev-secrets-shipped-in-production-image",
       "severity": "medium",
-      "fixedIn": "this commit",
+      "fixedIn": "2fe17e7",
       "summary": ".dockerignore excluded neither appsettings.Development.json nor .env, so the committed development JWT signing key was copied into every image built.",
       "whyItMattered": "The runtime sets ASPNETCORE_ENVIRONMENT=Production so the file is not read - but anyone who can read the image layers can read the key, and setting the environment to Development on a production container would activate it. A secret that ships is a secret that leaked.",
       "fix": ".dockerignore now excludes development appsettings, .env files and backup artefacts. The startup guard requiring a 32-character signing key already existed and was verified working: the API refuses to boot in Production without one.",
@@ -107,7 +107,7 @@
     {
       "id": "container-healthcheck-never-implemented",
       "severity": "medium",
-      "fixedIn": "this commit",
+      "fixedIn": "2fe17e7",
       "summary": "Dockerfile HEALTHCHECK ran 'dotnet Maren.Api.dll --healthcheck'; Program.cs never inspected args, so the probe started a second full web host that could not bind the port and exited non-zero. The compose override that supposedly masked it shelled out to wget, which the aspnet runtime image does not contain.",
       "whyItMattered": "The container reported unhealthy forever while serving traffic correctly. The prior ledger entry said 'would restart-loop', which overstates it: plain Docker Engine only marks a container unhealthy. A restart loop needs an orchestrator; under plain docker run the effect is a load balancer refusing to route to a healthy instance.",
       "fix": "HealthProbe implemented in Maren.Api and returned from Program.cs before any host is built; compose now uses the same probe. Verified locally by exit code only - NO DOCKER on this machine, so it has never run inside a container.",
@@ -116,7 +116,7 @@
     {
       "id": "ci-guard-never-ran-in-ci",
       "severity": "medium",
-      "fixedIn": "this commit",
+      "fixedIn": "2fe17e7",
       "summary": "ci_workflow_test.sh — the guard against a silently-green CI step — was never invoked by any CI job.",
       "whyItMattered": "The same class of defect it exists to catch. Nothing enforced the invariant it protects.",
       "fix": "Added as a CI step, and the guard now asserts its own presence in the workflow. It also gained checks that every schema script is applied in CI and that schema application uses -b.",
@@ -125,7 +125,7 @@
     {
       "id": "ops-append-only-assertion-bracket-wildcard",
       "severity": "low",
-      "fixedIn": "this commit",
+      "fixedIn": "2fe17e7",
       "summary": "The first draft of the ops append-only assertion searched sys.sql_modules for '%UPDATE%[Ops].[DeploymentJournal]%'. Square brackets in a T-SQL LIKE pattern are a character class, so this asked for 'UPDATE then any one of O/p/s' and reported eight offenders that did not exist.",
       "whyItMattered": "A guard that fires on nothing real trains people to ignore it. It failed loudly on first run rather than silently passing, which is the better direction to fail.",
       "fix": "Resolved through sys.sql_expression_dependencies instead: which procedures reference an Ops journal at all, and do any contain a mutating verb. Mutation-tested.",
