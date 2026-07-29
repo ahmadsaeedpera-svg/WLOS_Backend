@@ -13,11 +13,16 @@
     "documentation": "Complete"
   },
   "git": {
-    "backendBranch": "feature/backend-v2",
+    "backendBranch": "feature/backend-v3",
     "backendHead": "84a2a3f",
-    "frontendBranch": "feature/portal-v2",
+    "frontendBranch": "feature/portal-v3",
     "frontendHead": "857b55c",
-    "mainTouched": false
+    "mainTouched": false,
+    "previousBranches": {
+      "backend": "feature/backend-v2 (aee4d60)",
+      "frontend": "feature/portal-v2 (857b55c)"
+    },
+    "branchNote": "Branched from the verified Coach Platform state. The v2 branches remain on the remote at the same commits; nothing was rebased or force-pushed, so history is identical up to the branch point."
   },
   "versions": {
     "databaseScripts": 50,

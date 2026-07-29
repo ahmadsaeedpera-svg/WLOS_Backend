@@ -98,7 +98,9 @@ simulator, portal tests, CI — plus a new guard on CI itself.
 
 ## Completed Features
 
-Verified from code, in commit order on `feature/backend-v2`:
+Verified from code, in commit order. Commits up to `aee4d60` were made on
+`feature/backend-v2`; work continues on `feature/backend-v3`, branched from that
+commit rather than rebased, so every hash below is reachable from both:
 
 | Feature | Commit |
 |---|---|
@@ -132,7 +134,8 @@ Verified from code, in commit order on `feature/backend-v2`:
 | Recommendation Platform | `2061132` |
 | **Coach Platform** | `84a2a3f` |
 
-On `feature/portal-v2` (Maren-Frontend):
+On Maren-Frontend — `feature/portal-v2` up to `857b55c`, continuing on
+`feature/portal-v3` from the same commit:
 
 | Feature | Commit |
 |---|---|
@@ -329,9 +332,10 @@ never been executed. Application quality does not compensate for those.
 
 | | |
 |---|---|
-| Backend branch | `feature/backend-v2` (pushed) |
-| Frontend branch | `feature/portal-v2` (pushed) |
+| Backend branch | `feature/backend-v3` (pushed, tracking) |
+| Frontend branch | `feature/portal-v3` (pushed, tracking) |
 | `main` | Untouched on both repositories |
+| Previous branches | `feature/backend-v2` @ `aee4d60`, `feature/portal-v2` @ `857b55c` — left on the remote, not deleted |
 
 ---
 
