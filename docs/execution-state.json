@@ -1,9 +1,9 @@
 {
-  "$comment": "Machine-readable execution state. Companion to EXECUTION_LEDGER.md, which carries the reasoning. Update both in the same commit; if they disagree, the ledger is authoritative for prose and this file for state.",
-  "updatedUtc": "2026-07-28",
+  "$comment": "Machine-readable execution state. Companion to EXECUTION_LEDGER.md, which carries the reasoning. Update both in the same commit; if they disagree, the ledger is authoritative for prose and this file for state. This session found the ledger's prose sections stale against this file by two features, which is the argument for reading this one first.",
+  "updatedUtc": "2026-07-29",
   "epic": "Intelligence Platform",
-  "slice": "Coach Platform",
-  "feature": "Explanation that cannot invent — messages filled in, never written",
+  "slice": "Prediction Platform",
+  "feature": "Framing that cannot compute — a prediction restates a probability Behaviour observed",
   "track": "A+B",
   "status": "Complete",
   "tracks": {
@@ -14,19 +14,19 @@
   },
   "git": {
     "backendBranch": "feature/backend-v3",
-    "backendHead": "84a2a3f",
+    "backendHead": "pending-commit",
     "frontendBranch": "feature/portal-v3",
-    "frontendHead": "857b55c",
+    "frontendHead": "pending-commit",
     "mainTouched": false,
     "previousBranches": {
       "backend": "feature/backend-v2 (aee4d60)",
       "frontend": "feature/portal-v2 (857b55c)"
     },
-    "branchNote": "Branched from the verified Coach Platform state. The v2 branches remain on the remote at the same commits; nothing was rebased or force-pushed, so history is identical up to the branch point."
+    "branchNote": "Continuing on the v3 branches created after the Coach Platform. The v2 branches remain on the remote at the same commits; nothing was rebased or force-pushed."
   },
   "versions": {
-    "databaseScripts": 50,
-    "highestScript": "65_AuditContract_Apply.sql",
+    "databaseScripts": 53,
+    "highestScript": "69_AuditContract_Apply.sql",
     "api": "v1",
     "portal": "react19-mui9-vite8",
     "flutter": "architecture-only-never-compiled",
@@ -34,43 +34,63 @@
     "infrastructure": "none-deployed"
   },
   "tests": {
-    "backendIntegration": 229,
-    "sqlAssertionSuites": 19,
-    "sqlAssertions": 257,
-    "portal": 97,
+    "backendIntegration": 240,
+    "sqlAssertionSuites": 20,
+    "sqlAssertions": 277,
+    "portal": 105,
     "flutter": null,
     "flutterNote": "Static count only; never executed. No SDK."
   },
   "verification": {
-    "$comment": "createDatabaseThenOneOrderedPass replaces the old 'freshDatabase' key. The old wording was satisfied by a re-applied database, which is precisely what hid the audit-contract ordering defect for weeks.",
+    "$comment": "Run against MarenP3: CREATE DATABASE, then one ordered pass over the list read from PLATFORM_RUNBOOK.md, count asserted against disk. The documented order is deliberately not numeric - 14_Procs_Config.sql runs before 10-13 - so the list is read from the runbook rather than from a directory sort.",
     "createDatabaseThenOneOrderedPass": "pass",
-    "idempotency": "pass",
+    "idempotency": "pass (2782 columns, 480 indexes, both passes)",
     "cleanReleaseBuildWarnAsError": "pass",
     "integrationTestsExitCode": 0,
     "portalTypeCheckExitCode": 0,
     "portalTestsExitCode": 0,
     "portalProductionBuild": "pass",
     "mutationChecks": [
-      "coach evidence guarantee: emptying the {reason} substitution failed 2 assertions",
-      "coach portal: hiding the tone pattern failed 1 test",
-      "CI guard: an empty capture and a suite absent from CI each failed it",
-      "recommendation input states, inspector privacy guard, behaviour simulation equivalence — all still caught"
+      "prediction carry-through: +5 on the percent failed 2 SQL assertions and 3 integration tests",
+      "prediction withholding: removing the confidence floor failed assertion 13",
+      "prediction never-recomputes: a Predict module doing recency-decay arithmetic failed assertion 10",
+      "prediction structural guards: a non-probability source, a framing missing {support}, a framing missing {window}, a stored row with no support and one with no evidence were each refused, and a well-formed row was still accepted",
+      "portal traceability: hiding the source measure failed 1 test",
+      "CI guard: removing the prediction step failed it with '1 missing prediction_test.sql'"
     ],
     "endpointsUnauthenticated": 401,
     "openApiDocumented": true,
     "ciOnRunner": "never-executed",
     "containerImage": "not-built-no-docker",
-    "ciWorkflowGuard": "ci_workflow_test.sh — no empty captures, every capture invokes sqlcmd and is checked, every suite runs in CI; both guards mutation-tested"
+    "ciWorkflowGuard": "ci_workflow_test.sh - 20 captures, no empty captures, every capture invokes sqlcmd and is checked, every suite on disk runs in CI; mutation-tested this session"
   },
   "defectsFoundThisSession": [
     {
-      "id": "ci-step-never-ran-again",
-      "severity": "high",
-      "fixedIn": "84a2a3f",
-      "summary": "For the second time, a CI assertion step was authored with a command substitution the authoring shell evaluated first, leaving out= empty.",
-      "whyItMattered": "A step that greps an empty string reports green forever. It is the worst failure a guard can have because it is indistinguishable from success.",
-      "fix": "Fixed with the Edit tool, and ci_workflow_test.sh now checks the committed workflow: no empty captures, every capture invokes sqlcmd and is checked for FAILED: 0, and every assertion suite on disk runs in CI. Both guards mutation-tested.",
-      "foundBy": "reading the committed YAML after writing it"
+      "id": "prediction-fk-indexes-missing",
+      "severity": "medium",
+      "fixedIn": "this commit",
+      "summary": "Predict.Predicted (SubjectKey) and Predict.PredictionType (HorizonCode) were created with foreign keys and no supporting index.",
+      "whyItMattered": "Predicted grows once per woman per prediction per day. The parent-side delete and every join to Behaviour.Subject would have scanned the one new table with real cardinality.",
+      "fix": "Guarded IF NOT EXISTS ... CREATE INDEX outside the CREATE TABLE block, following 30_Indexes_ForeignKeys.sql. Inside the block the index would never reach a database that already had the table, so re-applying would not converge - the same shape as the audit contract defect.",
+      "foundBy": "index_coverage_test.sql on the clean-room run, not by the 20 assertions written for this feature"
+    },
+    {
+      "id": "ledger-prose-stale",
+      "severity": "low",
+      "fixedIn": "this commit",
+      "summary": "EXECUTION_LEDGER.md read maturity 43 against this file's 60, and its Next Feature still described work completed two features earlier. 69_AuditContract_Apply.sql still had '48_' in its header; CLAUDE.md called it 54 when it was 65.",
+      "whyItMattered": "The continuation protocol recovers state from the repository. A stale 'next feature' sends the next session to work that is already done.",
+      "fix": "Ledger status sections rewritten and the numbers reconciled. Prose sections drift because nothing executes them; this file does not, because it is written in the same commit as the work.",
+      "foundBy": "reading the ledger tail at the start of the session"
+    },
+    {
+      "id": "midpoint-rounding-mismatch",
+      "severity": "low",
+      "fixedIn": "this commit",
+      "summary": "T-SQL ROUND rounds half away from zero; .NET Math.Round uses banker's rounding. An observed 0.325 is 33% on the server and 32% in .NET.",
+      "whyItMattered": "Caught by an integration test written against .NET's default. Not a server defect - but a client that recomputed the percent instead of using the shipped one would show a woman a different number from the one in her own statement text.",
+      "fix": "The percent is computed once, server-side, and shipped. The test now asserts MidpointRounding.AwayFromZero to match the server on purpose, with the reason recorded beside it.",
+      "foundBy": "the integration test failing on its first run"
     }
   ],
   "engines": [
@@ -88,7 +108,8 @@
     "BehaviourIntelligence",
     "PersonalGrowth",
     "Recommendation",
-    "Coach"
+    "Coach",
+    "Prediction"
   ],
   "pipeline": {
     "registeredStages": 24,
@@ -112,16 +133,16 @@
       "goalResolution",
       "routinePlanResolution",
       "recommendationResolution",
-      "coachResolution"
+      "coachResolution",
+      "predictionResolution"
     ],
     "unbuiltStages": [
       "notificationResolution",
-      "predictionResolution",
       "conversationContextResolution",
       "aiContextResolution"
     ],
     "addingAStageRequires": "registration only",
-    "behaviouralSourceOfTruth": "Behaviour.fn_Observe — no engine computes a habit, streak, consistency figure or probability; asserted by behaviour_test.sql assertion 19"
+    "behaviouralSourceOfTruth": "Behaviour.fn_Observe — no engine computes a habit, streak, consistency figure or probability; asserted by behaviour_test.sql assertion 19 and, for prediction, by prediction_test.sql assertion 10"
   },
   "blockers": [
     {
@@ -147,8 +168,8 @@
     {
       "id": "multi-tenancy",
       "type": "product",
-      "openSessions": 8,
-      "evidence": "no tenant dimension on any table; blocks the Health procedure layer"
+      "openSessions": 9,
+      "evidence": "no tenant dimension on any table; blocks the Health procedure layer, which is still nine tables and zero procedures"
     },
     {
       "id": "infrastructure",
@@ -156,25 +177,26 @@
       "evidence": "SIMPLE recovery, zero backups, no deploy config in any repo"
     }
   ],
-  "maturity": 60,
-  "maturityNote": "Up three from 57. Three engines now share the same simulate-from-a-set split, and the CI guard closes a class of silent failure that had recurred twice. Deployment, backups and monitoring remain at zero and the mobile client has still never been executed.",
+  "maturity": 62,
+  "maturityNote": "Up two from 60. Four engines now share the simulate-from-a-set split, and the newest cannot state a number Behaviour did not observe - that is a foreign key, not a policy. Deployment, backups and monitoring remain at zero and the mobile client has still never been executed. Further engine work will not move this much.",
   "next": {
-    "feature": "Prediction Platform",
+    "feature": "The Planner — daily focus, then weekly and monthly review",
     "track": "A then B",
-    "reason": "Behaviour already produces completion, engagement and drop-off probabilities from observed coverage. Prediction is the engine that turns those into forward statements with a window and stated support - it computes no new probability, it frames the ones Behaviour observed.",
-    "constraint": "Prediction predicts BEHAVIOUR only: habit continuation, routine completion, goal completion, engagement, drop-off, best reminder time, notification fatigue. Never health, never deterministic. Every prediction carries confidence, window, support and evidence. It must not recompute a probability — Behaviour.fn_Measure is the only arithmetic.",
+    "reason": "Every input now exists. A planner selects, orders and schedules what the engines already produced; it originates nothing and writes no sentence the coach did not.",
+    "constraint": "Orchestration over IntelligenceKeys.Behaviour, .Goals, .Routines, .Recommendations, .CoachMessages and .Predictions. It computes no habit, streak, consistency figure or probability.",
     "scope": [
-      "prediction schema: horizons and framings as data",
-      "fn_PredictFrom consuming an observation set, mirroring the other three",
-      "predictionResolution stage",
+      "plan schema with slots as data rather than a hard-coded day shape",
+      "fn_PlanFrom consuming what the engines published — the fifth engine on the simulate-from-a-set split",
+      "planResolution stage",
       "contracts, CQRS, repository, controller",
-      "SQL assertions incl. a never-clinical and a never-recomputes assertion",
+      "SQL assertions incl. a never-originates and a never-clinical assertion",
       "inspector simulation",
-      "portal prediction library",
-      "then the Planner Platform: daily, weekly, monthly"
-    ]
+      "portal planner library"
+    ],
+    "readFirst": "The engine layer is now well ahead of everything around it. Fifteen engines are built and explainable; nothing is deployed, there are no backups, there is no monitoring, and the mobile client has never been executed. Two things are worth more than the planner and neither is engine work: (1) deploy something with backups and a rehearsed restore — the database is in SIMPLE recovery with zero rows in backupset; (2) answer PD-1 and the tenancy question while the Health domain is still nine tables and zero procedures, because tenancy stops being a design choice the moment that procedure layer is written. The planner is the right next engine; whether the next engine is the right next thing is a question for a person."
   },
   "architecturalInvariants": [
+    "Predict.fn_PredictFrom is the ONLY framing logic, and it cannot compute. A PredictionType carries a SourceFamily pinned to 'probability' by a CHECK, and (SourceMeasureCode, SourceFamily) is a foreign key into Behaviour.MeasureType (MeasureCode, Family) — so a prediction may only name a measure Behaviour publishes as a probability. A CHECK refuses a framing missing {chance}, {window} or {support}, so no configuration can state a likelihood without its window and its support.",
     "Coach.fn_ExplainFrom is the ONLY explanation logic. A message is filled into a tone pattern; a CHECK constraint refuses a pattern missing {body} or {reason}, so no configuration can encourage without evidence. The coach never reassembles.",
     "Recommend.fn_AssembleFrom is the ONLY assembly logic. It consumes an EvidenceSet and reads no raw store — verified by dependency graph. The live path and the Decision Inspector both feed it.",
     "Behaviour.fn_Measure is the ONLY copy of the measure arithmetic. It consumes a DaySet and an HourSet and reads no per-user source — verified by dependency graph, not by text. The real observer and the Decision Inspector both feed it.",
@@ -182,6 +204,7 @@
     "Growth.Routine NEVER owns a step list. It references Behaviour.Subject. Asserted structurally: no Step/EventType/Percent column may exist on Growth.Routine.",
     "Routine completion is derived from logged events every time. No stored percentage, no mark-complete command, no completion endpoint. Asserted at the contract boundary too.",
     "Goal achievement is earned from the timeline, forward-only, and refused to clients by validator and procedure.",
-    "Applicability for content, dashboard cards, goals and routines all go through Rules.fn_Match. One matcher."
+    "Applicability for content, dashboard cards, goals and routines all go through Rules.fn_Match. One matcher.",
+    "Reminder timing is deliberately NOT a prediction. Behaviour already observes preferred_hour; restating an observation in the future tense would be a rename, and the foreign key above cannot express it because a preference is not a probability."
   ]
 }

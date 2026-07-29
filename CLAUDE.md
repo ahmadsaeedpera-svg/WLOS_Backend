@@ -32,7 +32,7 @@ Run from the repository root.
 # Build
 dotnet build
 
-# Test — 111 tests, needs SQL Server reachable (see below)
+# Test — 240 tests, needs SQL Server reachable (see below)
 dotnet test tests/Maren.Tests
 
 # Run the API
@@ -67,7 +67,7 @@ for f in 01_Schemas.sql 02_Identity.sql 03_Administration.sql 04_Health.sql \
          49_Behaviour.sql 50_Procs_Behaviour.sql 51_Procs_Inspector_Behaviour.sql \
          52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
          55_Growth_Routines.sql 56_Procs_Growth_Routines.sql 58_Recommendation.sql \
-         59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 65_AuditContract_Apply.sql; do
+         59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 69_AuditContract_Apply.sql; do
   sqlcmd -S "(localdb)\MSSQLLocalDB" -I -d MarenPlatform -i "$f" || break
 done
 ```
@@ -77,9 +77,11 @@ indexes fail to create.
 
 **Never add a `USE` statement** to a script. The database name comes from `-d`.
 
-**`54_AuditContract_Apply.sql` must stay last.** It has been 48, then 51, now
-54 — renumbered each time a script added tables, which is exactly the case this
-rule exists for. `08_AuditContract.sql` applies
+**`69_AuditContract_Apply.sql` must stay last.** It has been 48, 51, 54, 65 and
+is now 69 — renumbered each time a script added tables, which is exactly the
+case this rule exists for. This paragraph itself said "54" while the file was
+already 65, so treat the number here as documentation and
+`tests/audit_contract_test.sql` as the check. `08_AuditContract.sql` applies
 the audit contract with a cursor over `sys.tables`, and it runs ninth — it
 cannot see anything created by the scripts after it. One ordered pass on an
 empty server left 19 tables short by 147 columns and 19 filtered indexes,
@@ -92,7 +94,8 @@ script that creates a table, renumber this one so it stays at the end;
 ### SQL assertion suites
 
 These are not optional. They test rules that live in the database and that no
-C# test can reach.
+C# test can reach. There are **20 suites, 277 assertions**; every one runs in CI
+and `tests/ci_workflow_test.sh` fails if a suite on disk is missing a CI step.
 
 ```bash
 sqlcmd -S "(localdb)\MSSQLLocalDB" -I -d MarenPlatform -i src/Maren.Database/tests/cms_workflow_test.sql
@@ -101,6 +104,11 @@ sqlcmd -S "(localdb)\MSSQLLocalDB" -I -d MarenPlatform -i src/Maren.Database/tes
 sqlcmd -S "(localdb)\MSSQLLocalDB" -I -d MarenPlatform -i src/Maren.Database/tests/access_test.sql
 # expect TOTAL: 19  FAILED: 0
 ```
+
+**Run `index_coverage_test.sql` after adding any table.** A feature's own suite
+tests what its author was thinking about; the platform-wide suites catch what
+they were not. Both Prediction foreign keys shipped without a supporting index
+and none of that feature's twenty assertions noticed.
 
 ---
 

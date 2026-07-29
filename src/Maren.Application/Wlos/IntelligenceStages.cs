@@ -2,6 +2,7 @@ using System.Globalization;
 using Maren.Application.Behaviour;
 using Maren.Application.Coaching;
 using Maren.Application.Growth;
+using Maren.Application.Predicting;
 using Maren.Application.Recommend;
 using Maren.Contracts;
 
@@ -750,9 +751,90 @@ public sealed class NotificationResolutionStage()
     : UnbuiltStage("notificationResolution",
         "Notification tables exist with no procedures or delivery path.");
 
-public sealed class PredictionResolutionStage()
-    : UnbuiltStage("predictionResolution",
-        "No prediction engine. Nothing here may infer a health outcome.");
+/// <summary>What the platform says about her behaviour going forward.</summary>
+/// <remarks>
+/// <para>
+/// Framing only. Behaviour observes three probabilities from her logged history
+/// and this attaches a window to one of them; it computes nothing, and cannot —
+/// a prediction type may only name a measure Behaviour publishes as a
+/// probability, enforced by a foreign key in the schema.
+/// </para>
+/// <para>
+/// Behavioural, never clinical: whether she does a thing, never a condition or
+/// an outcome of one. That constraint is asserted in SQL against the framing
+/// vocabulary, not left to this stage.
+/// </para>
+/// <para>
+/// It reads the behaviour key rather than the observation store, like every
+/// other engine downstream of it, so there is one answer to what she did.
+/// </para>
+/// </remarks>
+public sealed class PredictionResolutionStage(IPredictionRepository repository)
+    : IIntelligenceStage
+{
+    public string Name => "predictionResolution";
+    public string Version => "1.0";
+
+    public async Task<IntelligenceResult> ExecuteAsync(
+        IntelligenceContext context, CancellationToken ct)
+    {
+        /*  Degrades rather than throwing when behaviour never arrived. A stage
+            whose input is missing must not take the pipeline down with it. */
+        if (!context.TryGet<IReadOnlyList<BehaviourObservation>>(
+                IntelligenceKeys.Behaviour, out var observations)
+            || observations!.Count == 0)
+        {
+            return IntelligenceResult.NoResult(
+                "Nothing was observed, so there is nothing to predict from.");
+        }
+
+        var predictions = await repository.ResolveAsync(
+            context.UserId, context.AsOfLocalDate, ct);
+
+        context.Publish(IntelligenceKeys.Predictions, predictions);
+
+        /*  Withholding is the normal case early on, and saying so plainly stops
+            an empty result reading as a failure. */
+        if (predictions.Count == 0)
+            return IntelligenceResult.NoResult(
+                "Not enough history behind any measure to say anything forward.");
+
+        /*  Carried through from the observations. This engine observes nothing,
+            so it has no confidence of its own to report. */
+        var confidence = Math.Round(
+            (decimal)predictions.Sum(p => p.Confidence) / predictions.Count / 100m, 2);
+
+        var warnings = new List<string>();
+
+        /*  A prediction resting on the shortest span the platform will accept is
+            still a prediction, but an operator reading the trace should know the
+            statements are near the floor rather than well clear of it. */
+        var thinnest = predictions.Min(p => p.SupportDays);
+        if (thinnest < 21)
+            warnings.Add(
+                "The thinnest statement rests on "
+                + thinnest.ToString(CultureInfo.InvariantCulture)
+                + " days of history.");
+
+        return IntelligenceResult.Contributed(
+            confidence: confidence,
+            factors:
+            [
+                new ConfidenceFactor("framed", confidence,
+                    "Carried through from the observations; prediction computes nothing."),
+            ],
+            evidence: predictions.SelectMany(p => p.Evidence).Distinct().ToList(),
+            warnings: warnings,
+            diagnostics: new Dictionary<string, string>
+            {
+                ["predictions"] = predictions.Count.ToString(CultureInfo.InvariantCulture),
+                ["measures"] = string.Join(",",
+                    predictions.Select(p => p.SourceMeasureCode).Distinct().Order()),
+                ["horizons"] = string.Join(",",
+                    predictions.Select(p => p.HorizonCode).Distinct().Order()),
+            });
+    }
+}
 
 public sealed class ConversationContextStage()
     : UnbuiltStage("conversationContextResolution", "No conversation engine yet.");

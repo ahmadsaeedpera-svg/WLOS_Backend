@@ -76,6 +76,15 @@ public static class IntelligenceKeys
     /// never composed.
     /// </remarks>
     public const string CoachMessages = "coachMessages";
+
+    /// <summary>What the platform says about her behaviour going forward.</summary>
+    /// <remarks>
+    /// Published by <c>predictionResolution</c>. Carries no probability the
+    /// behaviour engine did not observe: a prediction attaches a window to a
+    /// measure from <see cref="Behaviour"/> and computes nothing of its own.
+    /// Behavioural only — never a health outcome, and never deterministic.
+    /// </remarks>
+    public const string Predictions = "predictions";
 }
 
 /// <summary>What a stage may read, publish and emit.</summary>

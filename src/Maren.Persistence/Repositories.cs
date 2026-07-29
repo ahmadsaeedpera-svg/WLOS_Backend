@@ -8,6 +8,7 @@ using Maren.Application.Config;
 using Maren.Application.Growth;
 using Maren.Application.Inspector;
 using Maren.Application.Onboarding;
+using Maren.Application.Predicting;
 using Maren.Application.Recommend;
 using Maren.Application.Wlos;
 using Maren.Contracts;
@@ -315,6 +316,7 @@ public static class PersistenceRegistration
         services.AddScoped<IRoutineRepository, RoutineRepository>();
         services.AddScoped<IRecommendationRepository, RecommendationRepository>();
         services.AddScoped<ICoachRepository, CoachRepository>();
+        services.AddScoped<IPredictionRepository, PredictionRepository>();
 
         /*  The Women's Life OS pipeline, in order.
 

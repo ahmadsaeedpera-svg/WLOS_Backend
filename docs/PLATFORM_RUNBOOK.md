@@ -41,7 +41,7 @@ for f in 01_Schemas.sql 02_Identity.sql 03_Administration.sql 04_Health.sql \
          49_Behaviour.sql 50_Procs_Behaviour.sql 51_Procs_Inspector_Behaviour.sql \
          52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
          55_Growth_Routines.sql 56_Procs_Growth_Routines.sql 58_Recommendation.sql \
-         59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 65_AuditContract_Apply.sql; do
+         59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 69_AuditContract_Apply.sql; do
   sqlcmd -S "(localdb)\MSSQLLocalDB" -I -d MarenPlatform -i "$f" || break
 done
 ```
@@ -182,6 +182,48 @@ app to see.
 
 `GET` (`flags.read`) · `PUT` (`flags.write`, full upsert — a partial body blanks
 what it omits).
+
+### Intelligence engines
+
+Each engine has one endpoint for her own results, read from the token's subject,
+and an operator pair — a catalogue and a simulator. **No simulator takes a user
+id**, and a SQL assertion fails if any inspector procedure gains one.
+
+| Engine | Hers | Catalogue | Simulator |
+|---|---|---|---|
+| Recommendations | `GET /api/v1/me/recommendations` | `GET /api/v1/admin/recommendations` | `POST .../simulate` |
+| Coach | `GET /api/v1/me/coach` | `GET /api/v1/admin/coach/tones` | `POST /api/v1/admin/coach/simulate` |
+| Predictions | `GET /api/v1/me/predictions` | `GET /api/v1/admin/predictions` | `POST .../simulate` |
+
+All three operator endpoints require `content.read`.
+
+The simulators take a shorthand an operator can type. Recommendations and coach
+share one — `behaviour:hydration.consistency=40, signal:low_hydration`.
+Predictions take observations instead, because what decides whether a prediction
+is made at all is the history behind the number:
+
+```
+hydration.completion_probability=0.7@21, sleep.engagement_probability=0.4
+```
+
+`subject.measure=value@days`. The `@days` suffix is the support and is optional,
+falling back to `defaultSpanDays` (28).
+
+**Reading a prediction that is not there.** Predictions are withheld — not
+hedged, not shown as zero — whenever confidence or support is under the type's
+floor. The simulator returns every prediction type with a stated reason for each
+one that did not fire, and that second list is the one to read. "Nothing
+appeared" and "withheld on purpose" are different facts, and an operator who
+cannot tell them apart will eventually lower a floor to make the screen look
+busier, which is the one configuration change here that would make the platform
+overstate what it knows about a woman.
+
+**What prediction can and cannot say.** Behavioural only: whether she does a
+thing, never a condition, an outcome of one, or a cause. It computes no
+probability — a prediction type may only name a Behaviour measure whose family
+is `probability`, enforced by a foreign key on `(MeasureCode, Family)` rather
+than by review. There are three such measures, so there can be three kinds of
+prediction until the behaviour engine observes a fourth.
 
 ### Status codes
 

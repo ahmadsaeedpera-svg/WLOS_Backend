@@ -117,7 +117,7 @@ jobs:
                    49_Behaviour.sql 50_Procs_Behaviour.sql 51_Procs_Inspector_Behaviour.sql \
                    52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
                    55_Growth_Routines.sql 56_Procs_Growth_Routines.sql 58_Recommendation.sql \
-                   59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 65_AuditContract_Apply.sql; do
+                   59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 69_AuditContract_Apply.sql; do
             echo "--- $f"
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
@@ -146,7 +146,7 @@ jobs:
                    49_Behaviour.sql 50_Procs_Behaviour.sql 51_Procs_Inspector_Behaviour.sql \
                    52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
                    55_Growth_Routines.sql 56_Procs_Growth_Routines.sql 58_Recommendation.sql \
-                   59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 65_AuditContract_Apply.sql; do
+                   59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 69_AuditContract_Apply.sql; do
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
 
@@ -348,6 +348,19 @@ jobs:
           out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/coach_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Coach assertions failed"; exit 1; }
+
+      - name: Prediction assertions
+        # A prediction is framed, never computed. These hold that: it can only
+        # frame a measure Behaviour publishes as a probability - a foreign key
+        # carrying the measure's family, mutation-tested here - that every
+        # framing keeps the chance, the window and the support, that under
+        # either floor it withholds rather than hedges, and that no Predict
+        # module carries any of the measure arithmetic.
+        working-directory: src/Maren.Database
+        run: |
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/prediction_test.sql)
+          echo "$out"
+          echo "$out" | grep -q "FAILED: 0" || { echo "::error::Prediction assertions failed"; exit 1; }
 
       - name: Audit contract assertions
         # Ordering, not compliance. 08_AuditContract.sql applies the contract

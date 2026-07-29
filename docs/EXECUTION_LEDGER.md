@@ -80,18 +80,24 @@ designed in.
 
 ## Current Feature
 
-**Coach Platform.** Complete across every unblocked layer: schema, tone
-profiles and rules, explanation function, procedures, inspector simulation,
-contracts, CQRS, validation, repository, controller, OpenAPI, pipeline stage,
-SQL assertions, mutation tests, integration tests, portal library and
-simulator, portal tests, CI — plus a new guard on CI itself.
+**Prediction Platform.** Complete across every unblocked layer: schema,
+horizons and framings as data, `fn_PredictFrom`, procedures, inspector
+simulation, contracts, CQRS, validation, repository, controller, OpenAPI,
+`predictionResolution` stage, SQL assertions, mutation tests, integration
+tests, portal library and simulator, portal tests, CI.
+
+The engine computes nothing, and that is structural rather than reviewed: a
+prediction type may only name a Behaviour measure whose family is
+`probability`, enforced by a foreign key on `(MeasureCode, Family)`. There are
+three such measures, so there can be three kinds of prediction until the
+behaviour engine observes a fourth.
 
 ## Current Epic / Slice / Track
 
 | | |
 |---|---|
 | Epic | 1 — Intelligence Platform |
-| Slice | Coach — **closed** |
+| Slice | Prediction — **closed** |
 | Track | A (backend) complete · B (portal) complete · C blocked · D ongoing |
 
 ---
@@ -133,6 +139,7 @@ commit rather than rebased, so every hash below is reachable from both:
 | fn_Observe split — simulation shares one implementation | `26854dc` |
 | Recommendation Platform | `2061132` |
 | **Coach Platform** | `84a2a3f` |
+| **Prediction Platform** | this commit |
 
 On Maren-Frontend — `feature/portal-v2` up to `857b55c`, continuing on
 `feature/portal-v3` from the same commit:
@@ -149,6 +156,7 @@ On Maren-Frontend — `feature/portal-v2` up to `857b55c`, continuing on
 | Routine library screen | `f905e5b` |
 | Recommendation library + simulator | `0f77a14` |
 | **Coach library + simulator** | `857b55c` |
+| **Prediction library + simulator** | this commit |
 
 ---
 
@@ -184,9 +192,12 @@ trap — the artefact under test was not the artefact the procedure produces.
 **Fix:** the cursor moved into `dbo.usp_ApplyAuditContract`, called by `08` as
 before and again by a final numbered script after every table exists. The
 ordering requirement is carried by the number, not a comment — it has since been
-renumbered 48 → 51 → **54** as Behaviour and Growth added tables, which is the
-rule working. `tests/audit_contract_test.sql` (6 assertions) fails if it is
-forgotten, and runs in CI as its own step.
+renumbered 48 → 51 → 54 → 65 → **69** as Behaviour, Growth, Recommendation,
+Coach and Prediction added tables, which is the rule working.
+`tests/audit_contract_test.sql` (6 assertions) fails if it is forgotten, and
+runs in CI as its own step. It was confirmed to still fail-then-pass across the
+Prediction renumber: 3 non-compliant tables before, 24 columns and 3 indexes
+added after.
 
 ### The verification harness silently dropped the last script
 
@@ -206,6 +217,46 @@ built to catch it.
 should already have applied. **Fixed** by stripping the loop syntax before
 tokenising, and by asserting the documented list count equals the scripts on
 disk — a check that would have failed loudly rather than passing quietly.
+
+### Two Prediction foreign keys shipped without a supporting index
+
+**Severity: medium. Found and fixed this session, before commit.**
+
+`Predict.Predicted (SubjectKey)` and `Predict.PredictionType (HorizonCode)` were
+created with foreign keys and no index leading on the key column.
+`Predicted` grows once per woman per prediction per day, so the parent-side
+delete and every join to `Behaviour.Subject` would have been a scan on the one
+table here with real cardinality.
+
+**Found by** `index_coverage_test.sql` on the clean-room run — not by review,
+and not by any of the twenty prediction assertions written specifically for this
+feature. Worth recording: a feature's own suite tests what its author was
+thinking about, and the platform-wide suites are what catch what they were not.
+
+**Fixed** as guarded `IF NOT EXISTS ... CREATE INDEX` statements outside the
+`CREATE TABLE` block rather than inside it. Inside, the index would never reach
+a database that already had the table, so re-applying would not converge — the
+same shape as the audit contract defect above, which is why the convention set
+by `30_Indexes_ForeignKeys.sql` is the one to follow. Verified both ways: it
+converges on the database that already had the tables, and a database built from
+scratch passes all 87 foreign-key checks.
+
+### The ledger's own status sections had gone stale
+
+**Severity: low. Found and fixed this session.**
+
+`Current Maturity` read 43 while `execution-state.json` read 60, and
+`Next Feature` still described splitting `fn_Observe` — work completed two
+features earlier. The header of `69_AuditContract_Apply.sql` likewise still said
+`48_` after two renumbers, and `CLAUDE.md` said the audit contract script was
+`54` when it was `65`.
+
+None of these broke anything, which is the point: the continuation protocol
+recovers state from the repository rather than from conversation, so a stale
+"next feature" sends the next session to work that is already done. The prose
+sections drift precisely because nothing executes them. The machine-readable
+state file, which is updated in the same commit as the work, stayed correct
+throughout.
 
 ---
 
@@ -284,9 +335,9 @@ Decisions that constrain future work. Reversing any of these needs a reason.
 
 | Layer | Version / state |
 |---|---|
-| Database | 50 numbered scripts (`01`–`65`), 19 assertion suites |
+| Database | 53 numbered scripts (`01`–`69`), 20 assertion suites |
 | API | v1 · `/api/v1/me`, `/api/v1/admin/*` |
-| Portal | React 19 / MUI 9 / Vite 8, 97 tests |
+| Portal | React 19 / MUI 9 / Vite 8, 105 tests |
 | Flutter | Architecture only, **never compiled** |
 | AI | Specs + safety ledger. **No model integration** |
 | Infrastructure | None deployed |
@@ -299,16 +350,19 @@ Executed on this machine, not claimed:
 
 | Check | Result |
 |---|---|
-| Database created empty and applied **once, in order**, 50 scripts (list read from the runbook, count asserted against disk) | PASS |
-| Idempotency (second apply adds 0 columns, 0 indexes) | PASS |
-| SQL assertion suites | **19 suites, 257 assertions, 0 failures** |
+| Database created empty and applied **once, in order**, 53 scripts (list read from the runbook, count asserted against disk) | PASS |
+| Idempotency (second apply adds 0 columns, 0 indexes — 2782 and 480 both passes) | PASS |
+| SQL assertion suites | **20 suites, 277 assertions, 0 failures** |
 | Clean Release build `-warnaserror` (never incremental) | 0 errors, 0 warnings |
-| Integration tests | **229 passed, exit 0** |
+| Integration tests | **240 passed, exit 0** |
 | Portal `tsc -b --force` | exit 0 |
-| Portal tests | **97 passed, exit 0** |
-| Portal production build | succeeds; inspector is a 2.69 kB gzip chunk |
-| Mutation check — inspector inert-signal assertion | fails as intended (5 inert) |
-| Mutation check — portal suppression split | fails 2 tests as intended |
+| Portal tests | **105 passed, exit 0** |
+| Portal production build | succeeds |
+| Mutation check — prediction never recomputes | `+5` on the percent and dropping the confidence floor failed 3 SQL assertions and 3 integration tests |
+| Mutation check — prediction never-recomputes guard | a `Predict` module doing recency-decay arithmetic failed assertion 10 |
+| Mutation check — prediction structural guards | a non-probability source, a framing without `{support}`, a framing without `{window}`, a stored row with no support and one with no evidence were each refused; a well-formed row was still accepted |
+| Mutation check — portal traceability | hiding the source measure failed 1 test |
+| Mutation check — CI guard | removing the prediction step failed it with `1 missing prediction_test.sql` |
 
 The first row is deliberately worded. It used to read "fresh database", which
 was true of a database that had been re-applied, and that wording is exactly
@@ -320,11 +374,21 @@ portal screens against a live API.
 
 ---
 
-## Current Maturity: **43 / 100**
+## Current Maturity: **62 / 100**
 
-Backend intelligence is strong and genuinely explainable. Deployment, backups
-and monitoring remain at zero, and the mobile client — the actual product — has
-never been executed. Application quality does not compensate for those.
+Up two from 60. Four engines now share the same simulate-from-a-set split, and
+the newest of them cannot state a number the behaviour engine did not observe —
+that is a foreign key, not a policy.
+
+This heading read **43** until this session while `execution-state.json` read
+60. The prose had not been updated for several features; the state file, which
+is written in the same commit as the work, had. Where the two disagree, believe
+the file.
+
+Deployment, backups and monitoring remain at **zero**, and the mobile client —
+the actual product — has still never been executed. Application quality does not
+compensate for those, and no amount of further engine work will move this number
+much until something is deployed somewhere.
 
 ---
 
@@ -341,36 +405,40 @@ never been executed. Application quality does not compensate for those.
 
 ## Next Feature
 
-**Split `fn_Observe` first. Then Recommendation Assembly, Coach, Prediction.**
+**The Planner — daily focus, then weekly and monthly review.**
 
-**The prerequisite is now blocking three engines, not one.** The Decision
-Inspector cannot render behaviour, goals or routines. It is account-free by
-construction — no inspector procedure may reference a user id or the timeline,
-asserted in SQL — and all three need a woman's timeline. Simulating any of them
-as things stand would mean a second implementation of `fn_Observe`, which is the
-one thing this architecture forbids.
+Everything it needs now exists. Behaviour says how she lives, Growth what she is
+working towards, Recommendation what to suggest, Coach how to say it, Prediction
+what is likely. A planner is the arrangement of those into a day and a week: it
+selects, orders and schedules, and it originates nothing.
 
-The fix: split `fn_Observe` so the measure arithmetic consumes a day set rather
-than calling `fn_SubjectDays` itself. The real path and a simulated one then
-feed the same arithmetic and there is still one definition. Do this **before**
-the engines below, not after — each one added makes the inspector gap wider.
+**Scope:** a plan schema with slots as data rather than a hard-coded day shape;
+`fn_PlanFrom` consuming what the engines published — the fifth engine on the
+simulate-from-a-set split; a `planResolution` stage; contracts, CQRS,
+repository, controller; assertions including a never-originates one and a
+never-clinical one; inspector simulation; portal library.
 
-**Then recommendation assembly.** Every input now exists: behaviour, knowledge,
-signals, rules, life stage, role modes, goals, routines, timeline and state. A
-recommendation is **assembled** from them and decides nothing itself. Each one
-returns confidence, reasoning, evidence, contributing engines, supporting
-observations, priority, expected benefit, expected effort, expiry and version.
+**The constraint that governs it,** as for every engine before it: orchestration
+over `IntelligenceKeys.Behaviour`, `.Goals`, `.Routines`, `.Recommendations`,
+`.CoachMessages` and `.Predictions`. It computes no habit, streak, consistency
+figure or probability, and writes no sentence a coach did not already write.
 
-**Then coach**, which explains why a recommendation exists and generates no
-advice of its own. **Then prediction**, behavioural only: routine completion,
-goal completion, habit continuation, engagement, drop-off, streak survival,
-reminder timing. Never clinical, never deterministic.
+### Read this before starting it
 
-**Then the planner and reviews** — daily focus, weekly and monthly review — all
-assembled from what the engines already produce.
+**The engine layer is now well ahead of everything around it, and the gap is
+the risk.** Fifteen engines are built, explainable and tested; nothing is
+deployed anywhere, there are no backups, there is no monitoring, and the mobile
+client has never been executed. Another engine adds to the side of the ledger
+that is already strong.
 
-**The constraint that governs all of them:** each is orchestration over
-`IntelligenceKeys.Behaviour`, `.Goals` and `.Routines`. None computes a habit,
-streak, consistency figure or probability. Routines proved this works — the
-entire layer is configuration plus a planning view, with no new behavioural
-computation anywhere in it.
+Two things are worth more than the planner, and neither is engine work:
+
+1. **Get something deployed with backups and a rehearsed restore.** The database
+   is in `SIMPLE` recovery with zero rows in `backupset`. Point-in-time recovery
+   is impossible by definition, not by omission.
+2. **Answer PD-1 and the tenancy question.** The Health domain still has nine
+   tables and zero procedures, so the tenancy decision is still a design choice
+   rather than a rewrite. It stops being cheap the moment that layer is written.
+
+The planner is the right *next engine*. Whether the next engine is the right
+next thing is a question for a person.

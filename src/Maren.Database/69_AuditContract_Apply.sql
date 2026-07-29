@@ -1,14 +1,22 @@
-/*  48_AuditContract_Apply.sql
+/*  69_AuditContract_Apply.sql
 
     Applies the audit contract to every table, after every table exists.
 
     This script must stay last in the deployment order. That is its entire
     purpose.
 
+    It has been 48, then 51, then 54, then 65, and is now 69 — renumbered every
+    time a script added tables, which is exactly the case the rule exists for.
+    The number is the requirement: a comment saying "run me last" is not
+    checked by anything, and a position is. The header carried the wrong number
+    through two of those moves without any consequence, which is the argument
+    for the assertion suite below rather than for a more careful reader.
+
     08_AuditContract.sql defines the contract and applies it with a cursor over
-    sys.tables. It runs at position 9 of 37, so it cannot see anything created
-    by scripts 30 to 47 — the whole Women's Life OS: life stages, timeline,
-    knowledge graph, dashboard, intelligence and rules.
+    sys.tables. It runs at position 9, so it cannot see anything created by the
+    scripts after it — the whole Women's Life OS: life stages, timeline,
+    knowledge graph, dashboard, intelligence, rules, behaviour, growth,
+    recommendation, coach and prediction.
 
     Run once, in the documented order, on an empty server, that left 19 tables
     without the contract: 147 missing columns and 19 missing filtered indexes.
@@ -25,8 +33,8 @@
 
     A new numbered script rather than renumbering 08: the ordering requirement
     is "after every table", and that is a property of position, which a number
-    expresses and a comment does not. When a script 49 adds tables, this one
-    becomes 50 and the requirement is still visible in the ordering itself.
+    expresses and a comment does not. When a script adds tables, this one is
+    renumbered past it and the requirement stays visible in the ordering.
 
     The logic is not repeated here. dbo.usp_ApplyAuditContract is defined in 08
     and called by both, because two copies of a cursor that silently adds
