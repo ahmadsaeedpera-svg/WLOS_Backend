@@ -7,8 +7,21 @@ changing anything.
 
 ## 1. What this repository is
 
-The **Maren Platform** backend: an enterprise health platform for pregnancy and
-maternal wellness. ASP.NET Core 10 API, SQL Server, Clean Architecture, CQRS.
+The **Maren Platform** backend. Maren is the product; the platform it implements
+is a **Women's Life Operating System** — one account a woman keeps from
+adolescence through healthy aging, adapting as her life changes rather than
+asking her to change applications. ASP.NET Core 10 API, SQL Server, Clean
+Architecture, CQRS.
+
+**Pregnancy is one life stage, not the product.** `Identity.LifeStage` holds
+twelve; pregnancy is one row. Anything that treats it as the default — a schema
+column, an endpoint, a naming choice, a screen — is a regression, and the schema
+has been neutral since `0fcba64`. Menopause, postpartum, breastfeeding and the
+rest are specializations under the same rule: no stage owns the platform.
+
+The test for any new capability: does it still make sense for a woman of 16, 24,
+35, 48 and 63 — pregnant, never pregnant, or post-menopause? If not, it belongs
+behind a life-stage gate.
 
 **The platform is the product. The mobile app is one client, not the system.**
 

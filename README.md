@@ -1,6 +1,8 @@
 # Maren Platform — Backend
 
-Enterprise health platform for pregnancy and maternal wellness.
+Backend for **Maren**, a Women's Life Operating System: one account a woman
+keeps from adolescence through healthy aging. Pregnancy is one of twelve life
+stages, not the product.
 ASP.NET Core 10 · SQL Server · Clean Architecture · CQRS.
 
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)]()
