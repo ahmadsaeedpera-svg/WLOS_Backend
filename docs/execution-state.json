@@ -14,7 +14,7 @@
   },
   "git": {
     "backendBranch": "feature/backend-v3",
-    "backendHead": "2fe17e7",
+    "backendHead": "84f747b",
     "frontendBranch": "feature/portal-v3",
     "frontendHead": "adbd99f",
     "mainTouched": false,

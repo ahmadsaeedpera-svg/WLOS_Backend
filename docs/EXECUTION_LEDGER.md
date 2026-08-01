@@ -5,7 +5,7 @@ first and updates it last. Never depend on conversation history.
 
 Machine-readable companion: [`execution-state.json`](execution-state.json).
 
-**Last updated:** 2026-07-29 · backend `2fe17e7` · portal `adbd99f`
+**Last updated:** 2026-07-29 · backend `84f747b` · portal `adbd99f`
 
 ---
 
@@ -173,7 +173,7 @@ commit rather than rebased, so every hash below is reachable from both:
 | **Coach Platform** | `84a2a3f` |
 | **Prediction Platform** | `5a0e8e6` |
 | **Operations — deployment journal, backups, rehearsed restore** | `2fe17e7` |
-| **Observability — correlation, with no procedure edited** | this commit |
+| **Observability — correlation, with no procedure edited** | `84f747b` |
 
 On Maren-Frontend — `feature/portal-v2` up to `857b55c`, continuing on
 `feature/portal-v3` from the same commit:
