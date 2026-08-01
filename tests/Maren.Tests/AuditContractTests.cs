@@ -226,13 +226,34 @@ public sealed class AuditContractTests
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
 
-        while (directory is not null &&
-               !Directory.Exists(Path.Combine(directory.FullName, ".git")))
+        while (directory is not null && !IsRepositoryRoot(directory))
         {
             directory = directory.Parent;
         }
 
         return directory?.FullName
                ?? throw new InvalidOperationException("Repository root not found.");
+    }
+
+    /// <summary>
+    /// True when <paramref name="directory"/> is the top of a working tree.
+    /// </summary>
+    /// <remarks>
+    /// `.git` is a directory in an ordinary clone and a FILE in a linked
+    /// worktree — a one-line pointer at the real git directory. Testing only
+    /// for a directory made this walk stride straight past the root of any
+    /// worktree and keep climbing, so it either threw or, worse, resolved to
+    /// some unrelated ancestor repository and asserted against its files.
+    ///
+    /// Found by running the suite from a worktree: this test reported
+    /// 08_AuditContract.sql missing while the file sat in plain sight. A path
+    /// helper that silently resolves to the wrong repository is the kind of
+    /// failure that reads as a product defect for as long as it takes somebody
+    /// to stop believing it.
+    /// </remarks>
+    private static bool IsRepositoryRoot(DirectoryInfo directory)
+    {
+        var git = Path.Combine(directory.FullName, ".git");
+        return Directory.Exists(git) || File.Exists(git);
     }
 }

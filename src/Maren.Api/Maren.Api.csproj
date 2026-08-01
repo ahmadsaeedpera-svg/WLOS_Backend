@@ -22,7 +22,31 @@
   </ItemGroup>
 
   <!--
-    GHSA-v5pm-xwqc-g5wc — Microsoft.OpenApi, high severity, no patched version.
+    GHSA-v5pm-xwqc-g5wc — Microsoft.OpenApi, high severity.
+
+    A patched line now EXISTS and we cannot take it yet. Verified 2026-08-01,
+    not assumed: Microsoft.OpenApi 3.9.0 clears the advisory outright. The
+    vulnerable-package scan (with transitives included) reports zero across all
+    eight projects. But the build then fails with two CS0200s:
+
+        OpenApiXmlCommentSupport.generated.cs(399,41): error CS0200:
+        Property or indexer 'IOpenApiMediaType.Example' cannot be assigned
+        to, because it is read only
+
+    That file is emitted by Microsoft.AspNetCore.OpenApi 10.0.10's own source
+    generator, which is written against the 2.x contract where `Example` had a
+    setter. So the blocker is the framework package, not the advisory, and no
+    change in this repository can clear it.
+
+    REVISIT TRIGGER: when Microsoft.AspNetCore.OpenApi ships a version built
+    against Microsoft.OpenApi 3.x, take it and DELETE this whole block. The
+    check is one command — bump to 3.9.0 and build.
+
+    The sentence this replaced said "no patched version" and "the advisory
+    covers the whole 2.x line, so upgrading does not clear it". Both were true
+    when written on 2026-07-22 and the first is now false; it was believed for
+    ten days because nobody re-ran the search. An accepted risk needs its
+    evidence re-checked, not just its reasoning re-read.
 
     Accepted risk, reviewed 2026-07-22. Reachability assessed rather than
     assumed: Microsoft.OpenApi is a transitive dependency of

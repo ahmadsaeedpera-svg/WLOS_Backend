@@ -127,7 +127,7 @@ Expect `TOTAL: 17  FAILED: 0` and `TOTAL: 19  FAILED: 0`.
 
 ```bash
 dotnet build
-dotnet test tests/Maren.Tests          # 240 tests
+dotnet test tests/Maren.Tests          # 245 tests
 dotnet run --project src/Maren.Api --urls http://localhost:5199
 ```
 

@@ -32,7 +32,7 @@ Run from the repository root.
 # Build
 dotnet build
 
-# Test — 240 tests, needs SQL Server reachable (see below)
+# Test — 245 tests, needs SQL Server reachable (see below)
 dotnet test tests/Maren.Tests
 
 # Run the API
@@ -89,11 +89,13 @@ indexes fail to create.
 
 **Never add a `USE` statement** to a script. The database name comes from `-d`.
 
-**`69_AuditContract_Apply.sql` must stay last.** It has been 48, 51, 54, 65 and
-is now 69 — renumbered each time a script added tables, which is exactly the
-case this rule exists for. This paragraph itself said "54" while the file was
-already 65, so treat the number here as documentation and
-`tests/audit_contract_test.sql` as the check. `08_AuditContract.sql` applies
+**`74_AuditContract_Apply.sql` must stay last.** It has been 48, 51, 54, 65, 69
+and is now 74 — renumbered each time a script added tables, which is exactly
+the case this rule exists for. This paragraph has now been wrong twice: it said
+"54" while the file was 65, was corrected to "69" while the file was already
+74, and both times the surrounding prose was the only thing that knew. Treat
+the number here as documentation and `tests/audit_contract_test.sql` as the
+check — it is the only one of the two that fails. `08_AuditContract.sql` applies
 the audit contract with a cursor over `sys.tables`, and it runs ninth — it
 cannot see anything created by the scripts after it. One ordered pass on an
 empty server left 19 tables short by 147 columns and 19 filtered indexes,
@@ -106,7 +108,7 @@ script that creates a table, renumber this one so it stays at the end;
 ### SQL assertion suites
 
 These are not optional. They test rules that live in the database and that no
-C# test can reach. There are **20 suites, 277 assertions**; every one runs in CI
+C# test can reach. There are **22 suites, 303 assertions**; every one runs in CI
 and `tests/ci_workflow_test.sh` fails if a suite on disk is missing a CI step.
 
 ```bash

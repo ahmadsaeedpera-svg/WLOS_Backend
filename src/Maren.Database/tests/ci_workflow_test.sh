@@ -108,6 +108,35 @@ check "this guard runs in CI" \
       "$self reference(s)" \
       "$([ "$self" != "0" ] && echo 1 || echo 0)"
 
+# 8. The gate must fire on the branches work actually happens on. It listened
+#    to `main` alone until 2026-08-01, so forty-four backend commits and eleven
+#    portal commits were merged without one CI run: the gate could only report
+#    on the far side of the decision it exists to inform. Nothing structural
+#    prevented that — the filter was simply narrower than the workflow.
+feature_gated=$(grep -cE "^\s+branches: \[main, 'feature/\*\*'\]" "$WORKFLOW" || true)
+check "feature branches are gated, not only main" \
+      "$feature_gated push filter(s)" \
+      "$([ "$feature_gated" != "0" ] && echo 1 || echo 0)"
+
+# 9. The vulnerability step must read the accepted-risk set from the project
+#    files rather than carrying its own copy.
+#
+#    `NuGetAuditSuppress` is restore-time only: it silences the build and
+#    `dotnet list package --vulnerable` ignores it completely. So the csproj
+#    said "accepted, reviewed, unreachable" while CI independently said "fail",
+#    and the security job was red on every run it would ever have had. Two
+#    sources of truth for one decision, disagreeing.
+#
+#    This asserts the step still derives the set from the csproj files. It
+#    guards both directions: a hand-maintained list here would drift, and
+#    deleting the reconciliation to make the job green would silence every
+#    future advisory too.
+reads_suppressions=$(grep -c 'NuGetAuditSuppress Include=' "$WORKFLOW" || true)
+compares_accepted=$(grep -c 'comm -23 found.txt accepted.txt' "$WORKFLOW" || true)
+check "accepted vulnerabilities come from the csproj, not a copy" \
+      "$reads_suppressions read, $compares_accepted compare" \
+      "$([ "$reads_suppressions" != "0" ] && [ "$compares_accepted" != "0" ] && echo 1 || echo 0)"
+
 echo ""
 echo "---------------------------------------------"
 echo "TOTAL: $total  FAILED: $failed"

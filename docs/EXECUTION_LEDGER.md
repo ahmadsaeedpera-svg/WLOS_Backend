@@ -395,14 +395,19 @@ Decisions that constrain future work. Reversing any of these needs a reason.
 
 ## Known Blockers
 
+Three of these were environment blockers recorded from one workstation and
+carried forward as if they were properties of the project. They are not.
+Re-checked on 2026-08-01 against the machine actually in use, and struck.
+
 | Blocker | Type | Evidence |
 |---|---|---|
-| Flutter SDK absent | Environment | `flutter --version` → command not found |
-| Docker absent | Environment | `docker --version` → command not found |
-| CI never executed on a runner | Environment | No runner available; verified by equivalent commands only |
+| ~~Flutter SDK absent~~ | Environment | **Struck 2026-08-01.** Flutter 3.44.4 / Dart 3.12.2 present — an exact match for `sdk: ^3.12.2`. `flutter analyze` clean over 135 files; `flutter test` 448 passed, 3 skipped. The mobile suite has now been executed |
+| ~~Docker absent~~ | Environment | **Struck 2026-08-01.** Docker 29.6.1 present. The image is still unbuilt, but by nobody having built it, not by inability |
+| CI never executed on a runner | Environment | **Cause identified 2026-08-01, now fixed.** Not "no runner": both workflows filtered `branches: [main]` while every commit lived on `feature/**`, so the gate could not fire. Filters widened; feature branches are gated and a guard asserts it |
 | PD-1: networking in `mobile/` | Legal | About screen claims no network code; part of Play Data Safety declaration |
-| Multi-tenancy undecided | Product | No tenant dimension on any table. **Open 7 sessions.** Blocks the Health procedure layer |
-| No deployment / backups / monitoring | Infrastructure | `recovery_model = SIMPLE`, zero `backupset` rows, no config in any repo |
+| Multi-tenancy undecided | Product | No tenant dimension on any of 88 tables. **Open 9 sessions.** Blocks the Health procedure layer |
+| **No first-administrator path** | **Deployment** | **New, found 2026-08-01.** `usp_User_Register` grants `Member` only; no seeded admin, no bootstrap command. §4.6 forbids granting a permission you do not hold, so nobody can ever reach `SuperAdmin` through the API. A freshly deployed database is unadministrable except by hand-written SQL — the exact thing the procedure discipline exists to prevent. `22_Seed_FAQ.sql` already refers to "the bootstrap admin" as though one exists |
+| No deployment / monitoring | Infrastructure | Nothing deployed anywhere, no IaC, no image built by CI, no metrics, no log sink. Backups and a rehearsed restore DO exist as of `2fe17e7` — the previous wording here said "no backups" and "`recovery_model = SIMPLE`", contradicting this file's own Verification Summary |
 
 ---
 
@@ -522,39 +527,43 @@ Honest framing: this slice moved the platform from "would lose everything" to
 
 ## Next Feature
 
-**Continue operations: get something deployed, then observability.**
+**The first-administrator path.** A freshly deployed database cannot be
+administered. `usp_User_Register` grants `Member`; nothing grants anything
+else; and §4.6 — you cannot grant a permission you do not hold, enforced in
+`usp_User_AssignRole`, not merely in C# — means no account can ever reach
+`SuperAdmin` through the API. The only way in is hand-written SQL against
+production.
 
-The previous entry named the Planner and attached a caveat saying deployment
-mattered more. Acting on that caveat is what produced this slice, and the same
-reasoning still applies — the engine layer remains far ahead of what holds it
-up.
+Found by deploying a genuinely empty database and trying to use it. Every
+prior verification ran against a database that already had an operator, so the
+gap was invisible: the platform was never once started from nothing.
 
-In order:
+This ranks above the Planner and above IaC because it is the one defect that
+makes a correct deployment useless. IaC that provisions an unadministrable
+database has provisioned nothing.
 
-1. **Infrastructure as code and a deployed environment.** Everything the ops
-   scripts do assumes a database that exists somewhere. There is still no
-   environment, no IaC, and CI never builds the image, so the container fixes in
-   this slice are verified only by exit code on a developer machine. This is the
-   single largest gap; it is also the one that cannot be closed here, because
-   there is no Docker and no runner on this workstation.
-2. **Observability.** `Audit.AuditLog.CorrelationId` is declared, read back, and
-   **written by nothing** — all 33 write sites omit it and no procedure accepts
-   one. There is no request correlation middleware, no structured logging sink,
-   no metrics. Logs are unstructured console text that dies with the process.
-   Deliberately not attempted in this slice: threading a correlation id means
-   changing every command procedure's signature, which is its own slice and
-   should not ride along inside a backup change.
-3. **Then the Planner**, which is still the right next engine.
+**Scope:** a bootstrap path that is single-use and self-disabling — an
+operator-claim procedure that succeeds only while no account holds
+`users.write`, an audit row recording the claim, an assertion that a second
+call is refused, and mutation tests proving the guard fires. It must not be a
+seeded password: a well-known credential in a shipped schema is worse than the
+gap it closes.
+
+**Then, in order:** infrastructure as code and a deployed environment; then a
+structured logging sink and metrics (correlation itself landed in `84f747b`);
+then the Planner, which remains the right next *engine*.
 
 ### Also found and not fixed here
 
-Recorded so they are not rediscovered: the CI `security` job fails on every run
-(`GHSA-v5pm-xwqc-g5wc`; the `NuGetAuditSuppress` is restore-time and does not
-suppress it); the committed-secret scan regex cannot match a key in any
-`appsettings*.json`; `UseForwardedHeaders` is never called, so behind a proxy
-every anonymous caller shares one rate-limit partition; `/health/ready` binds
-the exception but never logs it, so a 503 carries no diagnostic anywhere; and no
-test covers either health endpoint.
+Recorded so they are not rediscovered: the committed-secret scan regex cannot
+match a key in any `appsettings*.json`; `UseForwardedHeaders` is never called,
+so behind a proxy every anonymous caller shares one rate-limit partition;
+`/health/ready` binds the exception but never logs it, so a 503 carries no
+diagnostic anywhere; no test covers either health endpoint; and `mobile/` has
+75 untranslated strings in both `en_GB` and `en_US`.
+
+Fixed in this slice, having been listed here as outstanding: the CI `security`
+job that failed on every run.
 
 ### The Planner, when it comes
 

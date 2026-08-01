@@ -4,9 +4,16 @@ name: CI
 # tests except a developer remembering to — which is how the audit-column
 # contract sat at 0/43 compliance without anybody noticing.
 
+# Feature branches are gated too, deliberately.
+#
+# Until 2026-08-01 this listened to `main` only. Every commit of the engine
+# layer — forty-four of them — was pushed to `feature/backend-v*` and merged
+# without a single CI run, because the filter meant the gate could only fire
+# on the far side of the decision it exists to inform. A gate that runs after
+# the merge tells you what you already shipped.
 on:
   push:
-    branches: [main]
+    branches: [main, 'feature/**']
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -449,15 +456,52 @@ jobs:
         run: dotnet restore
 
       - name: Vulnerable packages
-        # Fails the job on any known vulnerability. A report nobody fails on is
-        # a report nobody reads.
+        # Fails the job on any advisory that has not been explicitly accepted.
+        # A report nobody fails on is a report nobody reads.
+        #
+        # The accepted set is read from the `NuGetAuditSuppress` entries in the
+        # project files — it is NOT restated here. Those entries already carry
+        # the review: who accepted the risk, when, and why it is unreachable.
+        # A second list in this file would be a second source of truth for one
+        # decision, and the copy that drifts is always the one nobody reads.
+        #
+        # This step exists because `NuGetAuditSuppress` is a restore-time
+        # setting: it silences the build, and `dotnet list package --vulnerable`
+        # ignores it entirely. So the csproj said "accepted, reviewed" while CI
+        # independently said "fail", and the job was red on every run it would
+        # ever have had. Reconciled here rather than by disabling the audit, so
+        # any advisory NOT in the declared set still fails.
         run: |
-          set -e
+          set -euo pipefail
+
+          # Declared, reviewed, accepted — one per NuGetAuditSuppress entry.
+          grep -rhoE 'NuGetAuditSuppress Include="[^"]+"' --include='*.csproj' . \
+            | sed -E 's/.*"(.*)"/\1/' \
+            | grep -oE 'GHSA-[a-z0-9-]+' \
+            | sort -u > accepted.txt
+          echo "Accepted advisories:"; cat accepted.txt; echo
+
           dotnet list package --vulnerable --include-transitive 2>&1 | tee vuln.txt
-          if grep -q "has the following vulnerable packages" vuln.txt; then
-            echo "::error::Vulnerable packages found"
+
+          # Every advisory the scan actually reported.
+          grep -oE 'GHSA-[a-z0-9-]+' vuln.txt | sort -u > found.txt
+
+          # Anything found that was never accepted fails the job.
+          if comm -23 found.txt accepted.txt | grep -q .; then
+            echo "::error::Vulnerable packages found with no accepted-risk entry:"
+            comm -23 found.txt accepted.txt
             exit 1
           fi
+
+          # An accepted entry for an advisory that no longer appears is stale.
+          # Reported, not fatal: the fix is to delete the suppression, and that
+          # is a code change, not a build failure.
+          if comm -13 found.txt accepted.txt | grep -q .; then
+            echo "::warning::Accepted-risk entries no longer reported — remove them:"
+            comm -13 found.txt accepted.txt
+          fi
+
+          echo "No unaccepted vulnerabilities."
 
       - name: Deprecated packages
         # Reported, not fatal. A deprecation is a plan, not an incident.

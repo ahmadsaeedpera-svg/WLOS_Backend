@@ -1,28 +1,28 @@
 {
   "$comment": "Machine-readable execution state. Companion to EXECUTION_LEDGER.md, which carries the reasoning. Update both in the same commit; if they disagree, the ledger is authoritative for prose and this file for state. This session found the ledger's prose sections stale against this file by two features, which is the argument for reading this one first.",
-  "updatedUtc": "2026-07-29",
+  "updatedUtc": "2026-08-01",
   "epic": "Operations",
-  "slice": "Observability: correlation",
-  "feature": "Correlation established once per connection and defaulted into the audit columns — no existing procedure edited",
+  "slice": "Gate: CI fires before the merge, not after",
+  "feature": "Feature branches gated; accepted-risk vulnerabilities reconciled to one source; Flutter in CI for the first time",
   "track": "A",
   "status": "Complete",
   "tracks": {
     "backend": "Complete",
-    "portal": "Not applicable — no operator surface built for this slice",
-    "flutter": "Blocked",
+    "portal": "Complete — Flutter job added to frontend CI",
+    "flutter": "Unblocked — SDK present, suite executed",
     "documentation": "Complete"
   },
   "git": {
-    "backendBranch": "feature/backend-v3",
+    "backendBranch": "main",
     "backendHead": "84f747b",
-    "frontendBranch": "feature/portal-v3",
+    "frontendBranch": "main",
     "frontendHead": "adbd99f",
-    "mainTouched": false,
+    "mainTouched": true,
     "previousBranches": {
       "backend": "feature/backend-v2 (aee4d60)",
       "frontend": "feature/portal-v2 (857b55c)"
     },
-    "branchNote": "Continuing on the v3 branches created after the Coach Platform. The v2 branches remain on the remote at the same commits; nothing was rebased or force-pushed."
+    "branchNote": "feature/backend-v3 and feature/portal-v3 fast-forwarded into main on 2026-08-01 and pushed. 44 backend and 11 portal commits, no rebase, no force-push. The v2 and v3 branches remain on the remote."
   },
   "versions": {
     "databaseScripts": 56,
@@ -31,7 +31,7 @@
     "backupTooling": "ops/db/backup.sh, ops/db/restore-drill.sh",
     "api": "v1",
     "portal": "react19-mui9-vite8",
-    "flutter": "architecture-only-never-compiled",
+    "flutter": "executed-2026-08-01-analyze-clean-448-tests-pass",
     "ai": "specs-and-safety-ledger-no-model",
     "infrastructure": "none-deployed"
   },
@@ -39,10 +39,10 @@
     "backendIntegration": 245,
     "sqlAssertionSuites": 22,
     "sqlAssertions": 303,
-    "ciWorkflowGuardChecks": 7,
+    "ciWorkflowGuardChecks": 9,
     "portal": 105,
-    "flutter": null,
-    "flutterNote": "Static count only; never executed. No SDK."
+    "flutter": 448,
+    "flutterNote": "448 passed, 3 skipped, exit 0. Flutter 3.44.4 / Dart 3.12.2. First execution in the project history."
   },
   "verification": {
     "$comment": "Run against MarenObs1 via ops/db/deploy.sh: CREATE DATABASE, then one ordered pass over the list read from PLATFORM_RUNBOOK.md, count asserted against disk.",
@@ -216,19 +216,10 @@
   },
   "blockers": [
     {
-      "id": "flutter-sdk",
-      "type": "environment",
-      "evidence": "flutter --version -> command not found"
-    },
-    {
-      "id": "docker",
-      "type": "environment",
-      "evidence": "docker --version -> command not found"
-    },
-    {
-      "id": "ci-runner",
-      "type": "environment",
-      "evidence": "workflows never executed; verified by equivalent commands only"
+      "id": "first-administrator",
+      "type": "deployment",
+      "evidence": "usp_User_Register grants Member only; no seeded admin and no bootstrap command exist. CLAUDE.md 4.6, enforced in usp_User_AssignRole, forbids granting a permission you do not hold, so no account can reach SuperAdmin through the API. A freshly deployed database is administrable only by hand-written SQL. Found 2026-08-01 by deploying an empty database and trying to use it.",
+      "severity": "high"
     },
     {
       "id": "pd-1-networking",
@@ -246,34 +237,22 @@
       "type": "infrastructure",
       "evidence": "Nothing is deployed anywhere. No IaC, no environment, no image built by CI, no registry. Backup and restore tooling now exists and is rehearsed, but against a local database only.",
       "changedThisSession": "Backups, point-in-time recovery and a verified restore drill now exist and have been executed. Deployment target and IaC remain absent."
-    },
-    {
-      "id": "observability",
-      "type": "infrastructure",
-      "evidence": "Audit.AuditLog.CorrelationId is declared and read back but written by nothing - all 33 write sites omit it and no procedure accepts one. No correlation middleware, no structured logging sink, no metrics, no tracing. Logs are console text that dies with the process.",
-      "note": "Deliberately out of scope for the operations slice: threading a correlation id changes every command procedure signature and belongs in its own slice."
-    },
-    {
-      "id": "ci-security-job-red",
-      "type": "ci",
-      "evidence": "dotnet list package --vulnerable still reports GHSA-v5pm-xwqc-g5wc; the NuGetAuditSuppress in Maren.Api.csproj is restore-time and does not suppress it. The committed-secret scan regex also cannot match a key inside any appsettings*.json."
     }
   ],
   "maturity": 67,
   "maturityNote": "Up five from 62, and the first rise in a while that is not about application quality. The platform can now be deployed with a record of what was deployed, backed up, and - the one that had never been true - restored, with that restore rehearsed, verified against its own assertions, and timed at about a second. Still zero: nothing is deployed anywhere, no IaC, no image built by CI, no monitoring, no alerting, no log aggregation, no on-call, and the mobile client has never been executed. This slice moved the platform from 'would lose everything' to 'has a tested way not to'. A real step and a small one.",
   "next": {
-    "feature": "Continue operations — infrastructure as code and a deployed environment, then observability",
+    "feature": "The first-administrator path — a single-use, self-disabling operator claim",
     "track": "A",
-    "reason": "The previous entry named the Planner with a caveat that deployment mattered more. Acting on that caveat produced this slice and the reasoning still holds: the engine layer is far ahead of what holds it up. Everything the ops tooling does assumes a database that exists somewhere, and none does.",
-    "constraint": "IaC and a runner cannot be verified on this workstation - no Docker, no CI runner. Any claim about them must be marked BLOCKED rather than asserted.",
+    "reason": "It is the one defect that makes a correct deployment useless. IaC that provisions an unadministrable database has provisioned nothing. Ranks above the Planner and above IaC.",
+    "constraint": "Must not be a seeded password. A well-known credential in a shipped schema is worse than the gap it closes.",
     "scope": [
-      "infrastructure as code declaring the database platform, FULL recovery, retention and geo-redundancy",
-      "CI builds the container image, so the health probe fixed this session is exercised somewhere",
-      "a deploy job with an environment and a registry push",
-      "then observability: correlation ids threaded through the command surface, a structured logging sink, metrics",
-      "then the Planner, which is still the right next engine"
+      "a claim procedure that succeeds only while no account holds users.write",
+      "an audit row recording the claim",
+      "an assertion that a second call is refused",
+      "mutation tests proving the guard fires"
     ],
-    "readFirst": "Two things remain worth more than another engine. (1) Nothing is deployed anywhere - the backup and restore capability built this session protects a local database only. (2) PD-1 and the tenancy question are still open, and the Health domain is still nine tables and zero procedures, so tenancy stops being a design choice the moment that procedure layer is written. Observability is now the largest gap inside the application itself: CorrelationId is declared, read back, and written by nothing."
+    "readFirst": "Every prior verification ran against a database that already had an operator, so this was invisible: the platform had never once been started from nothing."
   },
   "architecturalInvariants": [
     "Ops.RestoreDrill will not store a passing drill that ran no checks, or one with any failing check. A CHECK constraint refuses it, because 'RESTORE returned 0' is not evidence that a database was restored. Restore verification checks BEHAVIOUR - DBCC CHECKDB plus every assertion suite on disk - never counts of tables or procedures, which go stale silently and once would have passed a database missing ten feature schemas.",
