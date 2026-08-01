@@ -1,15 +1,15 @@
 {
   "$comment": "Machine-readable execution state. Companion to EXECUTION_LEDGER.md, which carries the reasoning. Update both in the same commit; if they disagree, the ledger is authoritative for prose and this file for state. This session found the ledger's prose sections stale against this file by two features, which is the argument for reading this one first.",
   "updatedUtc": "2026-08-01",
-  "epic": "Operations",
-  "slice": "Bootstrap: the first administrator",
-  "feature": "A single-use, self-disabling operator claim, derived from the permission tables rather than a flag",
+  "epic": "Mobile — Women's Life OS client",
+  "slice": "Startup performance — closed on evidence, no optimisation warranted",
+  "feature": "Cold start measured on hardware: 765ms on API 25, 83.4% of it before Dart runs",
   "track": "A",
   "status": "Complete",
   "tracks": {
-    "backend": "Complete",
-    "portal": "Complete — Flutter job added to frontend CI",
-    "flutter": "Unblocked — SDK present, suite executed",
+    "backend": "Paused — mobile is the bottleneck",
+    "portal": "Complete for current engines",
+    "flutter": "Active — the product",
     "documentation": "Complete"
   },
   "git": {
@@ -31,7 +31,7 @@
     "backupTooling": "ops/db/backup.sh, ops/db/restore-drill.sh",
     "api": "v1",
     "portal": "react19-mui9-vite8",
-    "flutter": "executed-2026-08-01-analyze-clean-448-tests-pass",
+    "flutter": "profile-measured-2026-08-01: 765ms cold start API 25, 466 tests",
     "ai": "specs-and-safety-ledger-no-model",
     "infrastructure": "none-deployed"
   },
@@ -79,7 +79,9 @@
     "ciOnRunner": "never-executed",
     "containerImage": "not-built-no-docker",
     "ciWorkflowGuard": "ci_workflow_test.sh - 7 checks over 21 captures: no empty captures, every capture invokes sqlcmd and is checked for FAILED: 0, every assertion suite and every schema script on disk appears in CI, schema application uses -b, and the guard itself runs in CI. It now runs in CI, which it never did before this session.",
-    "correlationRoundTrip": "pass — an INSERT omitting CorrelationId is correlated from SESSION_CONTEXT; with none established the column is NULL, not invented"
+    "correlationRoundTrip": "pass — an INSERT omitting CorrelationId is correlated from SESSION_CONTEXT; with none established the column is NULL, not invented",
+    "startupColdStartApi25": "765ms Displayed (profile build). Dart-reachable total 3.4ms. Zero synchronous blocks over 25ms. Debug build on identical hardware reported 12114ms — 15.8x slower — because JIT, MainThreadWatchdog and the beforeOpen integrity check are all debug-and-profile only.",
+    "startupColdStartApi36": "NOT MEASURED. Installed but emitted no timeline across three attempts; device appears locked. Recorded rather than inferred."
   },
   "defectsFoundThisSession": [
     {
@@ -237,16 +239,21 @@
   "maturity": 67,
   "maturityNote": "Up five from 62, and the first rise in a while that is not about application quality. The platform can now be deployed with a record of what was deployed, backed up, and - the one that had never been true - restored, with that restore rehearsed, verified against its own assertions, and timed at about a second. Still zero: nothing is deployed anywhere, no IaC, no image built by CI, no monitoring, no alerting, no log aggregation, no on-call, and the mobile client has never been executed. This slice moved the platform from 'would lose everything' to 'has a tested way not to'. A real step and a small one.",
   "next": {
-    "feature": "Deployment prerequisites for an internet-facing environment",
-    "track": "A",
-    "reason": "The bootstrap gap is closed, so a deployed database is now administrable. The remaining blockers to exposing it are UseForwardedHeaders (every anonymous caller currently shares one rate-limit partition behind a proxy), a provisioned JWT signing key, MFA on administrative roles, and usp_User_Erase which is referenced in a comment and does not exist.",
-    "constraint": "PD-1 and the tenancy question remain human decisions and are not engineering blockers.",
+    "feature": "Mobile authentication and session lifecycle",
+    "track": "C — Flutter",
+    "reason": "Every /api/v1/me/* endpoint is authenticated, so authentication is the hard dependency for the live Today dashboard and for all nine mobile surfaces after it. The app currently consumes 2 of 61 endpoints. This is the single change that unblocks the rest of the mobile roadmap. Backend work is deliberately paused: the engine layer is far ahead of what a woman can actually reach.",
+    "constraint": "No widget or controller may know HTTP exists. The AuthTokenProvider seam already exists in platform_today_repository.dart and is stubbed to return null in home_shell.dart; implementing this slice replaces that one closure and changes no caller.",
     "scope": [
-      "UseForwardedHeaders configured and asserted",
-      "usp_User_Erase implemented with a tombstone the audit can still reference",
-      "MFA for administrative roles",
-      "then IaC and a deployed environment"
-    ]
+      "AuthRepository seam + typed models mirroring Maren.Contracts AuthResponse",
+      "Secure token store — needs a new dependency; the app currently has none",
+      "PlatformAuthRepository: login, register, logout, silent refresh",
+      "Refresh rotation. The server detects reuse and treats it as compromise, so the client must sign out on a reuse rejection rather than retry",
+      "Session restore on cold start, before first frame paints from cache",
+      "Unauthorized recovery wired to the existing TodayUnavailable.sessionExpired state, which is already rendered and tested",
+      "Widget tests driven through a fake repository, proving no HTTP above the seam",
+      "Integration tests against the live API"
+    ],
+    "readFirst": "Backend contract verified live 2026-08-01: 15-minute access tokens, opaque refresh tokens stored SHA-256 hashed and rotated on use, reuse detected and treated as compromise. POST /api/v1/auth/{register,login,refresh} all exist. usp_RefreshToken_Issue and usp_RefreshToken_Redeem are the procedures behind them."
   },
   "architecturalInvariants": [
     "Identity.usp_Operator_Claim is refused whenever ANY account holds users.write. That state is derived from the permission tables on every call, never stored. A BootstrapCompleted flag would be a second statement of a fact those tables already make, and it could not be trusted in either direction: \"claimed\" beside no operator locks the platform out permanently, \"unclaimed\" beside a live administrator is an open door. Removing every users.write holder deliberately REOPENS the claim - that is the lost-administrator recovery path, and it is safe because the API gate is a deployment secret this database never sees.",
