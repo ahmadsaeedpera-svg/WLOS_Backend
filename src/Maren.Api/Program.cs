@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Threading.RateLimiting;
 using System.Text;
 using FluentValidation;
+using Maren.Application;
 using Maren.Application.Abstractions;
 using Maren.Application.Auth;
 using Maren.Application.Behaviors;
@@ -67,6 +68,12 @@ builder.Services.AddValidatorsFromAssembly(typeof(RegisterCommand).Assembly);
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
+
+/*  Correlation. Singleton because SqlConnectionFactory is one, and safe as a
+    singleton because both sources it reads are ambient per-operation rather
+    than captured state. */
+builder.Services.AddSingleton<IHttpCorrelationSource, HttpCorrelationSource>();
+builder.Services.AddSingleton<ICorrelationContext, CorrelationContext>();
 
 var signingKey = builder.Configuration["Jwt:SigningKey"];
 if (string.IsNullOrWhiteSpace(signingKey) || signingKey.Length < 32)
@@ -177,6 +184,12 @@ builder.Services.AddExceptionHandler<MarenExceptionHandler>();
 builder.Services.AddProblemDetails();
 
 var app = builder.Build();
+
+/*  First. Everything downstream — request logging, the audit rows a handler
+    writes, the security event a refusal writes on its own connection — reads
+    what this establishes, so anything registered above it would be
+    uncorrelated. */
+app.UseMiddleware<CorrelationMiddleware>();
 
 app.UseSerilogRequestLogging();
 app.UseResponseCompression();

@@ -2,8 +2,8 @@
   "$comment": "Machine-readable execution state. Companion to EXECUTION_LEDGER.md, which carries the reasoning. Update both in the same commit; if they disagree, the ledger is authoritative for prose and this file for state. This session found the ledger's prose sections stale against this file by two features, which is the argument for reading this one first.",
   "updatedUtc": "2026-07-29",
   "epic": "Operations",
-  "slice": "Deployment and recovery",
-  "feature": "A deployment that records itself, backups that are verified, and a restore that has actually been rehearsed",
+  "slice": "Observability: correlation",
+  "feature": "Correlation established once per connection and defaulted into the audit columns — no existing procedure edited",
   "track": "A",
   "status": "Complete",
   "tracks": {
@@ -25,8 +25,8 @@
     "branchNote": "Continuing on the v3 branches created after the Coach Platform. The v2 branches remain on the remote at the same commits; nothing was rebased or force-pushed."
   },
   "versions": {
-    "databaseScripts": 55,
-    "highestScript": "72_AuditContract_Apply.sql",
+    "databaseScripts": 56,
+    "highestScript": "74_AuditContract_Apply.sql",
     "deployRunner": "ops/db/deploy.sh — reads the order from PLATFORM_RUNBOOK.md, records every script in Ops.DeploymentJournal",
     "backupTooling": "ops/db/backup.sh, ops/db/restore-drill.sh",
     "api": "v1",
@@ -36,16 +36,16 @@
     "infrastructure": "none-deployed"
   },
   "tests": {
-    "backendIntegration": 240,
-    "sqlAssertionSuites": 21,
-    "sqlAssertions": 293,
+    "backendIntegration": 245,
+    "sqlAssertionSuites": 22,
+    "sqlAssertions": 303,
     "ciWorkflowGuardChecks": 7,
     "portal": 105,
     "flutter": null,
     "flutterNote": "Static count only; never executed. No SDK."
   },
   "verification": {
-    "$comment": "Run against MarenOps3 via ops/db/deploy.sh: CREATE DATABASE, then one ordered pass over the list read from PLATFORM_RUNBOOK.md, count asserted against disk. The documented order is deliberately not numeric - 14_Procs_Config.sql runs before 10-13 - so the list is read from the runbook rather than from a directory sort.",
+    "$comment": "Run against MarenObs1 via ops/db/deploy.sh: CREATE DATABASE, then one ordered pass over the list read from PLATFORM_RUNBOOK.md, count asserted against disk.",
     "createDatabaseThenOneOrderedPass": "pass",
     "idempotency": "pass (2823 columns, 487 indexes, both passes)",
     "backupTakenAndVerified": "pass — full + log, CHECKSUM, RESTORE VERIFYONLY",
@@ -58,6 +58,9 @@
     "portalTestsExitCode": 0,
     "portalProductionBuild": "pass",
     "mutationChecks": [
+      "correlation defaults: dropping DF_AuditLog_CorrelationId failed assertions 1, 5 and 10",
+      "audit append-only: a procedure updating Audit.AuditLog failed assertion 9; dropping it restored 10/10",
+      "NOT PROVEN — the connection factory's unconditional clear: removing it did NOT fail any test, because sp_reset_connection already discards session context. Kept as insurance, documented as such, and explicitly not claimed as mutation-proven.",
       "restore drill: drilling a genuinely incomplete database - the one the old 45/47 gate passes - failed 15 of 21 checks",
       "deployment journal: a deliberately broken script 67 stopped the run at 51/55 and usp_Deployment_Status named it as the script whose latest word is a failure",
       "ops append-only guard: a procedure updating Ops.RestoreDrill failed assertion 10; dropping it restored 16/16",
@@ -74,7 +77,8 @@
     "openApiDocumented": true,
     "ciOnRunner": "never-executed",
     "containerImage": "not-built-no-docker",
-    "ciWorkflowGuard": "ci_workflow_test.sh - 7 checks over 21 captures: no empty captures, every capture invokes sqlcmd and is checked for FAILED: 0, every assertion suite and every schema script on disk appears in CI, schema application uses -b, and the guard itself runs in CI. It now runs in CI, which it never did before this session."
+    "ciWorkflowGuard": "ci_workflow_test.sh - 7 checks over 21 captures: no empty captures, every capture invokes sqlcmd and is checked for FAILED: 0, every assertion suite and every schema script on disk appears in CI, schema application uses -b, and the guard itself runs in CI. It now runs in CI, which it never did before this session.",
+    "correlationRoundTrip": "pass — an INSERT omitting CorrelationId is correlated from SESSION_CONTEXT; with none established the column is NULL, not invented"
   },
   "defectsFoundThisSession": [
     {

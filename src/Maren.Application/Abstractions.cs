@@ -18,6 +18,34 @@ public interface IDbConnectionFactory
     Task<IDbConnection> CreateAsync(CancellationToken ct = default);
 }
 
+/// <summary>The id that ties everything one request did together.</summary>
+/// <remarks>
+/// <para>
+/// One request may write audit rows, a security event and a safety event, from
+/// more than one connection — the security path deliberately opens its own so a
+/// rollback cannot erase the record of the attempt that caused it. Before this
+/// existed, nothing said those rows were one action, so "what happened when she
+/// reported this?" was answered by reading timestamps and guessing.
+/// </para>
+/// <para>
+/// Carries no personal data. It is a random value minted per request and
+/// identifies a request, never a person — which is what makes it safe to put in
+/// a log line, a response header and a support ticket.
+/// </para>
+/// <para>
+/// Returns <see cref="Guid.Empty"/> when there is no ambient request, and the
+/// connection is then explicitly cleared rather than left carrying whatever the
+/// last request put there. An uncorrelated audit row is honest; one stamped with
+/// another request's id is worse than no correlation at all, because it would be
+/// believed.
+/// </para>
+/// </remarks>
+public interface ICorrelationContext
+{
+    /// <summary><see cref="Guid.Empty"/> when nothing established one.</summary>
+    Guid CorrelationId { get; }
+}
+
 /// <summary>Everything the request knows about who is calling.</summary>
 public interface ICurrentUser
 {

@@ -1,5 +1,6 @@
 using System.Data;
 using Dapper;
+using Maren.Application;
 using Maren.Application.Abstractions;
 using Maren.Application.Access;
 using Maren.Application.Behaviour;
@@ -16,10 +17,13 @@ using Maren.Shared;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Maren.Persistence;
 
-public sealed class SqlConnectionFactory(IConfiguration configuration)
+public sealed class SqlConnectionFactory(
+    IConfiguration configuration,
+    ICorrelationContext correlation)
     : IDbConnectionFactory
 {
     private readonly string _connectionString =
@@ -31,7 +35,60 @@ public sealed class SqlConnectionFactory(IConfiguration configuration)
     {
         var connection = new SqlConnection(_connectionString);
         await connection.OpenAsync(ct);
+        await StampCorrelationAsync(connection, correlation.CorrelationId, ct);
         return connection;
+    }
+
+    /// <summary>
+    /// Puts the request's correlation id where the audit defaults can find it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the only place it is set, and it is set on <em>every</em>
+    /// connection — including when there is nothing to set, in which case the
+    /// value is cleared to NULL.
+    /// </para>
+    /// <para>
+    /// It clears to NULL when there is nothing to set, rather than skipping the
+    /// call. This was written believing it was the only thing standing between a
+    /// pooled connection and one request's correlation id landing in another
+    /// request's audit rows — and that turned out to be false. Removing the
+    /// clear entirely does not reproduce the leak: <c>sp_reset_connection</c>,
+    /// which the pool issues when handing a connection on, already discards
+    /// session context. That was checked by deleting this behaviour and watching
+    /// the test still pass, not assumed.
+    /// </para>
+    /// <para>
+    /// It stays because the guarantee it relies on is the pool's, not ours.
+    /// <c>Pooling=false</c>, a driver change, or a connection opened outside this
+    /// factory would each remove the reset, and the failure mode is silent
+    /// misattribution in the one record that gets believed. Cheap insurance
+    /// against an assumption held somewhere else — but insurance, and described
+    /// as such rather than as the barrier.
+    /// </para>
+    /// <para>
+    /// One extra round trip per connection. That is the cost of the audit trail
+    /// being able to say "these rows were one action", and it buys back the 33
+    /// procedure signatures the parameter-passing alternative would have
+    /// changed.
+    /// </para>
+    /// </remarks>
+    private static async Task StampCorrelationAsync(
+        SqlConnection connection, Guid correlationId, CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "EXEC sp_set_session_context @key = N'CorrelationId', @value = @value;";
+        command.CommandType = CommandType.Text;
+
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = "@value";
+        parameter.DbType = DbType.Guid;
+        parameter.Value = correlationId == Guid.Empty
+            ? DBNull.Value
+            : correlationId;
+        command.Parameters.Add(parameter);
+
+        await command.ExecuteNonQueryAsync(ct);
     }
 }
 
@@ -295,6 +352,14 @@ public static class PersistenceRegistration
     public static IServiceCollection AddMarenPersistence(
         this IServiceCollection services)
     {
+        /*  Registered here, with TryAdd, so any host able to construct a
+            connection factory automatically has what the factory needs. A web
+            host replaces the source with one that reads the request; a test
+            host or a background worker keeps the null object and correlates
+            through CorrelationScope instead. Neither has to remember. */
+        services.TryAddSingleton<IHttpCorrelationSource, NoHttpCorrelationSource>();
+        services.TryAddSingleton<ICorrelationContext, CorrelationContext>();
+
         services.AddSingleton<IDbConnectionFactory, SqlConnectionFactory>();
 
         // Scoped so one request shares one unit of work, and so a repository

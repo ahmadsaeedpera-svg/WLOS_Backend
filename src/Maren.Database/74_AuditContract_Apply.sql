@@ -1,11 +1,11 @@
-/*  72_AuditContract_Apply.sql
+/*  74_AuditContract_Apply.sql
 
     Applies the audit contract to every table, after every table exists.
 
     This script must stay last in the deployment order. That is its entire
     purpose.
 
-    It has been 48, 51, 54, 65, 69, and is now 72 — renumbered every
+    It has been 48, 51, 54, 65, 69, 72, and is now 74 — renumbered every
     time a script added tables, which is exactly the case the rule exists for.
     The number is the requirement: a comment saying "run me last" is not
     checked by anything, and a position is. The header carried the wrong number

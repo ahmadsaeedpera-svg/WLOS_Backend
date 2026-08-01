@@ -80,9 +80,30 @@ designed in.
 
 ## Current Feature
 
-**Operations: deployment and recovery.** The first slice in this repository
-that is not an engine, taken deliberately ahead of the Planner because the
-engine layer was far ahead of everything holding it up.
+**Observability: correlation.** `Audit.AuditLog.CorrelationId` had existed
+since `05_Content_Notifications_Audit.sql`, was selected back by
+`usp_Audit_Search`, and was **written by nothing** — 157 audit rows, 0
+correlated. One request writes audit rows, a security event on its own
+connection and potentially a safety event, and nothing said those rows were one
+action.
+
+**Fixed without editing a single existing procedure.** The value is established
+once per connection in `SESSION_CONTEXT` and the columns default from it, so an
+`INSERT` that omits the column — which is exactly what all 33 existing write
+sites do — picks it up. The obvious alternative, a `@CorrelationId` parameter
+threaded through every command procedure, costs more with every engine added;
+this costs nothing, and a new engine gets correlation by writing an audit row
+the ordinary way.
+
+Honesty holds: no correlation means `NULL`, never a manufactured id. An
+uncorrelated row is honest; an invented one would be indistinguishable from a
+real trail and would therefore be believed.
+
+### Previous slice — Operations: deployment and recovery
+
+The first slice in this repository that is not an engine, taken deliberately
+ahead of the Planner because the engine layer was far ahead of everything
+holding it up.
 
 Two questions the platform could not answer about itself, and now can.
 
@@ -108,8 +129,8 @@ timestamp is gone after `STOPAT`, and the write before it survives.
 | | |
 |---|---|
 | Epic | 2 — Operations |
-| Slice | Deployment and recovery — **closed** |
-| Track | A (backend + tooling) complete · B (portal) not applicable · C blocked · D ongoing |
+| Slice | Observability: correlation — **closed** |
+| Track | A (backend) complete · B (portal) not applicable · C blocked · D ongoing |
 
 ---
 
@@ -152,6 +173,7 @@ commit rather than rebased, so every hash below is reachable from both:
 | **Coach Platform** | `84a2a3f` |
 | **Prediction Platform** | `5a0e8e6` |
 | **Operations — deployment journal, backups, rehearsed restore** | `2fe17e7` |
+| **Observability — correlation, with no procedure edited** | this commit |
 
 On Maren-Frontend — `feature/portal-v2` up to `857b55c`, continuing on
 `feature/portal-v3` from the same commit:
@@ -252,6 +274,28 @@ same shape as the audit contract defect above, which is why the convention set
 by `30_Indexes_ForeignKeys.sql` is the one to follow. Verified both ways: it
 converges on the database that already had the tables, and a database built from
 scratch passes all 87 foreign-key checks.
+
+### A justification that did not survive its own mutation test
+
+**Severity: low, and recorded because the reasoning was wrong rather than the
+code.**
+
+`SqlConnectionFactory` clears the session correlation to `NULL` when there is
+nothing to set, rather than skipping the call. That was written and documented
+as the barrier preventing a pooled connection from carrying one request's
+correlation id into another request's audit rows.
+
+Mutation-testing it disproved the justification: deleting the clear entirely
+leaves the test passing. `sp_reset_connection`, which the pool issues when
+handing a connection on, already discards session context. The leak the comment
+described cannot occur.
+
+The behaviour stays — `Pooling=false`, a driver change, or a connection opened
+outside the factory would each remove that reset, and the failure mode is silent
+misattribution in the record that gets believed. But it is insurance against an
+assumption held elsewhere, not the barrier, and both the code comment and the
+test now say so. **The mutation proof that was expected here does not exist, and
+claiming one would have been the exact failure this ledger exists to prevent.**
 
 ### The restore-verification gate would have passed a catastrophic restore
 
@@ -394,7 +438,7 @@ Decisions that constrain future work. Reversing any of these needs a reason.
 
 | Layer | Version / state |
 |---|---|
-| Database | 55 numbered scripts (`01`–`72`), 21 assertion suites |
+| Database | 56 numbered scripts (`01`–`74`), 22 assertion suites |
 | API | v1 · `/api/v1/me`, `/api/v1/admin/*` |
 | Portal | React 19 / MUI 9 / Vite 8, 105 tests |
 | Operations | `ops/db/{deploy,backup,restore-drill}.sh`; journals in `Ops` |
@@ -410,15 +454,15 @@ Executed on this machine, not claimed:
 
 | Check | Result |
 |---|---|
-| Database created empty and applied **once, in order**, 55 scripts, via `ops/db/deploy.sh` (order read from the runbook, count asserted against disk) | PASS |
+| Database created empty and applied **once, in order**, 56 scripts, via `ops/db/deploy.sh` (order read from the runbook, count asserted against disk) | PASS |
 | Idempotency (second apply adds 0 columns, 0 indexes — 2823 and 487 both passes) | PASS |
 | **Backup taken and verified** (`CHECKSUM` + `RESTORE VERIFYONLY`, full and log) | PASS |
 | **Restore rehearsed** — DBCC CHECKDB + 21 suites against the restored copy, 22/22, **1034 ms** | PASS |
 | **Point-in-time restore** discards a post-`STOPAT` write and keeps the earlier one | PASS |
 | **Container health probe** — exit 0 alive, exit 1 dead, exit 0 on a cold first request | PASS |
-| SQL assertion suites | **21 suites, 293 assertions, 0 failures** |
+| SQL assertion suites | **22 suites, 303 assertions, 0 failures** |
 | Clean Release build `-warnaserror` (never incremental) | 0 errors, 0 warnings |
-| Integration tests | **240 passed, exit 0** |
+| Integration tests | **245 passed, exit 0** |
 | Portal `tsc -b --force` | exit 0 |
 | Portal tests | **105 passed, exit 0** |
 | Portal production build | succeeds |
