@@ -2,8 +2,8 @@
   "$comment": "Machine-readable execution state. Companion to EXECUTION_LEDGER.md, which carries the reasoning. Update both in the same commit; if they disagree, the ledger is authoritative for prose and this file for state. This session found the ledger's prose sections stale against this file by two features, which is the argument for reading this one first.",
   "updatedUtc": "2026-08-01",
   "epic": "Operations",
-  "slice": "Gate: CI fires before the merge, not after",
-  "feature": "Feature branches gated; accepted-risk vulnerabilities reconciled to one source; Flutter in CI for the first time",
+  "slice": "Bootstrap: the first administrator",
+  "feature": "A single-use, self-disabling operator claim, derived from the permission tables rather than a flag",
   "track": "A",
   "status": "Complete",
   "tracks": {
@@ -25,7 +25,7 @@
     "branchNote": "feature/backend-v3 and feature/portal-v3 fast-forwarded into main on 2026-08-01 and pushed. 44 backend and 11 portal commits, no rebase, no force-push. The v2 and v3 branches remain on the remote."
   },
   "versions": {
-    "databaseScripts": 56,
+    "databaseScripts": 57,
     "highestScript": "74_AuditContract_Apply.sql",
     "deployRunner": "ops/db/deploy.sh — reads the order from PLATFORM_RUNBOOK.md, records every script in Ops.DeploymentJournal",
     "backupTooling": "ops/db/backup.sh, ops/db/restore-drill.sh",
@@ -37,8 +37,8 @@
   },
   "tests": {
     "backendIntegration": 245,
-    "sqlAssertionSuites": 22,
-    "sqlAssertions": 303,
+    "sqlAssertionSuites": 23,
+    "sqlAssertions": 314,
     "ciWorkflowGuardChecks": 9,
     "portal": 105,
     "flutter": 448,
@@ -71,7 +71,8 @@
       "prediction never-recomputes: a Predict module doing recency-decay arithmetic failed assertion 10",
       "prediction structural guards: a non-probability source, a framing missing {support}, a framing missing {window}, a stored row with no support and one with no evidence were each refused, and a well-formed row was still accepted",
       "portal traceability: hiding the source measure failed 1 test",
-      "CI guard: removing the prediction step failed it with '1 missing prediction_test.sql'"
+      "CI guard: removing the prediction step failed it with '1 missing prediction_test.sql'",
+      "bootstrap: removing the already-claimed gate failed 6 of 11 assertions; restoring the procedure returned 11/11"
     ],
     "endpointsUnauthenticated": 401,
     "openApiDocumented": true,
@@ -216,12 +217,6 @@
   },
   "blockers": [
     {
-      "id": "first-administrator",
-      "type": "deployment",
-      "evidence": "usp_User_Register grants Member only; no seeded admin and no bootstrap command exist. CLAUDE.md 4.6, enforced in usp_User_AssignRole, forbids granting a permission you do not hold, so no account can reach SuperAdmin through the API. A freshly deployed database is administrable only by hand-written SQL. Found 2026-08-01 by deploying an empty database and trying to use it.",
-      "severity": "high"
-    },
-    {
       "id": "pd-1-networking",
       "type": "legal",
       "evidence": "About screen claims no network code; part of Play Data Safety declaration"
@@ -242,19 +237,19 @@
   "maturity": 67,
   "maturityNote": "Up five from 62, and the first rise in a while that is not about application quality. The platform can now be deployed with a record of what was deployed, backed up, and - the one that had never been true - restored, with that restore rehearsed, verified against its own assertions, and timed at about a second. Still zero: nothing is deployed anywhere, no IaC, no image built by CI, no monitoring, no alerting, no log aggregation, no on-call, and the mobile client has never been executed. This slice moved the platform from 'would lose everything' to 'has a tested way not to'. A real step and a small one.",
   "next": {
-    "feature": "The first-administrator path — a single-use, self-disabling operator claim",
+    "feature": "Deployment prerequisites for an internet-facing environment",
     "track": "A",
-    "reason": "It is the one defect that makes a correct deployment useless. IaC that provisions an unadministrable database has provisioned nothing. Ranks above the Planner and above IaC.",
-    "constraint": "Must not be a seeded password. A well-known credential in a shipped schema is worse than the gap it closes.",
+    "reason": "The bootstrap gap is closed, so a deployed database is now administrable. The remaining blockers to exposing it are UseForwardedHeaders (every anonymous caller currently shares one rate-limit partition behind a proxy), a provisioned JWT signing key, MFA on administrative roles, and usp_User_Erase which is referenced in a comment and does not exist.",
+    "constraint": "PD-1 and the tenancy question remain human decisions and are not engineering blockers.",
     "scope": [
-      "a claim procedure that succeeds only while no account holds users.write",
-      "an audit row recording the claim",
-      "an assertion that a second call is refused",
-      "mutation tests proving the guard fires"
-    ],
-    "readFirst": "Every prior verification ran against a database that already had an operator, so this was invisible: the platform had never once been started from nothing."
+      "UseForwardedHeaders configured and asserted",
+      "usp_User_Erase implemented with a tombstone the audit can still reference",
+      "MFA for administrative roles",
+      "then IaC and a deployed environment"
+    ]
   },
   "architecturalInvariants": [
+    "Identity.usp_Operator_Claim is refused whenever ANY account holds users.write. That state is derived from the permission tables on every call, never stored. A BootstrapCompleted flag would be a second statement of a fact those tables already make, and it could not be trusted in either direction: \"claimed\" beside no operator locks the platform out permanently, \"unclaimed\" beside a live administrator is an open door. Removing every users.write holder deliberately REOPENS the claim - that is the lost-administrator recovery path, and it is safe because the API gate is a deployment secret this database never sees.",
     "Ops.RestoreDrill will not store a passing drill that ran no checks, or one with any failing check. A CHECK constraint refuses it, because 'RESTORE returned 0' is not evidence that a database was restored. Restore verification checks BEHAVIOUR - DBCC CHECKDB plus every assertion suite on disk - never counts of tables or procedures, which go stale silently and once would have passed a database missing ten feature schemas.",
     "Both Ops journals are append-only, asserted through the dependency graph rather than module text: no procedure that references them may contain a mutating verb.",
     "There is ONE deployment order and it lives in docs/PLATFORM_RUNBOOK.md. ops/db/deploy.sh reads it rather than carrying a copy, and asserts the documented count against the scripts on disk.",

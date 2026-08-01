@@ -124,7 +124,7 @@ jobs:
                    49_Behaviour.sql 50_Procs_Behaviour.sql 51_Procs_Inspector_Behaviour.sql \
                    52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
                    55_Growth_Routines.sql 56_Procs_Growth_Routines.sql 58_Recommendation.sql \
-                   59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 70_Operations.sql 71_Procs_Operations.sql 73_Observability.sql 74_AuditContract_Apply.sql; do
+                   59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 70_Operations.sql 71_Procs_Operations.sql 72_Procs_Bootstrap.sql 73_Observability.sql 74_AuditContract_Apply.sql; do
             echo "--- $f"
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
@@ -153,7 +153,7 @@ jobs:
                    49_Behaviour.sql 50_Procs_Behaviour.sql 51_Procs_Inspector_Behaviour.sql \
                    52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
                    55_Growth_Routines.sql 56_Procs_Growth_Routines.sql 58_Recommendation.sql \
-                   59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 70_Operations.sql 71_Procs_Operations.sql 73_Observability.sql 74_AuditContract_Apply.sql; do
+                   59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 70_Operations.sql 71_Procs_Operations.sql 72_Procs_Bootstrap.sql 73_Observability.sql 74_AuditContract_Apply.sql; do
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
           done
 
@@ -365,6 +365,23 @@ jobs:
           out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/coach_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Coach assertions failed"; exit 1; }
+
+      - name: Bootstrap assertions
+        # The first administrator. usp_User_Register grants Member and nothing
+        # granted anything else, while section 4.6 - you cannot grant a
+        # permission you do not hold - is enforced inside usp_User_AssignRole.
+        # Together those meant no account could ever reach SuperAdmin through
+        # the API, so a correctly deployed database was administrable only by
+        # hand-written SQL against production. It went unnoticed because every
+        # verification database already had an operator: the platform had never
+        # been started from nothing, which is the state a real deployment
+        # begins in. These assertions run against whatever the scripts just
+        # produced, on a database with no administrator.
+        working-directory: src/Maren.Database
+        run: |
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/bootstrap_test.sql)
+          echo "$out"
+          echo "$out" | grep -q "FAILED: 0" || { echo "::error::Bootstrap assertions failed"; exit 1; }
 
       - name: Observability assertions
         # Correlation. The audit log carried a CorrelationId column that nothing
