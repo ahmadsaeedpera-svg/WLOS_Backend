@@ -142,6 +142,63 @@ women is a safety issue rather than a hypothetical.
 > Country, age, culture, marital status and life stage are *contextual signals*.
 > None of them defines her.
 
+### 1.9 Retention is earned, never engineered
+
+> **We are not trying to make WLOS impossible to uninstall. We are trying to
+> make WLOS valuable enough that users choose to keep it.**
+
+These are different products, and only one of them is the one we are building.
+
+**Permitted** — retention that comes from accumulated value:
+
+- She has years of context here, and leaving means losing it
+- It understands her better this month than last
+- It remembers what matters to her without being asked
+
+**Not permitted** — retention that comes from pressure:
+
+- Streaks that make absence feel like failure
+- Guilt, loss-framing, or manufactured urgency
+- Notifications unrelated to what she is actually doing
+- Anything that rewards frequency for its own sake
+- Any design that fosters emotional dependency on the product
+
+This is not only an ethical position. The EU KIDS Act bans engagement-driven
+reward loops and streaks that penalise non-return for minors, and research finds
+**44% of users report motivation drop-off after breaking a streak**, many
+uninstalling entirely. **Pressure-based retention is both prohibited and
+counterproductive.**
+
+The inherited streak ring is subject to this clause and must be reconsidered
+before it ships in WLOS — replaced by a concept rewarding continuity or being
+understood, not not-missing-a-day.
+
+### 1.10 What this constitution governs
+
+**Four layers, not one.** Safe code with unsafe copy is still an unsafe product.
+
+| Layer | Governs |
+|---|---|
+| **1 · Product behaviour** | What WLOS actually does |
+| **2 · AI behaviour** | What the model may infer, say, recommend, remember or refuse |
+| **3 · Content and editorial** | What the CMS publishes |
+| **4 · Marketing and store positioning** | **What we claim WLOS does** |
+
+Layer 4 is not a formality. Regulators assess intended use from *"marketing
+materials, app store descriptions, website copy, social media, and user
+instructions"* — external copy overrides internal documentation. A store listing
+saying *"detects early signs of anaemia from your face"* makes WLOS a medical
+device regardless of what the code does, and *"helps you stay healthy"* is a
+health claim requiring the same scrutiny.
+
+**Every piece of public copy is reviewed against §1.5 (never inferred) and §1.9
+(retention) before publication.** Two specific traps:
+
+- Language marketing to "girls" conflicts with the 18+ launch hypothesis and
+  invites minors regulation
+- Language promising she will *want to open it every day* is the
+  engagement-maximising framing §1.9 forbids
+
 ---
 
 ## Part 2 — The Human Model

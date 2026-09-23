@@ -1,8 +1,19 @@
 # Project State — Maren and WLOS
 
 **As at:** 23 September 2026
+**Status:** **LOCKED** — this is the agreed project state of record.
+Superseded only by the Phase A findings report.
 **Purpose:** single record of where both products stand, what is decided, what
 is hypothesis, and what is unproven.
+
+> **Engineering rule in force:** no WLOS implementation. The platform work is
+> not discarded — it waits for product evidence. Repo states `74 / 51 / 16` are
+> preserved.
+>
+> **Research rule in force:** participants are never told the candidate jobs and
+> asked which they want. Evidence must emerge from experience → what happened →
+> what she did → what was missing → what she wished existed → whether
+> remembering would have helped.
 
 ---
 
@@ -214,6 +225,27 @@ interpretation during fieldwork, no AI analysis mid-study.
 Gate: interaction ≥1 in ≥9 of 14 (phenomenon), **and all five** of recurrence,
 gap, memory value, trust, frequency clearing ≥9 (viability). Nine of fourteen
 justifies a prototype; **it does not establish a market**.
+
+### The Phase A findings report — required contents
+
+Nothing is designed until this exists:
+
+1. Strongest **supporting** evidence
+2. Strongest **counter**-evidence, stated as forcefully
+3. Interaction evidence — scores and verbatim chains
+4. Recurrence
+5. Existing-tool gap *(recorded separately from Gap)*
+6. Memory value
+7. Personalization need
+8. Trust
+9. Frequency
+10. **Action taken** — the sequence of what she actually did
+11. Employer trust
+12. Thresholds and kill conditions, phenomenon and viability **reported
+    separately**
+13. Decision: **Phase B · narrow · or change the product**
+
+Only after item 13 is the first real WLOS experience designed.
 
 ---
 
