@@ -148,7 +148,17 @@ INSERT @results VALUES ('unknown correlation remains representable',
 
     So: normalise the module text (brackets are a character class in a LIKE
     pattern, and newlines hide adjacency), then look for a mutation verb
-    immediately against Audit.AuditLog. */
+    immediately against Audit.AuditLog.
+
+    One named exception: usp_User_DeleteAccount. A woman closing her account is
+    the subject of the log rather than an actor in it, and the constitution is
+    unambiguous that deletion means deletion. The full reasoning, and the three
+    things that keep the exception from eroding the rule, are in access_test.sql
+    assertion 18 and in CLAUDE.md section 4.8.
+
+    This is the third copy of this check — access_test, ai_safety_test and here
+    — and all three had to be amended by hand. That is worth knowing: the next
+    change to this rule will also have to find all three. */
 ;WITH flattened AS (
     SELECT o.object_id,
            REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
@@ -157,6 +167,7 @@ INSERT @results VALUES ('unknown correlation remains representable',
     FROM sys.sql_modules sm
     JOIN sys.objects o ON o.object_id = sm.object_id
     WHERE o.type = 'P'
+      AND o.name <> 'usp_User_DeleteAccount'
 ),
 collapsed AS (
     SELECT object_id,

@@ -62,10 +62,20 @@ public sealed class DatabaseFixture : IAsyncLifetime
     /// back to LocalDB so a developer needs no setup. Hardcoding LocalDB meant
     /// the suite could only ever run on a Windows machine that had it — which
     /// is a large part of why nothing ran these tests automatically.
+    /// <para>
+    /// The key must stay in step with what <c>AddMarenPersistence</c> resolves,
+    /// which is <c>WlosPlatform</c>. When the fork renamed the key this file
+    /// kept the old one, so every integration test failed at container build
+    /// with "Connection string 'WlosPlatform' is not configured" — the whole
+    /// suite was red for a reason that had nothing to do with anything under
+    /// test. The old variable is still read so an existing shell or CI
+    /// definition does not silently fall through to LocalDB instead.
+    /// </para>
     /// </remarks>
     public static readonly string ConnectionString =
-        Environment.GetEnvironmentVariable("ConnectionStrings__MarenPlatform")
-        ?? @"Server=(localdb)\MSSQLLocalDB;Database=MarenPlatform;"
+        Environment.GetEnvironmentVariable("ConnectionStrings__WlosPlatform")
+        ?? Environment.GetEnvironmentVariable("ConnectionStrings__MarenPlatform")
+        ?? @"Server=(localdb)\MSSQLLocalDB;Database=WlosPlatform;"
            + "Trusted_Connection=True;TrustServerCertificate=True;"
            // Pooling off in the test harness only. The delta cursor reads
            // @@DBTS, which is sensitive to connection state that pooling can
@@ -87,12 +97,38 @@ public sealed class DatabaseFixture : IAsyncLifetime
             new ConfigurationBuilder().AddInMemoryCollection(
                 new Dictionary<string, string?>
                 {
-                    ["ConnectionStrings:MarenPlatform"] = ConnectionString
+                    ["ConnectionStrings:WlosPlatform"] = ConnectionString,
+
+                    /*  A signing key for the token service, which validates its
+                        own length at construction. Test-only and obviously so:
+                        the production key comes from the environment and the
+                        API refuses to start without one. */
+                    ["Jwt:SigningKey"] =
+                        "test-only-signing-key-not-a-secret-0123456789",
+                    ["Jwt:Issuer"] = "wlos.platform",
+                    ["Jwt:Audience"] = "wlos.app"
                 }).Build());
+
+        services.Configure<JwtOptions>(o =>
+        {
+            o.SigningKey = "test-only-signing-key-not-a-secret-0123456789";
+            o.Issuer = "wlos.platform";
+            o.Audience = "wlos.app";
+        });
 
         services.AddLogging(b => b.SetMinimumLevel(LogLevel.Warning));
         services.AddSingleton<ICurrentUser>(CurrentUser);
         services.AddMarenPersistence();
+
+        /*  The password hasher and the token service.
+
+            Absent until Slice 1, which is why no test in this suite had ever
+            registered, signed in or signed out: resolving RegisterHandler threw
+            on IPasswordHasher before it reached a single assertion. The auth
+            path was the one part of the platform with no integration coverage
+            at all, and the reason was three missing lines here. */
+        services.AddMarenInfrastructure();
+
         services.AddMarenCaching();
         services.AddMarenSecurityStamps();
 

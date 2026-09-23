@@ -4,9 +4,15 @@ namespace Maren.Contracts;
 // Auth
 // ---------------------------------------------------------------------------
 
+/// <param name="DateOfBirth">
+/// Required. WLOS launches 18+ and the gate sits at registration, not at
+/// onboarding: collecting it later means the account already exists by the time
+/// anyone knows whether it should.
+/// </param>
 public sealed record RegisterRequest(
     string Email,
     string Password,
+    DateOnly DateOfBirth,
     string? CountryIso,
     string? LanguageCode);
 
@@ -16,6 +22,27 @@ public sealed record LoginRequest(
     DeviceInfo? Device);
 
 public sealed record RefreshRequest(string RefreshToken);
+
+/// <summary>Signing out.</summary>
+/// <param name="RefreshToken">
+/// The token to end. Optional: a client that has already lost it can still
+/// sign out, and the access token identifies who is asking either way.
+/// </param>
+/// <param name="AllDevices">
+/// Ends every live session instead of this one. For "signed in somewhere I
+/// don't recognise", which is the moment someone most needs the control and
+/// least wants to hunt for it.
+/// </param>
+public sealed record LogoutRequest(
+    string? RefreshToken,
+    bool AllDevices = false);
+
+/// <summary>Closing an account for good.</summary>
+/// <param name="Password">
+/// Re-entered to confirm. The action is irreversible and there is no undo to
+/// fall back on, so an unattended phone should not be enough to do it.
+/// </param>
+public sealed record DeleteAccountRequest(string Password);
 
 public sealed record DeviceInfo(
     Guid DeviceId,

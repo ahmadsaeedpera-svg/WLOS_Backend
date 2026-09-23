@@ -1,4 +1,6 @@
+using FluentValidation;
 using Maren.Application.Abstractions;
+using Maren.Application.Auth;
 using Maren.Application.Onboarding;
 using Maren.Application.Wlos;
 using Maren.Contracts;
@@ -132,4 +134,47 @@ public sealed class OnboardingController(ISender sender, ICurrentUser currentUse
         return FromResult(await sender.Send(new ResolveLifeOsQuery(userId), ct));
     }
 
+    /// <summary>Closes her account and erases everything behind it.</summary>
+    /// <remarks>
+    /// <para>
+    /// Not a flag. Every other table in this database soft-deletes, and for an
+    /// operator's records that is right, because an editor needs to see what
+    /// was removed and by whom. None of that applies to a woman's own account:
+    /// she is not an audit subject. The rows go.
+    /// </para>
+    /// <para>
+    /// The password is re-entered and re-verified even though the caller
+    /// already holds a valid token. A token proves the session was hers when it
+    /// started; it does not prove she is the one holding the phone now, and
+    /// this is the one action in the product with nothing behind it.
+    /// </para>
+    /// <para>
+    /// Refused with <c>OPERATOR_ACCOUNT</c> for an account holding any role
+    /// beyond Member, because erasing an operator leaves the platform's own
+    /// history pointing at nothing.
+    /// </para>
+    /// </remarks>
+    [HttpDelete]
+    [ProducesResponseType(typeof(ApiResponse<object>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 401)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 409)]
+    public async Task<IActionResult> DeleteAccount(
+        [FromBody] DeleteAccountRequest request,
+        [FromServices] IValidator<DeleteAccountCommand> validator,
+        CancellationToken ct)
+    {
+        if (currentUser.UserId is not { } userId) return Unauthenticated();
+
+        var command = new DeleteAccountCommand(userId, request);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+        {
+            return BadRequest(ApiResponse<object>.Invalid(
+                validation.Errors
+                    .GroupBy(e => e.PropertyName)
+                    .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray())));
+        }
+
+        return FromResult(await sender.Send(command, ct));
+    }
 }

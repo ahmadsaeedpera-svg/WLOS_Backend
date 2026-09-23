@@ -130,7 +130,7 @@ GitHub  ──push──►  Actions CI  ──►  build image  ──►  GHCR
 
 | Secret | Where | Rotation |
 |---|---|---|
-| `ConnectionStrings__MarenPlatform` | Key Vault / platform secret | On credential change |
+| `ConnectionStrings__WlosPlatform` | Key Vault / platform secret | On credential change |
 | `Jwt__SigningKey` | Key Vault | Quarterly — **invalidates all access tokens**, so rotate at a low-traffic hour and expect a re-auth wave |
 | `Cors__AdminPortalOrigins__*` | Platform config (not secret) | On origin change |
 | Registry credentials | GitHub OIDC, not a stored PAT | n/a |

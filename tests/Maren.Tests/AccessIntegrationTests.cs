@@ -420,6 +420,23 @@ public sealed class AccessAdministrationTests : IAsyncLifetime
     {
         // The static backstop. Catches somebody "fixing" a procedure with
         // SELECT * on Identity.User.
+        //
+        // The list is the login path, not a convenience allow-list, and every
+        // name on it has to be a procedure whose whole job is a credential:
+        //
+        //   usp_User_GetForLogin       verify a password by email (sign in)
+        //   usp_User_Register          set the first password
+        //   usp_User_GetLoginMaterial  verify a password by user id, for an
+        //                              already-authenticated caller confirming
+        //                              an irreversible action. Exists because
+        //                              the alternative was an authenticated
+        //                              endpoint asking a client for an email
+        //                              address to identify an account the
+        //                              token already names.
+        //   usp_User_SetPassword       replace stored material — the rehash-on-
+        //                              login upgrade, and password change later
+        //
+        // Anything else appearing here is the defect this test was written for.
         using var connection = DatabaseFixture.Open();
 
         var offenders = connection.Query<string>("""
@@ -427,7 +444,9 @@ public sealed class AccessAdministrationTests : IAsyncLifetime
             FROM sys.sql_modules m
             JOIN sys.objects o ON o.object_id = m.object_id
             WHERE o.type = 'P'
-              AND o.name NOT IN ('usp_User_GetForLogin', 'usp_User_Register')
+              AND o.name NOT IN (
+                  'usp_User_GetForLogin', 'usp_User_Register',
+                  'usp_User_GetLoginMaterial', 'usp_User_SetPassword')
               AND (m.definition LIKE '%PasswordHash%'
                 OR m.definition LIKE '%PasswordSalt%')
             """).ToList();

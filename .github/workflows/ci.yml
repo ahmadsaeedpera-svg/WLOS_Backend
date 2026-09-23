@@ -97,7 +97,7 @@ jobs:
           echo "SQL Server did not become ready"; exit 1
 
       - name: Create database
-        run: $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -Q "CREATE DATABASE MarenPlatform"
+        run: $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -Q "CREATE DATABASE WlosPlatform"
 
       - name: Apply schema
         # Order matters and every script is idempotent. A failure here stops the
@@ -126,7 +126,7 @@ jobs:
                    55_Growth_Routines.sql 56_Procs_Growth_Routines.sql 58_Recommendation.sql \
                    59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 70_Operations.sql 71_Procs_Operations.sql 72_Procs_Bootstrap.sql 73_Observability.sql 74_AuditContract_Apply.sql; do
             echo "--- $f"
-            $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
+            $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i "$f" -b
           done
 
       - name: Verify schema applies from scratch a second time
@@ -154,7 +154,7 @@ jobs:
                    52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
                    55_Growth_Routines.sql 56_Procs_Growth_Routines.sql 58_Recommendation.sql \
                    59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 70_Operations.sql 71_Procs_Operations.sql 72_Procs_Bootstrap.sql 73_Observability.sql 74_AuditContract_Apply.sql; do
-            $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i "$f" -b
+            $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i "$f" -b
           done
 
       - name: CI workflow guard
@@ -178,14 +178,14 @@ jobs:
       - name: SQL assertion suite — CMS workflow
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/cms_workflow_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/cms_workflow_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::CMS workflow assertions failed"; exit 1; }
 
       - name: SQL assertion suite — access control
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/access_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/access_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Access assertions failed"; exit 1; }
 
@@ -195,7 +195,7 @@ jobs:
         # guidance reaching devices unattended.
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/scheduled_publish_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/scheduled_publish_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Scheduled publish assertions failed"; exit 1; }
 
@@ -205,7 +205,7 @@ jobs:
         # This is what stops the eighteen fixed in 30_* from coming back.
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/index_coverage_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/index_coverage_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Foreign key index coverage assertions failed"; exit 1; }
 
@@ -216,7 +216,7 @@ jobs:
         # well-meant debugging column would reverse that.
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/ai_safety_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/ai_safety_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::AI safety ledger assertions failed"; exit 1; }
 
@@ -226,7 +226,7 @@ jobs:
         # cannot be recovered once a transition has discarded it.
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/life_stage_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/life_stage_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Life stage assertions failed"; exit 1; }
 
@@ -236,7 +236,7 @@ jobs:
         # are the only thing that catches either one.
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/content_targeting_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/content_targeting_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Content targeting assertions failed"; exit 1; }
 
@@ -247,7 +247,7 @@ jobs:
         # table survives ten million rows.
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/timeline_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/timeline_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Timeline assertions failed"; exit 1; }
 
@@ -259,7 +259,7 @@ jobs:
         # adds "causes" will arrive in a hurry and look harmless in review.
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/knowledge_graph_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/knowledge_graph_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Knowledge graph assertions failed"; exit 1; }
 
@@ -270,7 +270,7 @@ jobs:
         # a quiet day and a dashboard that nags.
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/dashboard_engine_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/dashboard_engine_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Dashboard engine assertions failed"; exit 1; }
 
@@ -281,7 +281,7 @@ jobs:
         # confidence means unknown.
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/intelligence_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/intelligence_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Intelligence core assertions failed"; exit 1; }
 
@@ -292,7 +292,7 @@ jobs:
         # and it caught five orphans on a fresh database the first time.
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/rule_engine_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/rule_engine_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Rule engine assertions failed"; exit 1; }
 
@@ -303,7 +303,7 @@ jobs:
         # would be impersonation under another name.
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/inspector_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/inspector_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Inspector assertions failed"; exit 1; }
 
@@ -315,7 +315,7 @@ jobs:
         # computing any of it.
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/behaviour_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/behaviour_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Behaviour assertions failed"; exit 1; }
 
@@ -327,7 +327,7 @@ jobs:
         # achievement earned from the timeline rather than declared by a client.
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/growth_goals_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/growth_goals_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Goal assertions failed"; exit 1; }
 
@@ -339,7 +339,7 @@ jobs:
         # event subject — which would complete on one logged event.
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/growth_routines_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/growth_routines_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Routine assertions failed"; exit 1; }
 
@@ -351,7 +351,7 @@ jobs:
         # assembly as the live path.
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/recommendation_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/recommendation_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Recommendation assertions failed"; exit 1; }
 
@@ -362,7 +362,7 @@ jobs:
         # it never reassembles - checked against the dependency graph.
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/coach_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/coach_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Coach assertions failed"; exit 1; }
 
@@ -379,7 +379,7 @@ jobs:
         # produced, on a database with no administrator.
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/bootstrap_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/bootstrap_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Bootstrap assertions failed"; exit 1; }
 
@@ -392,7 +392,7 @@ jobs:
         # than a manufactured value.
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/observability_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/observability_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Observability assertions failed"; exit 1; }
 
@@ -405,7 +405,7 @@ jobs:
         # dependency graph rather than the module text.
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/ops_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/ops_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Operations assertions failed"; exit 1; }
 
@@ -418,7 +418,7 @@ jobs:
         # module carries any of the measure arithmetic.
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/prediction_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/prediction_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Prediction assertions failed"; exit 1; }
 
@@ -432,14 +432,14 @@ jobs:
         # pass actually produces.
         working-directory: src/Maren.Database
         run: |
-          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d MarenPlatform -I -i tests/audit_contract_test.sql)
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/audit_contract_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Audit contract assertions failed"; exit 1; }
 
       - name: Integration tests
         env:
-          ConnectionStrings__MarenPlatform: >-
-            Server=localhost,1433;Database=MarenPlatform;User Id=sa;
+          ConnectionStrings__WlosPlatform: >-
+            Server=localhost,1433;Database=WlosPlatform;User Id=sa;
             Password=${{ secrets.CI_SQL_PASSWORD || 'Local!CI!Passw0rd#2026' }};
             TrustServerCertificate=True;MultipleActiveResultSets=True
         run: >-

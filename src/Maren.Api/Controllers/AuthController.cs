@@ -1,4 +1,5 @@
 using FluentValidation;
+using Maren.Application.Abstractions;
 using Maren.Application.Auth;
 using Maren.Contracts;
 using Maren.Domain;
@@ -64,6 +65,21 @@ public abstract class MarenControllerBase : ControllerBase
         FailureCodes.NotFound => StatusCodes.Status404NotFound,
         FailureCodes.EmailInUse => StatusCodes.Status409Conflict,
 
+        /*  422, not 400. The payload was well formed and the date parsed — the
+            request is being refused on what it says, not on how it was
+            written, and a client that treats 400 as "I sent malformed JSON"
+            would report the wrong thing to the wrong person. */
+        FailureCodes.UnderMinimumAge => StatusCodes.Status422UnprocessableEntity,
+
+        // A typo, so a plain 400: the value really is unusable.
+        FailureCodes.InvalidDateOfBirth => StatusCodes.Status400BadRequest,
+
+        /*  A refusal about what this account is, not about the request or the
+            caller's permissions. She is authenticated and allowed to call the
+            endpoint; the platform declines to erase this particular account
+            through this particular door. */
+        FailureCodes.OperatorAccount => StatusCodes.Status409Conflict,
+
         // A stale edit and a duplicate key are both conflicts, not bad
         // requests: the payload was well formed and the caller can retry after
         // refetching. A 400 would tell a client to stop rather than reload.
@@ -124,7 +140,8 @@ public abstract class MarenControllerBase : ControllerBase
 
 [Route("api/v1/auth")]
 [AllowAnonymous]
-public sealed class AuthController(ISender sender) : MarenControllerBase
+public sealed class AuthController(ISender sender, ICurrentUser currentUser)
+    : MarenControllerBase
 {
     /// <summary>Creates an account and returns a session.</summary>
     [HttpPost("register")]
@@ -158,4 +175,43 @@ public sealed class AuthController(ISender sender) : MarenControllerBase
         CancellationToken ct) =>
         ValidateThen<RefreshCommand, AuthResponse>(
             new RefreshCommand(request), validator, sender, ct);
+
+    /// <summary>Ends this session, or every session.</summary>
+    /// <remarks>
+    /// <para>
+    /// The one authenticated endpoint on this controller — the class is
+    /// <c>[AllowAnonymous]</c> because registering and signing in cannot
+    /// require a token, and this opts back in. The account being signed out is
+    /// read from the access token and never from the body, which is why the
+    /// body has no user identifier to send.
+    /// </para>
+    /// <para>
+    /// Succeeds for a token that is unknown, already revoked or already
+    /// expired. There is no useful recovery from a failed sign-out, and the
+    /// client has discarded the token either way.
+    /// </para>
+    /// </remarks>
+    [HttpPost("logout")]
+    [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<object>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 401)]
+    public async Task<IActionResult> Logout(
+        [FromBody] LogoutRequest request,
+        [FromServices] IValidator<LogoutCommand> validator,
+        CancellationToken ct)
+    {
+        if (currentUser.UserId is not { } userId) return Unauthenticated();
+
+        var command = new LogoutCommand(userId, request);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+        {
+            return BadRequest(ApiResponse<object>.Invalid(
+                validation.Errors
+                    .GroupBy(e => e.PropertyName)
+                    .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray())));
+        }
+
+        return FromResult(await sender.Send(command, ct));
+    }
 }

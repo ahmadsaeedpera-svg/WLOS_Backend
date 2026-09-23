@@ -10,7 +10,7 @@ Development, staging, production environments and release procedures.
 
 **Backend:**
 - SQL Server LocalDB (ships with Visual Studio)
-- API runs on `http://localhost:5199`
+- API runs on `http://localhost:5299`
 - Scalar API reference at `/scalar/v1`
 - Configuration: `appsettings.Development.json` (committed)
 
@@ -21,7 +21,7 @@ Development, staging, production environments and release procedures.
 
 **Portal:**
 - `npm run dev` → `http://localhost:5173`
-- API base: `http://localhost:5199` (via `.env.development`)
+- API base: `http://localhost:5299` (via `.env.development`)
 
 ### Staging
 
@@ -199,7 +199,7 @@ sync dist/ to production
 ```json
 {
   "ConnectionStrings": {
-    "MarenPlatform": "Server=(localdb)\\MSSQLLocalDB;Database=MarenPlatform;Integrated Security=true;"
+    "WlosPlatform": "Server=(localdb)\\MSSQLLocalDB;Database=WlosPlatform;Integrated Security=true;"
   },
   "Jwt": {
     "SigningKey": "dev-only-key-32-characters-long",
@@ -214,7 +214,7 @@ sync dist/ to production
 
 **Staging & Production** (via environment variables, never committed):
 ```bash
-export ConnectionStrings__MarenPlatform="Server=staging-db.azure.com;Database=MarenPlatform;User Id=sa;Password=...;Encrypt=True"
+export ConnectionStrings__WlosPlatform="Server=staging-db.azure.com;Database=WlosPlatform;User Id=sa;Password=...;Encrypt=True"
 export Jwt__SigningKey="<random-32-character-key-from-vault>"
 export Cors__AdminPortalOrigins__0="https://admin.example.com"
 ```
@@ -224,7 +224,7 @@ export Cors__AdminPortalOrigins__0="https://admin.example.com"
 **API base URL** (compile-time, via `--dart-define`):
 ```bash
 # Development
-flutter run --dart-define=API_BASE=http://localhost:5199
+flutter run --dart-define=API_BASE=http://localhost:5299
 
 # Staging
 flutter build appbundle --dart-define=API_BASE=https://staging-api.example.com
@@ -237,7 +237,7 @@ flutter build appbundle --dart-define=API_BASE=https://api.example.com
 
 **.env.development** (committed template):
 ```bash
-VITE_API_BASE=http://localhost:5199
+VITE_API_BASE=http://localhost:5299
 ```
 
 **.env.production** (NOT committed, set via build/deploy system):

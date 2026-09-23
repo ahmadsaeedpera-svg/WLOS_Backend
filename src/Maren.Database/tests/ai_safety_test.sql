@@ -59,10 +59,25 @@ SELECT 'ledger cannot hold message content',
 
 -- 3 -------------------------------------------------------------------------
 /*  Append-only: nothing may update or delete it. Mirrors the rule enforced on
-    Audit.AuditLog. Checked against every procedure body in the database. */
+    Audit.AuditLog. Checked against every procedure body in the database.
+
+    One named exception, and it is the same one for the same reason:
+    usp_User_DeleteAccount.
+
+    A safety event is a refusal, a clinical score and a crisis score attached
+    to a person. That makes it the most sensitive thing in this database and
+    unambiguously hers, so an erasure that kept it would not be an erasure.
+    Append-only protects the ledger from being tidied up after the fact; it was
+    never meant to outlive the woman it describes.
+
+    The same three things keep the exception narrow as on the audit log: it is
+    one procedure by name, that procedure refuses any account holding a role
+    beyond Member, and it appends a tombstone for the deletion itself. */
 SELECT @n = COUNT(*)
 FROM sys.sql_modules m
-WHERE (m.definition LIKE '%UPDATE%SafetyEvent%'
+JOIN sys.objects o ON o.object_id = m.object_id
+WHERE o.name <> 'usp_User_DeleteAccount'
+  AND (m.definition LIKE '%UPDATE%SafetyEvent%'
     OR m.definition LIKE '%DELETE%SafetyEvent%'
     OR m.definition LIKE '%TRUNCATE%SafetyEvent%');
 

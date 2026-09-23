@@ -32,6 +32,22 @@ public sealed class RegisterValidator : AbstractValidator<RegisterCommand>
 
         RuleFor(x => x.Request.CountryIso)
             .Length(2).When(x => !string.IsNullOrEmpty(x.Request.CountryIso));
+
+        /*  Shape only, not the gate.
+
+            This catches a date nobody could have meant — next year, or the
+            nineteenth century — so the caller gets a specific message instead
+            of a generic refusal. The launch age itself is checked in
+            Identity.usp_User_Register and nowhere else that matters: a rule
+            enforced in a validator is a rule that an import job, an admin
+            script or a future service does not have to obey. */
+        RuleFor(x => x.Request.DateOfBirth)
+            .NotEqual(default(DateOnly))
+            .WithMessage("Your date of birth is needed to continue.")
+            .Must(d => d <= DateOnly.FromDateTime(DateTime.UtcNow))
+            .WithMessage("That date is in the future.")
+            .Must(d => d >= DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-120)))
+            .WithMessage("Please check that date.");
     }
 }
 
@@ -49,7 +65,7 @@ public sealed class RegisterHandler(
         var (hash, salt, iterations) = hasher.Hash(request.Password);
 
         var created = await repository.RegisterAsync(
-            request.Email, hash, salt, iterations,
+            request.Email, hash, salt, iterations, request.DateOfBirth,
             request.CountryIso, request.LanguageCode ?? "en-GB",
             currentUser.IpAddress, ct);
 
@@ -153,11 +169,19 @@ public sealed class LoginHandler(
         if (needsRehash)
         {
             /*  Upgrading the stored cost happens on the one occasion the
-                plaintext is legitimately in hand. */
+                plaintext is legitimately in hand.
+
+                This called RegisterAsync until now, which found the address
+                already registered, returned EMAIL_IN_USE and changed nothing —
+                so no stored hash has ever actually been upgraded, and every
+                account predating the last iteration increase is still at the
+                old work factor. SetPasswordAsync writes the material and
+                leaves the security stamp alone, because the same password at
+                a higher cost is not a credential change and must not sign her
+                out mid-login. */
             var (hash, salt, iterations) = hasher.Hash(request.Password);
-            await repository.RegisterAsync(
-                request.Email, hash, salt, iterations, null, "en-GB",
-                currentUser.IpAddress, ct);
+            await repository.SetPasswordAsync(
+                material.UserId, hash, salt, iterations, ct);
         }
 
         if (request.Device is { } device)
@@ -215,5 +239,114 @@ public sealed class RefreshHandler(
         return Result<AuthResponse>.Success(new AuthResponse(
             userId, access.Token, access.ExpiresUtc,
             replacement.Token, replacement.ExpiresUtc, permissions));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Logout
+// ---------------------------------------------------------------------------
+
+/// <param name="UserId">
+/// From the access token, resolved in the controller. Never from the request
+/// body: a logout that trusted a client-supplied identifier would be a way to
+/// sign any account out by guessing a GUID.
+/// </param>
+public sealed record LogoutCommand(Guid UserId, LogoutRequest Request)
+    : IRequest<Result>;
+
+public sealed class LogoutValidator : AbstractValidator<LogoutCommand>
+{
+    public LogoutValidator() =>
+        RuleFor(x => x.Request.RefreshToken)
+            .MaximumLength(512)
+            .When(x => x.Request.RefreshToken is not null);
+}
+
+/// <summary>Ends this session, or every session.</summary>
+/// <remarks>
+/// Succeeds for a token that is unknown, already revoked or already expired.
+/// There is no useful recovery from a failed sign-out — the client has
+/// discarded the token either way — and an error here would strand someone on
+/// a screen whose only purpose is to let them leave. The one refusal is a
+/// token belonging to somebody else, which the procedure reports because the
+/// only ways to reach it are a client bug and an attempt.
+/// </remarks>
+public sealed class LogoutHandler(
+    IAuthRepository repository,
+    ITokenService tokens,
+    ICurrentUser currentUser)
+    : IRequestHandler<LogoutCommand, Result>
+{
+    public async Task<Result> Handle(LogoutCommand command, CancellationToken ct)
+    {
+        var hash = string.IsNullOrEmpty(command.Request.RefreshToken)
+            ? null
+            : tokens.HashRefreshToken(command.Request.RefreshToken);
+
+        /*  Nothing to revoke and not asked to clear everything. The access
+            token still has its remaining minutes to run either way — that is
+            what a short expiry is for — so this is not a silent failure. */
+        if (hash is null && !command.Request.AllDevices)
+            return Result.Success();
+
+        return await repository.RevokeRefreshTokenAsync(
+            command.UserId, hash, command.Request.AllDevices,
+            currentUser.IpAddress, ct);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Delete account
+// ---------------------------------------------------------------------------
+
+/// <param name="UserId">From the access token. See <see cref="LogoutCommand"/>.</param>
+public sealed record DeleteAccountCommand(Guid UserId, DeleteAccountRequest Request)
+    : IRequest<Result>;
+
+public sealed class DeleteAccountValidator : AbstractValidator<DeleteAccountCommand>
+{
+    public DeleteAccountValidator() =>
+        RuleFor(x => x.Request.Password).NotEmpty().MaximumLength(256);
+}
+
+/// <summary>Erases the account and everything behind it.</summary>
+/// <remarks>
+/// <para>
+/// The password is re-verified here rather than taken on trust from a valid
+/// access token. A token proves the session was hers when it started; it does
+/// not prove she is the one holding the phone now, and this is the one action
+/// with no undo behind it.
+/// </para>
+/// <para>
+/// Re-reading the login material by <em>email</em> would mean the handler
+/// needed an address it has no business asking a client for. It reads by user
+/// id instead, so the only thing crossing the boundary is the password she has
+/// just typed.
+/// </para>
+/// </remarks>
+public sealed class DeleteAccountHandler(
+    IAuthRepository repository,
+    IPasswordHasher hasher)
+    : IRequestHandler<DeleteAccountCommand, Result>
+{
+    public async Task<Result> Handle(
+        DeleteAccountCommand command, CancellationToken ct)
+    {
+        var material = await repository.GetLoginMaterialAsync(command.UserId, ct);
+
+        if (material?.PasswordHash is null || material.PasswordSalt is null ||
+            material.PasswordIterations is null)
+        {
+            return Result.Failure(FailureCodes.InvalidCredentials);
+        }
+
+        var (verified, _) = hasher.Verify(
+            command.Request.Password, material.PasswordHash,
+            material.PasswordSalt, material.PasswordIterations.Value);
+
+        if (!verified)
+            return Result.Failure(FailureCodes.InvalidCredentials);
+
+        return await repository.DeleteAccountAsync(command.UserId, ct);
     }
 }

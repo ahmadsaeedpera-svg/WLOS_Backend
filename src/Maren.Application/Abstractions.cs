@@ -93,12 +93,37 @@ public interface ITokenService
 
 public interface IAuthRepository
 {
+    /// <param name="dateOfBirth">
+    /// Required, and checked against the launch age in the database rather than
+    /// here. An account that should never have existed is worse than a
+    /// registration that fails, so the gate is on the same side of the boundary
+    /// as the insert.
+    /// </param>
     Task<Result<Guid>> RegisterAsync(
         string email, byte[] hash, byte[] salt, int iterations,
-        string? countryIso, string languageCode, string? ip,
+        DateOnly dateOfBirth, string? countryIso, string languageCode,
+        string? ip, CancellationToken ct);
+
+    /// <summary>Replaces stored password material, keeping her signed in.</summary>
+    /// <remarks>
+    /// For the rehash-on-login upgrade. Not a password change: the security
+    /// stamp is untouched, so live sessions survive. The same password at a
+    /// higher work factor is not a credential she has changed.
+    /// </remarks>
+    Task SetPasswordAsync(Guid userId, byte[] hash, byte[] salt, int iterations,
         CancellationToken ct);
 
     Task<LoginMaterial?> GetForLoginAsync(string email, CancellationToken ct);
+
+    /// <summary>The same material, found by user id.</summary>
+    /// <remarks>
+    /// For re-confirming a password when the caller has already authenticated,
+    /// which is how an irreversible action is gated. Reading by email would
+    /// mean an authenticated endpoint accepting an address to identify an
+    /// account the token already names — a second, weaker way to say who is
+    /// being acted on.
+    /// </remarks>
+    Task<LoginMaterial?> GetLoginMaterialAsync(Guid userId, CancellationToken ct);
 
     Task RecordLoginAsync(Guid userId, bool succeeded, string? ip,
         CancellationToken ct);
@@ -118,6 +143,19 @@ public interface IAuthRepository
     Task RegisterDeviceAsync(Guid deviceId, Guid userId, string platform,
         string? osVersion, string? appVersion, string? model, string? fcmToken,
         CancellationToken ct);
+
+    /// <summary>Ends one session, or every session, for a known user.</summary>
+    /// <remarks>
+    /// <paramref name="userId"/> comes from the access token, never from the
+    /// request. The token hash alone would be enough to find the row, and
+    /// revoking by hash alone would let anyone holding a stolen hash sign a
+    /// stranger out; the procedure refuses a token that is not hers.
+    /// </remarks>
+    Task<Result> RevokeRefreshTokenAsync(Guid userId, byte[]? tokenHash,
+        bool allDevices, string? ip, CancellationToken ct);
+
+    /// <summary>Erases the account and every row behind it. Not a flag.</summary>
+    Task<Result> DeleteAccountAsync(Guid userId, CancellationToken ct);
 }
 
 public sealed record LoginMaterial(

@@ -268,7 +268,22 @@ SELECT 'user search returns the expected fixtures and no password columns',
 FROM @userCols;
 
 -- 15 -------------------------------------------------------------------------
-/*  Static check across every procedure in the platform, not just this slice. */
+/*  Static check across every procedure in the platform, not just this slice.
+
+    The four names below are the credential path, and nothing else may be
+    added without a reason as good as theirs:
+
+      usp_User_GetForLogin       verify a password by email — signing in
+      usp_User_Register          set the first password
+      usp_User_GetLoginMaterial  verify a password by user id, for a caller who
+                                 has already authenticated and is confirming
+                                 something irreversible
+      usp_User_SetPassword       replace stored material — the rehash-on-login
+                                 upgrade
+
+    Kept in step with the same list in AccessIntegrationTests.cs. Two copies is
+    one too many, but one is C# reading sys.sql_modules and the other is SQL
+    doing the same, and only the SQL one runs in the assertion suite. */
 INSERT @results
 SELECT 'no procedure selects password material',
        CONCAT('offenders=', COUNT(*)),
@@ -276,7 +291,8 @@ SELECT 'no procedure selects password material',
 FROM sys.sql_modules m
 JOIN sys.objects o ON o.object_id = m.object_id
 WHERE o.type = 'P'
-  AND o.name NOT IN ('usp_User_GetForLogin', 'usp_User_Register')
+  AND o.name NOT IN ('usp_User_GetForLogin', 'usp_User_Register',
+                     'usp_User_GetLoginMaterial', 'usp_User_SetPassword')
   AND (m.definition LIKE '%PasswordHash%' OR m.definition LIKE '%PasswordSalt%');
 
 -- 16 -------------------------------------------------------------------------
@@ -318,7 +334,24 @@ SELECT 'audit search filters by actor and resolves their email',
 FROM @auditRows;
 
 -- 18 -------------------------------------------------------------------------
-/*  The audit trail must have no write path other than append. */
+/*  The audit trail must have no write path other than append.
+
+    One named exception: usp_User_DeleteAccount.
+
+    The append-only rule exists for accountability — so an operator cannot
+    erase the evidence of what they did. That reasoning is about people acting
+    ON the platform. A woman closing her own account is the subject of the log,
+    not an actor in it, and the constitution is unambiguous that "she can
+    delete everything, and deletion means deletion, not a flag". An audit trail
+    of everything she did is still a record of everything she did.
+
+    The exception is deliberately one procedure by name rather than a relaxed
+    pattern, and that procedure refuses to run for any account holding a role
+    beyond Member — so the erasure path cannot be turned on an operator, which
+    is the case the original rule was written to prevent. It appends a
+    tombstone for the deletion itself, so the fact of an erasure survives it.
+
+    If this list ever grows past one, the rule has stopped meaning anything. */
 INSERT @results
 SELECT 'no procedure updates or deletes the audit log',
        CONCAT('offenders=', COUNT(*)),
@@ -326,11 +359,26 @@ SELECT 'no procedure updates or deletes the audit log',
 FROM sys.sql_modules m
 JOIN sys.objects o ON o.object_id = m.object_id
 WHERE o.type = 'P'
+  AND o.name <> 'usp_User_DeleteAccount'
   /*  Brackets escaped as [[] and []]. Unescaped, [Audit] is a LIKE character
       class matching a single char from {A,u,d,i,t} — the original form of this
       assertion reported five false positives. */
   AND (m.definition LIKE '%UPDATE [[]Audit[]].[[]AuditLog[]]%'
     OR m.definition LIKE '%DELETE FROM [[]Audit[]].[[]AuditLog[]]%');
+
+-- 18b ------------------------------------------------------------------------
+/*  And the exception stays an exception: the one procedure allowed to delete
+    audit rows must still be the one that refuses to touch an operator. Without
+    this, relaxing the guard above quietly widens the rule. */
+INSERT @results
+SELECT 'the audit-deletion exception still refuses operator accounts',
+       CONCAT('found=', COUNT(*)),
+       CASE WHEN COUNT(*) = 1 THEN 'PASS' ELSE 'FAIL' END
+FROM sys.sql_modules m
+JOIN sys.objects o ON o.object_id = m.object_id
+WHERE o.type = 'P'
+  AND o.name = 'usp_User_DeleteAccount'
+  AND m.definition LIKE '%OPERATOR_ACCOUNT%';
 
 -- Teardown ------------------------------------------------------------------
 DELETE FROM [Identity].[SecurityStampRevocation]

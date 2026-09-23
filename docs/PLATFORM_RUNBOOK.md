@@ -41,8 +41,8 @@ for f in 01_Schemas.sql 02_Identity.sql 03_Administration.sql 04_Health.sql \
          49_Behaviour.sql 50_Procs_Behaviour.sql 51_Procs_Inspector_Behaviour.sql \
          52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
          55_Growth_Routines.sql 56_Procs_Growth_Routines.sql 58_Recommendation.sql \
-         59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 70_Operations.sql 71_Procs_Operations.sql 72_Procs_Bootstrap.sql 73_Observability.sql 74_AuditContract_Apply.sql; do
-  sqlcmd -S "(localdb)\MSSQLLocalDB" -I -b -d MarenPlatform -i "$f" || break
+         59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 69_Procs_Identity_Account.sql 70_Operations.sql 71_Procs_Operations.sql 72_Procs_Bootstrap.sql 73_Observability.sql 74_AuditContract_Apply.sql; do
+  sqlcmd -S "(localdb)\MSSQLLocalDB" -I -b -d WlosPlatform -i "$f" || break
 done
 ```
 
@@ -69,7 +69,7 @@ deletes only its own test keys first, and is re-runnable.
 
 ```bash
 cd Maren.Platform
-dotnet run --project src/Maren.Api --urls http://localhost:5199
+dotnet run --project src/Maren.Api --urls http://localhost:5299
 ```
 
 Configuration lives in `appsettings.Development.json`. In any other environment
@@ -77,7 +77,7 @@ supply these through the environment or a secret store, never the file:
 
 | Key | Notes |
 |---|---|
-| `ConnectionStrings:MarenPlatform` | |
+| `ConnectionStrings:WlosPlatform` | |
 | `Jwt:Key` | 32 bytes minimum. Rotating it invalidates every access token. |
 | `Jwt:Issuer`, `Jwt:Audience` | |
 | `Cors:AdminPortalOrigins` | Array. Named origins only — see below. |

@@ -45,14 +45,14 @@ Run from the repository root.
 # Build
 dotnet build
 
-# Test — 245 tests, needs SQL Server reachable (see below)
+# Test — 264 tests, needs SQL Server reachable (see below)
 dotnet test tests/Maren.Tests
 
 # Run the API
-dotnet run --project src/Maren.Api --urls http://localhost:5199
+dotnet run --project src/Maren.Api --urls http://localhost:5299
 
 # API reference (development only)
-#   http://localhost:5199/scalar/v1
+#   http://localhost:5299/scalar/v1
 ```
 
 ### Database
@@ -80,12 +80,12 @@ for f in 01_Schemas.sql 02_Identity.sql 03_Administration.sql 04_Health.sql \
          49_Behaviour.sql 50_Procs_Behaviour.sql 51_Procs_Inspector_Behaviour.sql \
          52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
          55_Growth_Routines.sql 56_Procs_Growth_Routines.sql 58_Recommendation.sql \
-         59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 70_Operations.sql 71_Procs_Operations.sql 72_Procs_Bootstrap.sql 73_Observability.sql 74_AuditContract_Apply.sql; do
-  sqlcmd -S "(localdb)\MSSQLLocalDB" -I -b -d MarenPlatform -i "$f" || break
+         59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 69_Procs_Identity_Account.sql 70_Operations.sql 71_Procs_Operations.sql 72_Procs_Bootstrap.sql 73_Observability.sql 74_AuditContract_Apply.sql; do
+  sqlcmd -S "(localdb)\MSSQLLocalDB" -I -b -d WlosPlatform -i "$f" || break
 done
 ```
 
-**Prefer `./ops/db/deploy.sh MarenPlatform`.** It applies this same order, read
+**Prefer `./ops/db/deploy.sh WlosPlatform`.** It applies this same order, read
 from the runbook rather than retyped, and records every script in
 `Ops.DeploymentJournal` with its checksum, duration and outcome — so a database
 can afterwards say what was applied to it and whether anything failed halfway.
@@ -125,11 +125,11 @@ C# test can reach. There are **23 suites, 314 assertions**; every one runs in CI
 and `tests/ci_workflow_test.sh` fails if a suite on disk is missing a CI step.
 
 ```bash
-sqlcmd -S "(localdb)\MSSQLLocalDB" -I -d MarenPlatform -i src/Maren.Database/tests/cms_workflow_test.sql
+sqlcmd -S "(localdb)\MSSQLLocalDB" -I -d WlosPlatform -i src/Maren.Database/tests/cms_workflow_test.sql
 # expect TOTAL: 17  FAILED: 0
 
-sqlcmd -S "(localdb)\MSSQLLocalDB" -I -d MarenPlatform -i src/Maren.Database/tests/access_test.sql
-# expect TOTAL: 19  FAILED: 0
+sqlcmd -S "(localdb)\MSSQLLocalDB" -I -d WlosPlatform -i src/Maren.Database/tests/access_test.sql
+# expect TOTAL: 20  FAILED: 0
 ```
 
 **Run `index_coverage_test.sql` after adding any table.** A feature's own suite
@@ -140,10 +140,10 @@ and none of that feature's twenty assertions noticed.
 ### Operations
 
 ```bash
-./ops/db/deploy.sh MarenPlatform                    # apply + record in Ops.DeploymentJournal
-./ops/db/backup.sh MarenPlatform                    # full (+ log under FULL recovery), verified
-./ops/db/backup.sh MarenPlatform "" --enable-pitr   # switch to FULL recovery, deliberately
-./ops/db/restore-drill.sh MarenPlatform <full.bak> [log.trn] [--stopat '<utc>']
+./ops/db/deploy.sh WlosPlatform                    # apply + record in Ops.DeploymentJournal
+./ops/db/backup.sh WlosPlatform                    # full (+ log under FULL recovery), verified
+./ops/db/backup.sh WlosPlatform "" --enable-pitr   # switch to FULL recovery, deliberately
+./ops/db/restore-drill.sh WlosPlatform <full.bak> [log.trn] [--stopat '<utc>']
 ```
 
 `MAREN_BACKUP_DIR` is a path **on the SQL Server**, not on the machine running
@@ -230,8 +230,19 @@ this. `ProcedureShapeTests` executes each procedure for real and a
 ### 4.3 No procedure outside the login path may touch password material
 
 `Identity.User` holds `PasswordHash`, `PasswordSalt`, `PasswordIterations`. Only
-`usp_User_GetForLogin` and `usp_User_Register` may reference them. A test
-asserts this across every procedure in the database.
+these four procedures may reference them, and a test asserts it across every
+procedure in the database:
+
+| Procedure | Why it is on the list |
+|---|---|
+| `usp_User_GetForLogin` | Verify a password by email — signing in |
+| `usp_User_Register` | Set the first password |
+| `usp_User_GetLoginMaterial` | Verify a password by **user id**, for an already-authenticated caller confirming something irreversible. The alternative was an authenticated endpoint asking a client for an email address to name an account the token already names. |
+| `usp_User_SetPassword` | Replace stored material — the rehash-on-login upgrade |
+
+The list is the credential path, not a convenience allow-list. A procedure that
+needs to be added to it is almost always a procedure that should not be reading
+password material.
 
 ### 4.4 Clients read approved snapshots, never live tables
 
@@ -266,9 +277,30 @@ would mean the record of an escalation attempt is erased by the very rollback
 that attempt caused. This is the **only** deliberate escape from the unit of
 work — do not copy the pattern elsewhere.
 
-### 4.8 Audit is append-only
+### 4.8 Audit is append-only, with exactly one named exception
 
-No procedure updates or deletes `Audit.AuditLog`. A test asserts it.
+No procedure updates or deletes `Audit.AuditLog`. A test asserts it
+(`access_test.sql`, assertion 18).
+
+**The exception is `usp_User_DeleteAccount`, and it is the only one.**
+
+The append-only rule is about accountability: an operator must not be able to
+erase evidence of what they did. That reasoning covers people acting **on** the
+platform. A woman closing her own account is the subject of the log, not an
+actor in it, and the WLOS constitution is unambiguous — *"she can delete
+everything, and deletion means deletion, not a flag."* An audit trail of
+everything she did is still a record of everything she did.
+
+Three things keep the exception from eroding the rule:
+
+- It is one procedure **by name** in the assertion, not a relaxed pattern.
+- That procedure refuses to run for any account holding a role beyond `Member`,
+  so the erasure path cannot be turned on an operator — the case the original
+  rule was written to prevent. Assertion 18b checks the refusal is still there.
+- It appends a tombstone (`User.DeleteAccount`, actor `system`, no IP) so the
+  fact of an erasure outlives the account.
+
+If this list ever grows past one, the rule has stopped meaning anything.
 
 ---
 
@@ -365,8 +397,26 @@ an editor can publish something nobody approved.
 
 See `docs/PLATFORM_DECISIONS.md` and `docs/ADR-001-platform-architecture.md`.
 
-**PD-1 is unresolved and blocks mobile integration.** The shipped app's About
-screen states there is no network code in Maren. That becomes false the day the
-Flutter client talks to this API, and it changes the Play Store Data Safety
-declaration and the GDPR posture. The schema is built so sync is opt-in. This
-needs a decision before any mobile-integration work ships to a device.
+**PD-1 was resolved for WLOS and remains open for Maren.**
+
+The question was whether mobile sync is opt-in or mandatory. Maren's shipped
+About screen states there is no network code and no account, which the schema
+was built to keep true by making sync opt-in. **That answer still stands for
+Maren, and Maren is not to be changed.**
+
+WLOS answered it the other way, by decision: Phase 1 is server-backed, an
+account is required, and a local cache exists for offline reading, performance
+and drafts rather than as the system of record. The consequences were taken
+with it rather than left for later —
+
+- The About screen's "there is no account" and "nothing you enter is ever
+  uploaded" claims were rewritten in the same change that made them false.
+- The launch age is 18+, enforced in `Identity.usp_User_Register` and again in
+  `usp_Profile_Save`, not in a validator.
+- Deletion is real. `usp_User_DeleteAccount` removes every row naming her
+  across thirty tables and is the one named exception to section 4.8.
+
+What this still needs before a store submission: the Play Store Data Safety
+declaration, the privacy policy and the GDPR record of processing all describe
+the old posture and have to be rewritten for the new one. That is compliance
+work (RC-4), not engineering, and it is not done.

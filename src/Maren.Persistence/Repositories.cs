@@ -106,8 +106,8 @@ public sealed class AuthRepository(IDbConnectionFactory factory) : IAuthReposito
 {
     public async Task<Result<Guid>> RegisterAsync(
         string email, byte[] hash, byte[] salt, int iterations,
-        string? countryIso, string languageCode, string? ip,
-        CancellationToken ct)
+        DateOnly dateOfBirth, string? countryIso, string languageCode,
+        string? ip, CancellationToken ct)
     {
         using var connection = await factory.CreateAsync(ct);
         var row = await connection.QuerySingleAsync<RegisterRow>(
@@ -119,6 +119,10 @@ public sealed class AuthRepository(IDbConnectionFactory factory) : IAuthReposito
                     PasswordHash = hash,
                     PasswordSalt = salt,
                     PasswordIterations = iterations,
+                    // A DateOnly, via the type handler registered in
+                    // AddMarenPersistence. A DateTime here would carry a
+                    // midnight nobody meant into an age calculation.
+                    DateOfBirth = dateOfBirth,
                     CountryIso = countryIso,
                     LanguageCode = languageCode,
                     IpAddress = ip
@@ -139,6 +143,18 @@ public sealed class AuthRepository(IDbConnectionFactory factory) : IAuthReposito
             new CommandDefinition(
                 "[Identity].[usp_User_GetForLogin]",
                 new { Email = email },
+                commandType: CommandType.StoredProcedure,
+                cancellationToken: ct));
+    }
+
+    public async Task<LoginMaterial?> GetLoginMaterialAsync(
+        Guid userId, CancellationToken ct)
+    {
+        using var connection = await factory.CreateAsync(ct);
+        return await connection.QuerySingleOrDefaultAsync<LoginMaterial>(
+            new CommandDefinition(
+                "[Identity].[usp_User_GetLoginMaterial]",
+                new { UserId = userId },
                 commandType: CommandType.StoredProcedure,
                 cancellationToken: ct));
     }
@@ -238,6 +254,63 @@ public sealed class AuthRepository(IDbConnectionFactory factory) : IAuthReposito
             },
             commandType: CommandType.StoredProcedure,
             cancellationToken: ct));
+    }
+
+    public async Task SetPasswordAsync(
+        Guid userId, byte[] hash, byte[] salt, int iterations,
+        CancellationToken ct)
+    {
+        using var connection = await factory.CreateAsync(ct);
+        await connection.ExecuteAsync(new CommandDefinition(
+            "[Identity].[usp_User_SetPassword]",
+            new
+            {
+                UserId = userId,
+                PasswordHash = hash,
+                PasswordSalt = salt,
+                PasswordIterations = iterations,
+                Reason = "rehash"
+            },
+            commandType: CommandType.StoredProcedure,
+            cancellationToken: ct));
+    }
+
+    public async Task<Result> RevokeRefreshTokenAsync(
+        Guid userId, byte[]? tokenHash, bool allDevices, string? ip,
+        CancellationToken ct)
+    {
+        using var connection = await factory.CreateAsync(ct);
+        var row = await connection.QuerySingleAsync<RegisterRow>(
+            new CommandDefinition(
+                "[Identity].[usp_RefreshToken_Revoke]",
+                new
+                {
+                    UserId = userId,
+                    TokenHash = tokenHash,
+                    AllDevices = allDevices,
+                    IpAddress = ip
+                },
+                commandType: CommandType.StoredProcedure,
+                cancellationToken: ct));
+
+        return row.Succeeded
+            ? Result.Success()
+            : Result.Failure(row.FailureCode ?? FailureCodes.Forbidden);
+    }
+
+    public async Task<Result> DeleteAccountAsync(Guid userId, CancellationToken ct)
+    {
+        using var connection = await factory.CreateAsync(ct);
+        var row = await connection.QuerySingleAsync<RegisterRow>(
+            new CommandDefinition(
+                "[Identity].[usp_User_DeleteAccount]",
+                new { UserId = userId },
+                commandType: CommandType.StoredProcedure,
+                cancellationToken: ct));
+
+        return row.Succeeded
+            ? Result.Success()
+            : Result.Failure(row.FailureCode ?? FailureCodes.NotFound);
     }
 
     private sealed class RegisterRow
@@ -349,9 +422,34 @@ public sealed class ConfigurationRepository(IDbConnectionFactory factory)
 
 public static class PersistenceRegistration
 {
+    /// <summary>
+    /// Sends a <see cref="DateOnly"/> to SQL Server as a <c>DATE</c>.
+    /// </summary>
+    /// <remarks>
+    /// Dapper reads <c>DATE</c> into a <see cref="DateOnly"/> unaided but will
+    /// not send one as a parameter — it throws "cannot be used as a parameter
+    /// value" at the point of use, which is a runtime failure on a path that
+    /// compiled cleanly. Registering the handler once here means a date is a
+    /// date everywhere, rather than every call site remembering to convert and
+    /// carrying a midnight nobody meant into an age calculation.
+    /// </remarks>
+    private sealed class DateOnlyTypeHandler : SqlMapper.TypeHandler<DateOnly>
+    {
+        public override void SetValue(IDbDataParameter parameter, DateOnly value)
+        {
+            parameter.DbType = DbType.Date;
+            parameter.Value = value.ToDateTime(TimeOnly.MinValue);
+        }
+
+        public override DateOnly Parse(object value) =>
+            DateOnly.FromDateTime((DateTime)value);
+    }
+
     public static IServiceCollection AddMarenPersistence(
         this IServiceCollection services)
     {
+        SqlMapper.AddTypeHandler(new DateOnlyTypeHandler());
+
         /*  Registered here, with TryAdd, so any host able to construct a
             connection factory automatically has what the factory needs. A web
             host replaces the source with one that reads the request; a test

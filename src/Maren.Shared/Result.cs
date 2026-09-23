@@ -77,6 +77,28 @@ public static class FailureCodes
     public const string NotFound = "NOT_FOUND";
     public const string Forbidden = "FORBIDDEN";
     public const string ValidationFailed = "VALIDATION_FAILED";
+
+    /// <summary>The date of birth given is below the launch age.</summary>
+    /// <remarks>
+    /// Distinct from <see cref="InvalidDateOfBirth"/> on purpose. One is a
+    /// refusal and the other is a typo, and a client that cannot tell them
+    /// apart either accuses someone of being under age for slipping on a date
+    /// picker, or tells a fifteen-year-old to check her spelling.
+    /// </remarks>
+    public const string UnderMinimumAge = "UNDER_MINIMUM_AGE";
+
+    /// <summary>In the future, or implying an age no human has reached.</summary>
+    public const string InvalidDateOfBirth = "INVALID_DATE_OF_BIRTH";
+
+    /// <summary>Self-service deletion refused: the account holds operator roles.</summary>
+    /// <remarks>
+    /// Operators are woven into the platform's own history — approvals,
+    /// publications, role grants — and erasing one leaves that history pointing
+    /// at nothing. Offboarding an operator is a separate procedure with
+    /// different rules; letting the self-service endpoint do it would mean an
+    /// administrator could quietly dismantle themselves.
+    /// </remarks>
+    public const string OperatorAccount = "OPERATOR_ACCOUNT";
 }
 
 /// <summary>

@@ -130,12 +130,12 @@ Expect `TOTAL: 17  FAILED: 0` and `TOTAL: 19  FAILED: 0`.
 ```bash
 dotnet build
 dotnet test tests/Maren.Tests          # 245 tests
-dotnet run --project src/Maren.Api --urls http://localhost:5199
+dotnet run --project src/Maren.Api --urls http://localhost:5299
 ```
 
-- API reference: http://localhost:5199/scalar/v1
-- Liveness: http://localhost:5199/health/live
-- Readiness: http://localhost:5199/health/ready
+- API reference: http://localhost:5299/scalar/v1
+- Liveness: http://localhost:5299/health/live
+- Readiness: http://localhost:5299/health/ready
 
 ### 6. Create your first administrator
 
@@ -143,7 +143,7 @@ Register through the API, then grant the role once directly — after this, all
 role management happens in the admin portal.
 
 ```bash
-curl -X POST http://localhost:5199/api/v1/auth/register \
+curl -X POST http://localhost:5299/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"you@example.com","password":"<a strong password>","displayName":"You"}'
 ```

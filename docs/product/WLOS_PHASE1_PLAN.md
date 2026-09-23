@@ -180,15 +180,30 @@ is a signal to stop and reconsider rather than to add features.
 
 ---
 
-## 6. Decisions needed before code
+## 6. Decisions needed before code — ALL FIVE RESOLVED
 
-| # | Decision | Blocks |
-|---|---|---|
-| 1 | **Canonical WLOS API port** — `docker-compose` 5299 vs `launchSettings` 5366 | Everything runnable |
-| 2 | **Launch age** — 16+ or 18+ | Age assurance, EU KIDS Act exposure |
-| 3 | **Deletion semantics** — soft vs hard (§6.2) | Any write path. **Decide before the first user record exists** |
-| 4 | **Does the app write to the server at all in Phase 1?** PD-1 | The entire write path |
-| 5 | **Instrumentation thresholds** (§5) | Nothing, but agree now or never |
+Locked by decision before Slice 1. Do not reopen unless an implementation
+contradiction makes one impossible.
+
+| # | Decision | Answer | Where it now lives |
+|---|---|---|---|
+| 1 | Canonical WLOS API port | **5299** | `launchSettings.json`, `CLAUDE.md`, `README.md`, `docs/DEPLOYMENT.md`, `docs/PLATFORM_RUNBOOK.md`. Maren keeps 5199 and the two must never collide. |
+| 2 | Launch age | **18+** | `Identity.fn_MinimumAge()`, enforced in `usp_User_Register` and `usp_Profile_Save` |
+| 3 | Deletion semantics | **Hard, for Phase-1 user-owned data** | `usp_User_DeleteAccount`; the one named exception to the append-only rule (CLAUDE.md §4.8) |
+| 4 | Does the app write to the server in Phase 1? | **Yes — server-backed, local cache for offline/performance/drafts** | `core/auth/` in the app; About screen claims rewritten in the same change |
+| 5 | Instrumentation | **From day one**, thresholds pre-committed separately | Six account events in `AnalyticsEvent.allowlist` |
+
+**On decision 3, the part that was not obvious.** Hard deletion collides with
+two standing rules — the audit log is append-only, and so is the AI safety
+ledger. Both were resolved the same way: `usp_User_DeleteAccount` is a single
+named exception in all three assertion suites that enforce the rule, it refuses
+any account holding a role beyond `Member`, and it appends a tombstone so the
+fact of an erasure outlives the account. The reasoning is that append-only
+protects the platform from an operator tidying up after themselves, and a woman
+closing her own account is the subject of those logs rather than an actor in
+them.
+
+### The original framing, kept for the record
 
 **Decision 4 is the largest.** The app currently makes three GETs and zero
 writes, and the About screen claims no network code. A write path changes the
