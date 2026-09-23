@@ -293,13 +293,41 @@ her own words**.
 
 ### Thresholds, set before the data arrives
 
+**Interaction score is evidence strength, not a market verdict.** A woman may
+open with *"I was exhausted"* and only later reveal that work hours, childcare,
+sleep and a relationship were interacting. That is real evidence even though she
+did not formulate the chain in her first sentence. A score of 1 is a finding,
+not a failure.
+
+So the gate is a **combination**, not a single number:
+
+| Signal | Threshold | Reads as |
+|---|---|---|
+| Interaction ≥ 1 | ≥ 9 of 14 | The phenomenon is **common enough to justify prototype testing** |
+| Interaction = 2 | count separately | How *visible* it is to her without help |
+| **Recurrence ≥ 1** | ≥ 9 | It happens again — without this there is no return loop |
+| **Gap ≥ 1** | ≥ 9 | Existing tools do not already handle it |
+| **Memory value ≥ 1** | ≥ 9 | Remembering context could change what happens next |
+| **Trust ≥ 1** | ≥ 9 | She would permit that memory |
+| Frequency ≥ 1 | ≥ 9 | Often enough to support repeated use |
+
+**All five of recurrence, gap, memory value, trust and frequency must clear**,
+not just interaction. WLOS needs the combination; any one alone is interesting
+and insufficient.
+
+**Independent kill conditions:**
+
 | Result | Meaning |
 |---|---|
-| **Interaction scores 2 in ≥ 9 of 14** | Thesis supported. Proceed to Phase B |
-| Interaction scores 2 in 5–8 | Real but not universal. Segment matters more than thought |
-| **Interaction scores 2 in ≤ 4** | **Thesis not supported. Change the product** |
-| **Trust ≤ 1 in ≥ 7 of 14** | Longitudinal context is a liability, not an asset. **This kills the thesis independently** |
+| **Interaction = 0 in ≥ 10 of 14** | Women describe single problems. **Change the product** |
+| **Trust ≤ 1 in ≥ 7 of 14** | Longitudinal context is a liability, not an asset. **Kills it independently of everything else** |
+| Gap = 0 in ≥ 9 | Existing tools are sufficient. No room |
 | Employer trust 0 in ≥ 7 | B2B2C is not viable regardless of employer demand |
+
+**What 9 of 14 does and does not mean.** It means the phenomenon is common
+enough to justify building a prototype. **It does not establish a market.**
+Fourteen interviews cannot, and any sentence claiming otherwise should be struck
+from the output.
 
 Writing thresholds down now is the only protection against reading 14
 interesting conversations as validation.
