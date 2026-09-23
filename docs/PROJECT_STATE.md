@@ -24,7 +24,7 @@ is hypothesis, and what is unproven.
 | What it is | Pregnancy-focused product, stable | Lifelong companion, in discovery |
 | Status | **Working, deployed, live** | **Repos seeded, no product work** |
 | Repos | `Maren-Backend`, `Maren-Frontend` | `WLOS_Backend`, `WLOS_App`, `WLOS_FrontEnd` |
-| Hosting | `maren-api` / `maren-app` `.hamzadecor.com` | None yet |
+| Hosting | `maren-api` / `maren-app` `.hamzadecor.com` — **live** | **Not configured** — deliberate, see §6.4 |
 | Database | `MarenPlatform` | `WlosPlatform` |
 | Ports | API 5199, portal 4173 | API 5299, portal 4273 |
 | App id | `com.ostrevo.maren` | `com.ostrevo.wlos` |
@@ -176,10 +176,50 @@ Deliberate decision required, later.
 
 | Item | Note |
 |---|---|
-| Orphan table in `WlosPlatform` | Created by the mistaken manual re-run of script 34 (§6.4), after script 74 applied the audit contract. The only non-exempt table outside that contract. **Do not modify database state during the freeze** — drop it when the freeze lifts |
+| Orphan table in `WlosPlatform` | Created by the mistaken manual re-run of script 34 (§6.5), after script 74 applied the audit contract. The only non-exempt table outside that contract. **Do not modify database state during the freeze** — drop it when the freeze lifts |
 | Targeting evaluator documentation is stale | `WLOS_FOUNDATION.md` §§2.1–2.7 describe the superseded evaluator. Whether `Rules.fn_Match` preserves the three operators, OR-within/AND-across, the universal fallback and UNKNOWN handling is **not verified** and stays marked so until checked |
 
-### 6.4 Retracted — history retained
+### 6.4 Pre-deployment state — deliberate, not a defect
+
+Recorded from the read-only environment audit of 23 September 2026. **WLOS is
+intentionally pre-deployment**; hosting is on the frozen list until the product
+thesis is tested.
+
+**1. WLOS hosting is not configured.** There is no WLOS tunnel, hostname, DNS
+route, ingress rule or local service target. Two tunnels exist on the account —
+`maren` (3 active connections, serving `maren-api` and `maren-app`) and
+`omnisocial` (idle). The string "wlos" appears in no tunnel config. Five
+candidate hostnames were tested and none resolves. The portal's
+`allowedHosts` is an empty placeholder awaiting a hosting decision.
+
+Current shape:
+
+```
+MAREN                              WLOS
+  backend  :5199 -> maren-api        backend  :5299 -> (none)
+  portal   :4173 -> maren-app        portal   :4273 -> (none)
+  LIVE                               READY, NOT DEPLOYED
+```
+
+**2. WLOS API port configuration is inconsistent and must be reconciled before
+deployment.**
+
+| Source | Port |
+|---|---|
+| `docker-compose.yml` | **5299** |
+| `launchSettings.json` | 5366 (https 7283) |
+| `WLOS_FrontEnd/.env.development` | points at **5299** |
+
+**Do not patch one file now.** Deployment should establish one canonical WLOS
+API port and align Docker, ASP.NET, the frontend, Cloudflare, documentation and
+health checks together — patching a single file now risks being undone when the
+deployment architecture is actually decided.
+
+Neither item is a production defect, because nothing is running. Both are
+prerequisites for the day WLOS is deployed, which is after the Phase A Findings
+Report, not before.
+
+### 6.5 Retracted — history retained
 
 **`ContentTargetingRule` "deployment defect" — withdrawn. Removed from the
 active defect list.**
@@ -351,6 +391,7 @@ Human model            GREEN   10 of 15 dimensions exist
 Trust / constitution   GREEN   written, and already partly implemented
 Market research        GREEN   sufficient for discovery
 Research instruments   GREEN   LOCKED
+WLOS deployment        n/a     not configured - deliberate, see section 6.4
 Recruitment            AMBER   not started
 Segment                AMBER   unknown
 Country                AMBER   unknown
