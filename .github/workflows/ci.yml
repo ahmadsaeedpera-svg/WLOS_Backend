@@ -124,7 +124,7 @@ jobs:
                    49_Behaviour.sql 50_Procs_Behaviour.sql 51_Procs_Inspector_Behaviour.sql \
                    52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
                    55_Growth_Routines.sql 56_Procs_Growth_Routines.sql 58_Recommendation.sql \
-                   59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 70_Operations.sql 71_Procs_Operations.sql 72_Procs_Bootstrap.sql 73_Observability.sql 74_AuditContract_Apply.sql; do
+                   59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 69_Procs_Identity_Account.sql 70_Operations.sql 71_Procs_Operations.sql 72_Procs_Bootstrap.sql 73_Observability.sql 74_Crypto.sql 75_Procs_Crypto.sql 76_AuditContract_Apply.sql; do
             echo "--- $f"
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i "$f" -b
           done
@@ -153,7 +153,7 @@ jobs:
                    49_Behaviour.sql 50_Procs_Behaviour.sql 51_Procs_Inspector_Behaviour.sql \
                    52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
                    55_Growth_Routines.sql 56_Procs_Growth_Routines.sql 58_Recommendation.sql \
-                   59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 70_Operations.sql 71_Procs_Operations.sql 72_Procs_Bootstrap.sql 73_Observability.sql 74_AuditContract_Apply.sql; do
+                   59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 69_Procs_Identity_Account.sql 70_Operations.sql 71_Procs_Operations.sql 72_Procs_Bootstrap.sql 73_Observability.sql 74_Crypto.sql 75_Procs_Crypto.sql 76_AuditContract_Apply.sql; do
             $SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i "$f" -b
           done
 
@@ -408,6 +408,20 @@ jobs:
           out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/ops_test.sql)
           echo "$out"
           echo "$out" | grep -q "FAILED: 0" || { echo "::error::Operations assertions failed"; exit 1; }
+
+      - name: Crypto assertions
+        # The key hierarchy invariants, tested the only way a constraint can
+        # honestly be tested: by attempting the violation and asserting the
+        # engine refuses it. Exactly one authoritative credential per account,
+        # exactly one ACTIVE generation, at most one MIGRATING. A recovery
+        # verifier cannot exist without a committed generation, which is what
+        # stops material staged for a pending email reset from ever being
+        # accepted by the recovery-phrase path.
+        working-directory: src/Maren.Database
+        run: |
+          out=$($SQLCMD -C -S localhost -U sa -P "$SA_PASSWORD" -d WlosPlatform -I -i tests/crypto_test.sql)
+          echo "$out"
+          echo "$out" | grep -q "FAILED: 0" || { echo "::error::Crypto assertions failed"; exit 1; }
 
       - name: Prediction assertions
         # A prediction is framed, never computed. These hold that: it can only

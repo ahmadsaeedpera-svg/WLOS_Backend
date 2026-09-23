@@ -27,7 +27,7 @@ Answers to the questions posed:
    `src/Maren.Database`, order read from `docs/PLATFORM_RUNBOOK.md`.
 4. **Which state is deployed?** `WlosPlatform` — all 57, clean. `MarenPlatform` —
    deployed from a stale checkout; its journal records
-   `74_AuditContract_Apply.sql | failed`.
+   `76_AuditContract_Apply.sql | failed`.
 5. **Development?** `WlosPlatform`.
 6. **Staging?** `MarenPlatform` serves Maren staging today. WLOS has none yet.
 7. **Production?** **None exists.** Neither product is in production.

@@ -37,7 +37,7 @@ RUNBOOK="$REPO_ROOT/docs/PLATFORM_RUNBOOK.md"
 # applies the contract with a cursor over sys.tables, so anything created after
 # it is invisible to that pass. The rule is carried by the number; this is
 # where the number is checked.
-AUDIT_LAST="74_AuditContract_Apply.sql"
+AUDIT_LAST="76_AuditContract_Apply.sql"
 
 # ---------------------------------------------------------------------------
 

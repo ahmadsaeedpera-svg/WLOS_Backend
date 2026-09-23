@@ -80,7 +80,7 @@ for f in 01_Schemas.sql 02_Identity.sql 03_Administration.sql 04_Health.sql \
          49_Behaviour.sql 50_Procs_Behaviour.sql 51_Procs_Inspector_Behaviour.sql \
          52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
          55_Growth_Routines.sql 56_Procs_Growth_Routines.sql 58_Recommendation.sql \
-         59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 69_Procs_Identity_Account.sql 70_Operations.sql 71_Procs_Operations.sql 72_Procs_Bootstrap.sql 73_Observability.sql 74_AuditContract_Apply.sql; do
+         59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 69_Procs_Identity_Account.sql 70_Operations.sql 71_Procs_Operations.sql 72_Procs_Bootstrap.sql 73_Observability.sql 74_Crypto.sql 75_Procs_Crypto.sql 76_AuditContract_Apply.sql; do
   sqlcmd -S "(localdb)\MSSQLLocalDB" -I -b -d WlosPlatform -i "$f" || break
 done
 ```
@@ -102,8 +102,8 @@ indexes fail to create.
 
 **Never add a `USE` statement** to a script. The database name comes from `-d`.
 
-**`74_AuditContract_Apply.sql` must stay last.** It has been 48, 51, 54, 65, 69
-and is now 74 — renumbered each time a script added tables, which is exactly
+**`76_AuditContract_Apply.sql` must stay last.** It has been 48, 51, 54, 65, 69,
+74 and is now 76 — renumbered each time a script added tables, which is exactly
 the case this rule exists for. This paragraph has now been wrong twice: it said
 "54" while the file was 65, was corrected to "69" while the file was already
 74, and both times the surrounding prose was the only thing that knew. Treat

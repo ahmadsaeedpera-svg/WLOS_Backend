@@ -62,7 +62,7 @@ dbo.usp_ApplyAuditContract                 Timeline.usp_Timeline_Get
                                            Timeline.usp_Timeline_Record
 ```
 
-`dbo.usp_ApplyAuditContract` is invoked by `74_AuditContract_Apply.sql` at
+`dbo.usp_ApplyAuditContract` is invoked by `76_AuditContract_Apply.sql` at
 deploy time, not from C#; its absence from the C# set is expected.
 The other 23 have no measured caller in either C# or any deployed SQL module.
 
@@ -791,7 +791,7 @@ user has ever registered.
 ### The audit contract
 
 `dbo.usp_ApplyAuditContract` (defined in `08_AuditContract.sql`, applied by
-`74_AuditContract_Apply.sql`) adds `CreatedBy/CreatedOn/ModifiedBy/ModifiedOn/
+`76_AuditContract_Apply.sql`) adds `CreatedBy/CreatedOn/ModifiedBy/ModifiedOn/
 DeletedBy/DeletedOn/IsDeleted/RowVersion` by cursor over `sys.tables`, so a new
 table is audited unless explicitly exempted. Measured: **2 of 87 tables** carry
 an exemption row; both are append-only ledgers.

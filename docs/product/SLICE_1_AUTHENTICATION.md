@@ -62,7 +62,7 @@ hash alone would let anyone holding a stolen hash sign its owner out.
 ## 4. Schema changes
 
 One new script, `69_Procs_Identity_Account.sql`. Numbered 69 because
-`74_AuditContract_Apply.sql` must stay last. Applied three times in a row to
+`76_AuditContract_Apply.sql` must stay last. Applied three times in a row to
 prove idempotence.
 
 | Object | What |
