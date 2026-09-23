@@ -1,6 +1,6 @@
 # Slice 1 — Authentication and the user foundation
 
-**Status:** complete, awaiting review.
+**Status:** COMPLETE. Reviewed and accepted 23 September 2026.
 **Scope kept:** authentication, identity, sessions, profile ownership, account
 lifecycle, API authorization. Nothing about preferences, check-ins, memories or
 the Today recommendation engine — those are later slices and were deliberately
@@ -369,7 +369,7 @@ birth as the permanent record of having turned her away.
 | Suite | Result |
 |---|---|
 | Backend integration | **24 new** — 19 in `AccountLifecycleTests`, 5 in `AuthorizationAttributeTests` |
-| Backend, whole suite | **269 total, 269 passing** |
+| Backend, whole suite | **269 total, 269 passing, 0 failures** — clean uninterrupted run, 10m49s |
 | SQL assertion suites | **23 suites, 315 assertions, 0 failures** |
 | App unit | **19 new** (`auth_test.dart`) |
 | App widget | **10 new** (`auth_gate_test.dart`), 3 of them covering the account screen now that it is reachable |
