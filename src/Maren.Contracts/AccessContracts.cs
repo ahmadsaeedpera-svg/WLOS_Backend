@@ -38,6 +38,25 @@ public sealed record UserDetailDto(
     DateTime CreatedOn,
     DateTime ModifiedOn,
     string? CountryIso,
+
+    /// <summary>Whether a date of birth is on file and clears the launch age.</summary>
+    /// <remarks>
+    /// The date itself is deliberately absent. An operator supporting an
+    /// account needs to know the gate was satisfied; they have no business
+    /// knowing her birthday, and a support screen that displays one leaks it
+    /// every time somebody glances at a shared monitor.
+    /// </remarks>
+    bool IsAgeVerified,
+
+    /// <summary>Sessions that could still be used right now.</summary>
+    /// <remarks>
+    /// Refresh tokens that are neither revoked nor expired — as opposed to
+    /// <see cref="Devices"/>, which is every device that ever registered. This
+    /// is the number actually being asked for when someone reports that they
+    /// think another person is in their account.
+    /// </remarks>
+    int ActiveSessionCount,
+
     IReadOnlyList<UserRoleDto> Roles,
     IReadOnlyList<UserDeviceDto> Devices,
     IReadOnlyList<UserActivityDto> RecentActivity);

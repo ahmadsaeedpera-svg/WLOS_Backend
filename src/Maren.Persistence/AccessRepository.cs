@@ -90,6 +90,7 @@ public sealed class AccessRepository(
                 header.IsEmailConfirmed, header.IsLockedOut, header.LockoutEndUtc,
                 header.FailedLoginCount, header.IsDeleted, header.DeletedOn,
                 header.CreatedOn, header.ModifiedOn, header.CountryIso,
+                header.IsAgeVerified, header.ActiveSessionCount,
                 roles, devices, activity);
         }
         finally
@@ -375,11 +376,21 @@ public sealed class AccessRepository(
         bool IsDeleted, DateTime CreatedOn, string? CountryIso,
         string RoleNames, int TotalCount);
 
+    /// <param name="IsAgeVerified">
+    /// Whether a date of birth is on file and clears the launch age. The date
+    /// itself is deliberately not here: an operator needs to know the gate was
+    /// satisfied and has no business knowing her birthday.
+    /// </param>
+    /// <param name="ActiveSessionCount">
+    /// Refresh tokens that are neither revoked nor expired — sessions that
+    /// could still be used, as opposed to devices that once registered.
+    /// </param>
     private sealed record UserHeaderRow(
         Guid UserId, string? Email, string LanguageCode, bool IsEmailConfirmed,
         bool IsLockedOut, DateTime? LockoutEndUtc, int FailedLoginCount,
         bool IsDeleted, DateTime? DeletedOn, DateTime CreatedOn,
-        DateTime ModifiedOn, string? CountryIso);
+        DateTime ModifiedOn, string? CountryIso,
+        bool IsAgeVerified, int ActiveSessionCount);
 
     private sealed record RoleHeaderRow(
         int RoleId, string Name, string? Description, bool IsSystem,

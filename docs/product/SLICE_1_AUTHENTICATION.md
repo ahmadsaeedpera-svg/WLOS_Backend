@@ -273,6 +273,39 @@ reported as a warning count.
   5199, which is **Maren's** port — following them would have started WLOS on
   top of a live service.
 
+## 7b. Two screens that existed but were not reachable
+
+Caught at acceptance review, not by any test.
+
+**`AccountScreen` was routed to by nothing.** It was written in Slice 1 with
+sign-out, sign-out-everywhere and delete-account on it, every test passed, and a
+woman using the app could not sign out or close her account. A screen no
+navigation reaches is not a feature. It now sits under **Settings → Data &
+privacy → Your account**, and only when a platform is configured — a sign-out
+row in a build with no session would be a control that does nothing, which is
+worse than an absent one because someone looking for a way out would find it and
+be unchanged afterwards. Three widget tests cover it, including one that taps
+sign-out and asserts the session ends.
+
+**The portal got nothing at all from Slice 1.** The age gate was enforced in the
+database and no operator could see whether an account had passed it.
+`UserDetail` now shows:
+
+| | |
+|---|---|
+| **18+ verified / Age not verified** chip | Beside the Locked/Active chip. An account reading "not verified" predates the gate rather than having slipped past it — the distinction an operator needs at a glance. |
+| **Active sessions** | Refresh tokens neither revoked nor expired, reading "None — signed out everywhere" at zero. Distinct from devices, which is every device that ever registered. This is the number someone is actually asking for when they report that they think another person is in their account. |
+| **Account closure** panel | States that closure is hers to do from inside the app, is not available to operators, removes every row across thirty tables, leaves only a tombstone, and cannot be recovered by support. |
+
+**Deliberately absent: her date of birth.** The gate status is what an operator
+needs; her birthday is not, and a support screen that displays one leaks it
+every time somebody glances at a shared monitor. `usp_User_GetDetail` returns
+`IsAgeVerified` as a computed bit and never the date.
+
+This is now a standing rule in `CLAUDE.md` §6, steps 12–14: every slice ships a
+routed mobile screen, an operator screen, and an end-to-end demonstration over
+real HTTP.
+
 ## 8. The app
 
 | File | Role |
@@ -339,8 +372,9 @@ birth as the permanent record of having turned her away.
 | Backend, whole suite | **269 total, 269 passing** |
 | SQL assertion suites | **23 suites, 315 assertions, 0 failures** |
 | App unit | **19 new** (`auth_test.dart`) |
-| App widget | **7 new** (`auth_gate_test.dart`) |
-| App, whole suite | **492 passing**, 3 skipped, analyzer clean |
+| App widget | **10 new** (`auth_gate_test.dart`), 3 of them covering the account screen now that it is reachable |
+| App, whole suite | **495 passing**, 3 skipped, analyzer clean |
+| Portal | `tsc --noEmit` clean · `npm run build` succeeds |
 | Build | `dotnet build` **0 warnings, 0 errors** — verified without `-v q`, see §6b |
 | End to end over HTTP | Age gate 422 · register 200 · authenticated profile 200 · no token 401 · ownership · rotation · replay 401 `TOKEN_REUSED` · logout 200 (authenticated) and 401 with an empty body (unauthenticated, framework challenge) · wrong password 401 · erasure 0 rows across 30 tables · tombstone · revoked token 401 `SESSION_REVOKED` |
 

@@ -359,6 +359,26 @@ existence of the erasure path.
 
 ## 6. Adding a capability
 
+### Every slice ships visible, usable screens. Not just schema.
+
+**Standing rule, set at Slice 1 acceptance.** A slice is not done when the
+procedures exist and the tests pass. It is done when a woman can see and use it
+in **WLOS_App**, and an operator can see and act on it in **WLOS_FrontEnd**.
+
+This exists because Slice 1 nearly shipped two failures of exactly that kind:
+
+- `AccountScreen` was written with sign-out, sign-out-everywhere and
+  delete-account on it, and **nothing routed to it**. Every test passed. A woman
+  could not sign out or close her account from the running app. A screen no
+  navigation reaches is not a feature.
+- The portal got **nothing at all** from Slice 1 — no age-gate status, no
+  session state, no statement of what account closure does. The backend rule
+  existed and no operator could see it.
+
+So: when you finish the backend steps below, you are half done. Ask what she
+sees, what she can tap, and what an operator can see about it. If the answer to
+any of those is "nothing yet", the slice is not finished.
+
 Follow this order. Do not start the next step until the current one is done.
 
 1. **SQL** — tables in a numbered script, procedures in a `1x_Procs_*.sql`,
@@ -375,8 +395,16 @@ Follow this order. Do not start the next step until the current one is done.
 9. **Feature flag** — seed a row if the capability should be switchable.
 10. **Tests** — integration tests against the real database.
 11. **Docs** — update `docs/PLATFORM_RUNBOOK.md`.
+12. **Mobile screen** — in `WLOS_App`, *and routed to*. A widget test that
+    reaches it through the navigation a woman would actually use, not by
+    constructing the screen directly.
+13. **Operator screen** — in `WLOS_FrontEnd`. What an operator needs to see or
+    do about this capability, and no more of her personal data than that needs.
+14. **Show it working** — the capability exercised end to end over real HTTP,
+    app → authenticated API → database, not only through the handlers.
 
-Then the frontend repo can consume it.
+Steps 12–14 are not optional and not "the frontend repo's job later". A
+capability that exists only in the schema is a capability nobody has.
 
 ---
 

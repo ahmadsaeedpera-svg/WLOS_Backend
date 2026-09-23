@@ -379,6 +379,73 @@ END
 GO
 
 -- ---------------------------------------------------------------------------
+-- usp_User_GetDetail  (replaces the definition in 13_Procs_Access.sql)
+-- ---------------------------------------------------------------------------
+/*  Adds two facts an operator needs and could not previously see.
+
+    IsAgeVerified — whether a date of birth is on file and clears the launch
+    age. NOT the date itself, and this is the point: an operator supporting an
+    account needs to know the gate was satisfied, and has no business knowing
+    her birthday. A support screen that shows a date of birth is a support
+    screen that leaks one every time somebody glances at a shared monitor.
+
+    ActiveSessionCount — live, unrevoked, unexpired refresh tokens. The portal
+    could previously show devices that had ever registered but nothing about
+    whether any session was still usable, which is the question actually being
+    asked when someone reports "I think somebody else is in my account".
+
+    Redefined here rather than edited in 13 so the numbered scripts stay
+    append-only. 13 creates it; 69 is the current definition. */
+IF OBJECT_ID('Identity.usp_User_GetDetail') IS NOT NULL
+    DROP PROCEDURE [Identity].[usp_User_GetDetail];
+GO
+CREATE PROCEDURE [Identity].[usp_User_GetDetail]
+    @UserId UNIQUEIDENTIFIER
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        u.UserId, u.Email, u.LanguageCode, u.IsEmailConfirmed,
+        u.IsLockedOut, u.LockoutEndUtc, u.FailedLoginCount,
+        u.IsDeleted, u.DeletedOn, u.CreatedOn, u.ModifiedOn,
+        c.IsoCode AS CountryIso,
+        CAST(ISNULL([Identity].[fn_IsOfMinimumAge](p.DateOfBirth), 0) AS BIT)
+            AS IsAgeVerified,
+        (SELECT COUNT(*) FROM [Identity].[RefreshToken] rt
+         WHERE rt.UserId = u.UserId
+           AND rt.RevokedUtc IS NULL
+           AND rt.ExpiresUtc > SYSUTCDATETIME()) AS ActiveSessionCount
+    FROM [Identity].[User] u
+    LEFT JOIN [Identity].[Country] c ON c.CountryId = u.CountryId
+    LEFT JOIN [Identity].[Profile] p ON p.UserId = u.UserId
+    WHERE u.UserId = @UserId;
+
+    SELECT r.RoleId, r.Name, r.Description, r.IsSystem,
+           ur.AssignedUtc, ur.AssignedBy
+    FROM [Identity].[UserRole] ur
+    JOIN [Identity].[Role] r ON r.RoleId = ur.RoleId
+    WHERE ur.UserId = @UserId
+    ORDER BY r.Name;
+
+    /*  No FcmToken. It is a push credential and the operator has no use for
+        its value — only for knowing the device exists. */
+    SELECT d.DeviceId, d.Platform, d.OsVersion, d.AppVersion, d.Model,
+           d.IsActive, d.LastSeenUtc
+    FROM [Identity].[Device] d
+    WHERE d.UserId = @UserId
+    ORDER BY d.LastSeenUtc DESC;
+
+    SELECT TOP 25
+        a.AuditLogId, a.OccurredUtc, a.[Action], a.EntityType, a.EntityId,
+        a.IpAddress
+    FROM [Audit].[AuditLog] a
+    WHERE a.ActorUserId = @UserId
+    ORDER BY a.OccurredUtc DESC;
+END
+GO
+
+-- ---------------------------------------------------------------------------
 -- usp_User_GetLoginMaterial
 -- ---------------------------------------------------------------------------
 /*  The same six columns usp_User_GetForLogin returns, found by user id.
