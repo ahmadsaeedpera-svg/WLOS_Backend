@@ -7,8 +7,8 @@ Superseded only by the Phase A findings report.
 is hypothesis, and what is unproven.
 
 > **Engineering rule in force:** no WLOS implementation. The platform work is
-> not discarded — it waits for product evidence. Repo states `74 / 51 / 16` are
-> preserved.
+> not discarded — it waits for product evidence. WLOS repo states are
+> preserved; exact HEADs are in section 1.
 >
 > **Research rule in force:** participants are never told the candidate jobs and
 > asked which they want. Evidence must emerge from experience → what happened →
@@ -29,14 +29,17 @@ is hypothesis, and what is unproven.
 | Ports | API 5199, portal 4173 | API 5299, portal 4273 |
 | App id | `com.ostrevo.maren` | `com.ostrevo.wlos` |
 
-### Commit state — all clean, all in sync with origin
+### Commit state
+
+Maren is pinned below. WLOS HEADs move as research documents land; read them
+from git rather than from here, so this table cannot go stale.
 
 | Repo | HEAD | Commits |
 |---|---|---|
 | `Maren-Backend` | `813fd15` | 65 |
 | `Maren-Frontend` | `2bc6030` | 61 |
-| `WLOS_Backend` | `09551d0` | 73 |
-| `WLOS_App` | `c5bd467` | 50 |
+| `WLOS_Backend` | see git | — |
+| `WLOS_App` | see git | — |
 | `WLOS_FrontEnd` | `301688d` | 16 |
 
 **Maren services verified live 23 Sep:** API `database: ok`, portal `200`.
@@ -144,7 +147,11 @@ points.
 
 | Defect | Severity | Note |
 |---|---|---|
-| **`ContentTargetingRule` not created by a clean deploy** | **High** | Reproduced in a throwaway database. Deploy reports `34_ContentTargeting.sql` as **ok**; `TargetingDimension` is created, the rules table is not. Standalone re-run creates it. **Mechanism not established.** `WlosPlatform` only has the table because script 34 was re-run by hand |
+| ~~`ContentTargetingRule` not created by a clean deploy~~ | **RETRACTED** | **Not a defect.** `45_RuleEngine.sql:242–246` deliberately drops it after migrating to a generic `Rules.Rule` engine; `fn_TargetedItems` was verified reading `Rules.Rule`. A clean deploy producing no such table is correct. See `WLOS_FOUNDATION.md` §2.8 |
+| **Orphan table in `WlosPlatform`** | Medium | Created by the mistaken manual re-run of script 34, *after* script 74 applied the audit contract. The only non-exempt table outside that contract — no `RowVersion`, no audit trail. Should be dropped to match a clean deploy |
+| **Targeting evaluator documentation is stale** | Medium | `WLOS_FOUNDATION.md` §§2.1–2.7 describe the superseded evaluator. Whether `Rules.fn_Match` preserves the three operators, OR-within/AND-across, the universal fallback and UNKNOWN handling is **not verified** |
+| **No write path exists** | **High** | `Health` has **9 tables and 0 stored procedures**, and zero `Health.*` references in any C# file. `Timeline.Event` is the sole input to signals, state, behaviour, goals, recommendations, coaching and prediction, and **no endpoint can write to it**. The read path is built; the write path does not exist |
+| **Soft delete contradicts the constitution** | **High** | 83 of 87 tables carry `IsDeleted`, while constitution §1.3 requires deletion to mean deletion. No procedure exports or deletes a user. Privacy operations are a contract reconciliation, not a feature |
 | Maren's deployed database is stale | Medium | Built from the pre-fetch checkout. 43 of 86 tables lack the audit contract; `WlosPlatform` has 3 (documented exemptions) |
 | `WLOS_FrontEnd` has no docs index | Low | Carries the product audit only |
 | `WLOS_Backend` references Maren repo URLs | Low | 20 files, 19 Markdown + 1 YAML, **zero `.cs`** |
@@ -213,7 +220,7 @@ Nine documents in `WLOS_Backend/docs/` and `WLOS_App/docs/`:
 Everything below waits for the Phase A Findings Report. Each was recommended at
 some point in the research; **none is authorised**:
 
-`ContentTargetingRule` fix · Need implementation · preference and boundary
+~~`ContentTargetingRule` fix~~ *(retracted - not a defect)* · Need implementation · preference and boundary
 tables · personalization controls · response modes · content expansion · Today
 screen · AI implementation · camera implementation · relationship model ·
 country safety configuration · market ranking · country selection · pricing ·
@@ -223,8 +230,8 @@ B2B2C implementation · streak redesign
 an earlier document lists an engineering sequence — including Part 8 of the
 constitution — that sequence is suspended.
 
-**The `ContentTargetingRule` defect is real and is not the bottleneck.** It does
-not prevent a single interview from happening.
+**RETRACTED: there was no `ContentTargetingRule` defect** - script 45 drops the
+table deliberately. See section 6. Nothing here changes the freeze.
 
 ### 9.1 The one next action
 

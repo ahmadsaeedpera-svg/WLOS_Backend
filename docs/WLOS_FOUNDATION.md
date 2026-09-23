@@ -107,10 +107,42 @@ every device, chosen so nothing repeats within 30 days. **Targeting and rotation
 are separate concerns**, which is correct; but it means a smaller targeted set
 rotates faster, and that interaction is untested.
 
-### 2.8 A reproducible deployment defect
+### 2.8 ~~A reproducible deployment defect~~ — RETRACTED
 
-**A full ordered deploy does not create `Content.ContentTargetingRule`, and
-reports success.**
+> **CORRECTION, 23 September 2026. This section was wrong. There is no defect.**
+>
+> `45_RuleEngine.sql:242–246` **deliberately drops** `Content.ContentTargetingRule`
+> after migrating its rows to a generic `Rules.Rule` engine:
+>
+> > *"Both functions are rewritten in 46_Procs_RuleEngine.sql to read from
+> > Rules.Rule, so these tables have no reader left."*
+> > `DROP TABLE [Content].[ContentTargetingRule];`
+> > `PRINT 'Dropped Content.ContentTargetingRule - superseded by Rules.Rule.'`
+>
+> `Dashboard.CardRule` is dropped identically at line 251 and is likewise
+> absent. **Verified in the deployed database:** `Content.fn_TargetedItems` now
+> reads `Rules.Rule`.
+>
+> Script 34 creates the table; script 45, later in the same ordered deploy,
+> migrates and removes it. A clean deploy producing no `ContentTargetingRule` is
+> **correct**, and the deploy reporting success was accurate.
+>
+> **Consequence of the error.** Script 34 was re-run by hand against
+> `WlosPlatform` to "restore" the table. That re-created an orphan with no
+> reader, *after* script 74 had applied the audit contract — leaving the only
+> non-exempt table in the database outside that contract, with no `RowVersion`
+> and no audit trail. **It should be dropped to match a clean deploy.**
+>
+> §§2.1–2.7 below describe the **superseded** evaluator. The operators, the
+> OR-within / AND-across semantics, the universal fallback and the UNKNOWN
+> handling were read from `34_ContentTargeting.sql`. Whether `Rules.fn_Match`
+> preserves all four properties is **not verified** and must be re-measured
+> before any of it is relied on.
+
+The original text follows, retained so the error is legible rather than erased.
+
+**~~A full ordered deploy does not create `Content.ContentTargetingRule`, and
+reports success.~~**
 
 Reproduced in a clean-room database (`WlosProbe`, created and dropped for the
 test):
