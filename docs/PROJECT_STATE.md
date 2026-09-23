@@ -143,15 +143,65 @@ points.
 
 ---
 
-## 6. Known defects, unfixed
+## 6. Unresolved future work — do not resolve now
 
-| Defect | Severity | Note |
-|---|---|---|
-| ~~`ContentTargetingRule` not created by a clean deploy~~ | **RETRACTED** | **Not a defect.** `45_RuleEngine.sql:242–246` deliberately drops it after migrating to a generic `Rules.Rule` engine; `fn_TargetedItems` was verified reading `Rules.Rule`. A clean deploy producing no such table is correct. See `WLOS_FOUNDATION.md` §2.8 |
-| **Orphan table in `WlosPlatform`** | Medium | Created by the mistaken manual re-run of script 34, *after* script 74 applied the audit contract. The only non-exempt table outside that contract — no `RowVersion`, no audit trail. Should be dropped to match a clean deploy |
-| **Targeting evaluator documentation is stale** | Medium | `WLOS_FOUNDATION.md` §§2.1–2.7 describe the superseded evaluator. Whether `Rules.fn_Match` preserves the three operators, OR-within/AND-across, the universal fallback and UNKNOWN handling is **not verified** |
-| **No write path exists** | **High** | `Health` has **9 tables and 0 stored procedures**, and zero `Health.*` references in any C# file. `Timeline.Event` is the sole input to signals, state, behaviour, goals, recommendations, coaching and prediction, and **no endpoint can write to it**. The read path is built; the write path does not exist |
-| **Soft delete contradicts the constitution** | **High** | 83 of 87 tables carry `IsDeleted`, while constitution §1.3 requires deletion to mean deletion. No procedure exports or deletes a user. Privacy operations are a contract reconciliation, not a feature |
+**Neither of the two findings below is a defect to fix. Both are decisions that
+need evidence or policy first, and both are out of scope during Phase A.**
+
+### 6.1 No user-data write path exists
+
+`Health` has **9 tables and 0 stored procedures**, with no `Health.*` reference
+in any C# file. `Timeline.Event` — the sole input to signals, state, behaviour,
+goals, recommendations, coaching and prediction — has **no endpoint that can
+write to it**. The read and evaluation foundation is substantial; the loop
+*user does something → system records it → system understands it → later
+interaction uses that history* has no first step.
+
+**Do not build it yet.** Phase A has not told us what needs remembering. The
+validated first experience may require timeline events, health records, mood,
+sleep, goals, a need, or something much smaller. Build the minimum write path
+**after** the evidence names it.
+
+### 6.2 Deletion semantics are contractually unresolved
+
+83 of 87 tables carry `IsDeleted`; constitution §1.3 requires deletion to mean
+deletion. No procedure exports or deletes a user.
+
+**This must not be settled by an engineer choosing one.** It is a data-policy
+decision with legal and audit consequences on both sides — soft delete preserves
+the audit trail the platform depends on; hard delete is what §1.3 promises her.
+Deliberate decision required, later.
+
+### 6.3 Carried, lower priority
+
+| Item | Note |
+|---|---|
+| Orphan table in `WlosPlatform` | Created by the mistaken manual re-run of script 34 (§6.4), after script 74 applied the audit contract. The only non-exempt table outside that contract. **Do not modify database state during the freeze** — drop it when the freeze lifts |
+| Targeting evaluator documentation is stale | `WLOS_FOUNDATION.md` §§2.1–2.7 describe the superseded evaluator. Whether `Rules.fn_Match` preserves the three operators, OR-within/AND-across, the universal fallback and UNKNOWN handling is **not verified** and stays marked so until checked |
+
+### 6.4 Retracted — history retained
+
+**`ContentTargetingRule` "deployment defect" — withdrawn. Removed from the
+active defect list.**
+
+The actual sequence is designed migration behaviour:
+
+```
+34_ContentTargeting.sql   creates the legacy table
+45_RuleEngine.sql         migrates its rows, then DROPs it
+46_Procs_RuleEngine.sql   rewrites the functions onto Rules.Rule
+Rules.Rule                becomes the real rule source
+fn_TargetedItems          verified reading Rules.Rule
+```
+
+`Dashboard.CardRule` is dropped identically at `45_RuleEngine.sql:251`. A clean
+deploy producing no `ContentTargetingRule` is **correct**, and the deploy
+reporting success was accurate.
+
+It was reported as the highest-priority backend defect and reproduced in a
+clean-room database. The reproduction was of intended behaviour. The
+investigation history is kept here so the error stays legible; it is no longer
+an open item.
 | Maren's deployed database is stale | Medium | Built from the pre-fetch checkout. 43 of 86 tables lack the audit contract; `WlosPlatform` has 3 (documented exemptions) |
 | `WLOS_FrontEnd` has no docs index | Low | Carries the product audit only |
 | `WLOS_Backend` references Maren repo URLs | Low | 20 files, 19 Markdown + 1 YAML, **zero `.cs`** |
