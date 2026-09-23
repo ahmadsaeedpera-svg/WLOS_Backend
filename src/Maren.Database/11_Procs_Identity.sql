@@ -125,7 +125,25 @@ BEGIN
         u.IsLockedOut,
         u.LockoutEndUtc
     FROM [Identity].[User] u
-    WHERE u.NormalisedEmail = @normalised AND u.IsDeleted = 0;
+    WHERE u.NormalisedEmail = @normalised AND u.IsDeleted = 0
+      /*  An account that has moved to a client-derived credential
+          (CredentialVersion 2, Identity.UserCredential, 74_Crypto.sql) does
+          not authenticate this way any more, and this procedure returns
+          nothing for it.
+
+          The refusal lives here rather than as a routing decision in the API
+          because a rule enforced in application code is a rule the next caller
+          bypasses. It also means the version 1 material left on the row after
+          an upgrade is unreachable rather than merely unused — this procedure
+          is the only way it is ever read.
+
+          Forward reference by design: the table is created in a later script,
+          and deferred name resolution allows that. The procedure is not
+          executed until the whole order has been applied. */
+      AND NOT EXISTS (SELECT 1 FROM [Identity].[UserCredential] c
+                      WHERE c.UserId = u.UserId
+                        AND c.IsAuthoritative = 1
+                        AND c.CredentialVersion = 2);
 END
 GO
 

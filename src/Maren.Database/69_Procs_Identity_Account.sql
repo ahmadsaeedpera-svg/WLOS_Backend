@@ -702,6 +702,33 @@ BEGIN
         DELETE FROM [Identity].[UserLifeStage]       WHERE UserId = @UserId;
         DELETE FROM [Identity].[UserRole]            WHERE UserId = @UserId;
         DELETE FROM [Identity].[Profile]             WHERE UserId = @UserId;
+
+        /*  Encrypted records and the key hierarchy that opens them.
+            74_Crypto.sql.
+
+            The ciphertext goes too. It would be defensible to argue that
+            deleting the wrappers is enough — without them the records are
+            bytes nobody can decrypt, including us. It is not enough. "Deletion
+            means deletion, not a flag" does not become satisfied by leaving
+            her journal on disk in a form we merely promise not to read, and a
+            future key-recovery bug would turn that promise into a breach of
+            data we had already told her was gone.
+
+            Order is forced by the foreign keys: records and the things hanging
+            off a generation, then the generations, then the credentials. */
+        DELETE FROM [Crypto].[Record]                WHERE UserId = @UserId;
+
+        DELETE FROM [Crypto].[RecoveryVerifier]
+        WHERE GenerationId IN (SELECT GenerationId FROM [Crypto].[Generation]
+                               WHERE UserId = @UserId);
+
+        DELETE FROM [Crypto].[Wrapper]
+        WHERE GenerationId IN (SELECT GenerationId FROM [Crypto].[Generation]
+                               WHERE UserId = @UserId);
+
+        DELETE FROM [Crypto].[Generation]            WHERE UserId = @UserId;
+        DELETE FROM [Identity].[UserCredential]      WHERE UserId = @UserId;
+
         DELETE FROM [Identity].[User]                WHERE UserId = @UserId;
 
         /*  Her audit history goes with her. A log of everything she did is
