@@ -357,7 +357,7 @@ Country                AMBER   unknown
 Business model         AMBER   B2B2C hypothesis only
 Launch age             AMBER   unresolved - 16+ and 18+ both candidates
 Core problem           AMBER   interview validation pending
-Targeting deploy bug   RED     blocks reproducible environments
+Targeting "defect"     n/a     RETRACTED - designed migration, not a bug
 Core experience        RED     not proven
 Retention              RED     not proven
 Product-market fit     RED     completely unproven

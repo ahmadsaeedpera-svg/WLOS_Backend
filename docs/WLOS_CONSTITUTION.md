@@ -462,9 +462,16 @@ These settle together, not in sequence:
 | **What data** | What may be inferred, stored, shared | consent model, AI scope, camera |
 | **How personal** | Preference, boundary, controls | **everything — it is the filter all features read** |
 
-**"How personal" is the one to settle first**, because it is the only one that is
-cheap now and expensive later, and because Part 0 shows there is currently
-nothing there at all.
+**Design hypothesis, not a product decision:** *if* the thesis survives Phase A,
+preference, boundary and personalization control is currently expected to be a
+**foundational cross-cutting requirement** rather than a feature — it is cheap
+now and expensive later, Part 0 shows there is nothing there at all, and the
+candidate map found it required by all six candidate experiences with no
+exceptions.
+
+**That is an architectural argument, not authorisation.** It does not mean we
+have decided to build personalization first. Nothing is built before the Phase A
+Findings Report.
 
 ---
 
@@ -534,9 +541,14 @@ Architecture cannot tell us whether women want the product. Implementing
 preferences, Need, response modes, targeting fixes or content now would quietly
 assume the answer.
 
-The `ContentTargetingRule` defect (`WLOS_FOUNDATION.md` §2.8) is a real
-engineering defect and **is not currently the bottleneck** — it does not prevent
-a single interview from happening.
+> **Correction, 23 September 2026.** This paragraph previously described a
+> `ContentTargetingRule` deployment defect. **That finding is retracted.** The
+> table is intentionally superseded by `Rules.Rule` during the ordered
+> deployment: script 34 creates it, script 45 migrates its rows and drops it,
+> script 46 rewrites the functions onto `Rules.Rule`, and `fn_TargetedItems` was
+> verified reading `Rules.Rule`. The investigation recreated the superseded
+> table manually in the deployed environment; **that orphan is not evidence of a
+> clean-deploy defect.** See `PROJECT_STATE.md` §6.4. Do not reopen it.
 
 Everything in this constitution remains binding as **policy**. None of it is
 authorisation to build.
