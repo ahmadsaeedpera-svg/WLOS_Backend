@@ -191,7 +191,7 @@ Nine documents in `WLOS_Backend/docs/` and `WLOS_App/docs/`:
 
 | Hypothesis | Standing |
 |---|---|
-| Launch 18+ | Needs legal review per jurisdiction. The stronger question is architectural: is a non-personalised, streak-free WLOS still WLOS? |
+| **Launch age — unresolved** | **16+ and 18+ both remain candidates. No launch-age decision has been made.** Needs legal review per jurisdiction. The stronger question is architectural: is a non-personalised, streak-free WLOS still WLOS? |
 | 18–35 is the segment | Best-evidenced of six; **three segments unresearched** |
 | B2B2C distribution | Strongest commercial evidence — but an employer-funded product raises a trust question that may matter more than acquisition cost |
 | "What do you need today?" is the entry loop | Only loop that works on day one with no data |
@@ -207,6 +207,40 @@ Nine documents in `WLOS_Backend/docs/` and `WLOS_App/docs/`:
 ---
 
 ## 9. Immediate next step
+
+### 9.0 Do not touch — the full list
+
+Everything below waits for the Phase A Findings Report. Each was recommended at
+some point in the research; **none is authorised**:
+
+`ContentTargetingRule` fix · Need implementation · preference and boundary
+tables · personalization controls · response modes · content expansion · Today
+screen · AI implementation · camera implementation · relationship model ·
+country safety configuration · market ranking · country selection · pricing ·
+B2B2C implementation · streak redesign
+
+**A recommendation in a research document is not authorisation to build.** Where
+an earlier document lists an engineering sequence — including Part 8 of the
+constitution — that sequence is suspended.
+
+**The `ContentTargetingRule` defect is real and is not the bottleneck.** It does
+not prevent a single interview from happening.
+
+### 9.1 The one next action
+
+**Recruit C4.**
+
+Not another architecture review. Not another market report. Not another backend
+migration. Not another feature.
+
+> Find the woman who started a health, fitness or habit app within the last
+> year, stopped using it, and is willing to explain what was happening around
+> the time she stopped.
+
+She is non-substitutable. She is the only person who can explain day 31, and
+analysis does not proceed without her.
+
+### 9.2 Then
 
 **Phase A: 14 interviews.** No backend work.
 
@@ -264,7 +298,7 @@ Recruitment            AMBER   not started
 Segment                AMBER   unknown
 Country                AMBER   unknown
 Business model         AMBER   B2B2C hypothesis only
-Minimum age            AMBER   18+ hypothesis, needs legal
+Launch age             AMBER   unresolved - 16+ and 18+ both candidates
 Core problem           AMBER   interview validation pending
 Targeting deploy bug   RED     blocks reproducible environments
 Core experience        RED     not proven

@@ -432,9 +432,22 @@ Appropriate Design Code simultaneously — and the regulatory position for minor
 and AI companions is moving. That combination is a second product with a
 different review process, not a life stage.
 
-**Recommendation: 16+ at launch, model built lifelong.** It keeps one product,
-one review path and one consent model, while losing nothing structurally — the
-11–13 and 14–17 bands stay in the model, unshipped.
+> **Launch age is an unresolved hypothesis. 16+ and 18+ both remain candidates.
+> No launch-age decision has been made.**
+>
+> This section originally recommended 16+. `WLOS_MARKET_RESEARCH.md` later
+> argued 18+ on the EU KIDS Act. **Neither is a decision** — both are
+> recommendations awaiting legal review per jurisdiction, and a recommendation
+> must not become a decision by repetition.
+
+What both candidates share, and what is not in doubt: **design the data model to
+accommodate younger users; do not launch them first.** The 11–13 and 14–17 bands
+stay in the human model, unshipped, either way.
+
+The stronger question is architectural rather than legal: given that minors
+require non-personalised recommendation and no streaks, **is a non-personalised,
+streak-free WLOS still WLOS?** If it is not, minors are a second product and the
+age number is a consequence, not the decision.
 
 ---
 
@@ -481,16 +494,49 @@ Every architectural row is small or medium. The last row is the product.
 
 ---
 
-## Part 8 — What I recommend next
+## Part 8 — What happens next
 
-1. **Settle "how personal"** — preference, boundary, personalization controls.
-   Cheap now, expensive after features exist.
-2. **Fix the `ContentTargetingRule` deploy defect.** Targeting is the spine of
-   all of this and a clean deploy currently omits its rules table.
-3. **Add Need and response mode.** Small, and they change what the product is.
-4. **Run the market research** against §5.1. I can do this with web access; I
-   will not do it from memory.
-5. **Then content**, for the launch market's languages and the four least-served
-   stages.
+> **Superseded, 23 September 2026.** This section previously listed an
+> engineering sequence — settle personalization, fix `ContentTargetingRule`, add
+> Need and response mode, then content. **That sequence is suspended.** It
+> assumed the product hypothesis had survived. It has not been tested.
 
-Implementation remains paused pending the four decisions in Part 6.
+The governing sequence is:
+
+```
+LOCK PROJECT STATE
+        |
+Recruit C4 first
+        |
+Phase A - 14 interviews
+        |
+Lock all 14 rows
+        |
+Phase A Findings Report
+        |
+   thesis survives?
+        |
+Design first WLOS experience
+        |
+Prototype and test "the join"
+        |
+Validate perceived value
+        |
+   THEN architecture gaps
+        |
+   THEN market and country
+        |
+   THEN implementation
+```
+
+**Nothing in Parts 2–5 is built before the Phase A Findings Report exists.**
+Architecture cannot tell us whether women want the product. Implementing
+preferences, Need, response modes, targeting fixes or content now would quietly
+assume the answer.
+
+The `ContentTargetingRule` defect (`WLOS_FOUNDATION.md` §2.8) is a real
+engineering defect and **is not currently the bottleneck** — it does not prevent
+a single interview from happening.
+
+Everything in this constitution remains binding as **policy**. None of it is
+authorisation to build.

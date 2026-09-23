@@ -43,10 +43,11 @@ Serving EU under-18s is not a configuration of WLOS. It is a **materially
 different product**: non-personalised content, no streaks, no companion by
 default, no persistent conversation memory.
 
-> **Recommendation, strengthened from 16+ to: launch 18+, model lifelong.**
-> The 11–13 and 14–17 bands stay in the human model, unshipped. Revisit only
-> with a deliberate decision to build the constrained variant, and budget for it
-> as a second product.
+> **Hypothesis, not decision: launch 18+, model lifelong.** 16+ and 18+ both
+> remain candidates pending legal review per jurisdiction. **No launch-age
+> decision has been made.** The 11–13 and 14–17 bands stay in the human model,
+> unshipped, under either. Revisit only with a deliberate decision to build the
+> constrained variant, and budget for it as a second product.
 
 This is not an argument that girls don't deserve WLOS. It is that the EU has
 just decided the mechanism by which WLOS would serve them is harmful, and
@@ -219,7 +220,7 @@ on this basis would be assertion, not evidence.
 
 | Earlier position | Revised |
 |---|---|
-| Minimum age 16+ | **18+ at launch.** EU KIDS Act restricts the core mechanism for under-18s |
+| Minimum age 16+ recommended | **Both 16+ and 18+ are now candidates, neither decided.** The EU KIDS Act restricts the core mechanism for under-18s, which strengthens the 18+ case without settling it |
 | Content first for perimenopause/menopause | **Reconsider.** Clue and Midi moved there in 2026; it is no longer the open gap |
 | "Where it needs more" is a country question | It is **country × segment × job**. The open segment looks like 18–35 non-reproductive, in any market |
 | Constitution is an ethics document | It is **also the regulatory boundary and must bind marketing copy** |
