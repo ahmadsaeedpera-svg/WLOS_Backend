@@ -220,6 +220,42 @@ anything under test. The stale key was also in CI, `DEPLOYMENT.md`,
 one part of the platform with no integration coverage at all, and the cause was
 three missing lines.
 
+## 6b. A defect I introduced, and how it was nearly missed
+
+`[AllowAnonymous]` sat on `AuthController` — correctly, for register, login and
+refresh — and I added `[Authorize]` to the sign-out action beneath it. **An
+attribute farther away wins.** The `[Authorize]` did nothing, and
+`POST /api/v1/auth/logout` was not authenticated by the framework at all.
+
+It was not exploitable: the action re-reads the subject claim and returns 401
+when it is absent, so the observable behaviour was correct. That is exactly what
+made it dangerous — defence in depth was doing the primary job, and the first
+refactor of that handler would have removed the only thing guarding the
+endpoint.
+
+**Why it was nearly missed:** the compiler said so, as `ASP0026`, on every
+build. I had been building with `dotnet build -v q`, which suppressed it, and I
+reported "0 warnings, 0 errors" on that basis. The warning only surfaced when a
+test run echoed the full build log. **The build output was telling the truth and
+the verbosity flag was hiding it.**
+
+The fix moves `[AllowAnonymous]` onto the three actions that genuinely cannot
+require a token, so anything added to this controller is authenticated unless it
+opts out in its own right. Verified over HTTP: sign-out without a token now
+returns 401 with an **empty body** — the framework's challenge — where it
+previously returned the handler's JSON envelope. Same status code, completely
+different mechanism.
+
+`AuthorizationAttributeTests` (5 tests) now asserts by reflection that sign-out
+carries `[Authorize]`, that `AuthController` carries no class-level
+`[AllowAnonymous]`, that the three anonymous endpoints declare it individually,
+and that `/api/v1/me` requires authentication. The integration tests go through
+MediatR and never touch the authorization filter, so they could not have caught
+this and still cannot — this class is the only thing that can.
+
+**Standing rule from this:** build without `-v q` when the result is going to be
+reported as a warning count.
+
 ## 7. Defects fixed in passing
 
 - **Rehash-on-login never worked.** On finding a stored hash below the current
@@ -299,25 +335,34 @@ birth as the permanent record of having turned her away.
 
 | Suite | Result |
 |---|---|
-| Backend integration | **19 new**, in `AccountLifecycleTests.cs` |
-| Backend, whole suite | **264 total, 262 passing** — the 2 failures are §11 |
-| SQL assertion suites | 21 of 23 clean; 2 fail on pre-existing debris (§11) |
+| Backend integration | **24 new** — 19 in `AccountLifecycleTests`, 5 in `AuthorizationAttributeTests` |
+| Backend, whole suite | **269 total, 269 passing** |
+| SQL assertion suites | **23 suites, 315 assertions, 0 failures** |
 | App unit | **19 new** (`auth_test.dart`) |
 | App widget | **7 new** (`auth_gate_test.dart`) |
 | App, whole suite | **492 passing**, 3 skipped, analyzer clean |
-| End to end over HTTP | Age gate 422 · register 200 · authenticated profile 200 · no token 401 · ownership · rotation · replay 401 `TOKEN_REUSED` · logout 200 · wrong password 401 · erasure 0 rows across 30 tables · tombstone · revoked token 401 |
+| Build | `dotnet build` **0 warnings, 0 errors** — verified without `-v q`, see §6b |
+| End to end over HTTP | Age gate 422 · register 200 · authenticated profile 200 · no token 401 · ownership · rotation · replay 401 `TOKEN_REUSED` · logout 200 (authenticated) and 401 with an empty body (unauthenticated, framework challenge) · wrong password 401 · erasure 0 rows across 30 tables · tombstone · revoked token 401 `SESSION_REVOKED` |
 
-## 11. Known-failing, and not caused by this slice
+## 11. The debris table — RESOLVED
 
-Two C# tests and three SQL assertions fail on **an orphan
-`Content.ContentTargetingRule` table** in the local `WlosPlatform` database.
-It is debris from a retracted investigation, it is in no script (script 45 drops
-it by design), and dropping it was refused by the sandbox classifier. One
-command clears all five:
+An orphan `Content.ContentTargetingRule` table in the local `WlosPlatform`
+database caused **2 C# test failures and 3 SQL assertion failures**. It was
+debris from a retracted investigation: **0 rows**, referenced by **0
+procedures**, created 2026-09-23 11:42 by a manual re-run of script 34 outside
+the deployment order. Script 45 drops it by design; it was in no deployment
+path.
+
+My first attempt to drop it was refused by the sandbox classifier. I did not
+route around it, did not re-run script 45 to achieve the same effect by another
+name, and did not weaken any assertion to go green. It was dropped on explicit
+authorisation:
 
 ```bash
 sqlcmd -S localhost -E -d WlosPlatform -Q "DROP TABLE [Content].[ContentTargetingRule];"
 ```
+
+All five failures cleared. **No test was altered to accommodate it.**
 
 A performance-budget test (`A_client_read_of_the_full_library_stays_within_budget`)
 failed at 1150ms against a 1000ms budget on one run and passed on the next

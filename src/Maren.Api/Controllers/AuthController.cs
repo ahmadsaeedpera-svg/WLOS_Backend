@@ -138,12 +138,30 @@ public abstract class MarenControllerBase : ControllerBase
     }
 }
 
+/// <summary>Getting in, and getting out.</summary>
+/// <remarks>
+/// <para>
+/// <c>[AllowAnonymous]</c> is declared per action rather than on the class.
+/// It used to sit here, and it silently overrode the <c>[Authorize]</c> on
+/// sign-out — an attribute farther away wins, so the one endpoint here that
+/// must be authenticated was not. ASP0026 says so at build time and the
+/// warning was being missed.
+/// </para>
+/// <para>
+/// Sign-out still answered 401 because the action re-checks the subject claim
+/// itself, but that is defence in depth doing the primary job, which is
+/// precisely the arrangement that stops holding the first time somebody
+/// refactors the handler. Three endpoints genuinely cannot require a token;
+/// they say so individually, and anything added to this controller is
+/// authenticated unless it opts out in its own right.
+/// </para>
+/// </remarks>
 [Route("api/v1/auth")]
-[AllowAnonymous]
 public sealed class AuthController(ISender sender, ICurrentUser currentUser)
     : MarenControllerBase
 {
     /// <summary>Creates an account and returns a session.</summary>
+    [AllowAnonymous]
     [HttpPost("register")]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), 200)]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), 409)]
@@ -155,6 +173,7 @@ public sealed class AuthController(ISender sender, ICurrentUser currentUser)
             new RegisterCommand(request), validator, sender, ct);
 
     /// <summary>Exchanges credentials for a session.</summary>
+    [AllowAnonymous]
     [HttpPost("login")]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), 200)]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), 401)]
@@ -166,6 +185,7 @@ public sealed class AuthController(ISender sender, ICurrentUser currentUser)
             new LoginCommand(request), validator, sender, ct);
 
     /// <summary>Rotates a refresh token for a new session.</summary>
+    [AllowAnonymous]
     [HttpPost("refresh")]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), 200)]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), 401)]
@@ -179,11 +199,11 @@ public sealed class AuthController(ISender sender, ICurrentUser currentUser)
     /// <summary>Ends this session, or every session.</summary>
     /// <remarks>
     /// <para>
-    /// The one authenticated endpoint on this controller — the class is
-    /// <c>[AllowAnonymous]</c> because registering and signing in cannot
-    /// require a token, and this opts back in. The account being signed out is
-    /// read from the access token and never from the body, which is why the
-    /// body has no user identifier to send.
+    /// The one authenticated endpoint on this controller, and the reason
+    /// <c>[AllowAnonymous]</c> is declared per action rather than on the class
+    /// — see the note there. The account being signed out is read from the
+    /// access token and never from the body, which is why the body has no user
+    /// identifier to send.
     /// </para>
     /// <para>
     /// Succeeds for a token that is unknown, already revoked or already

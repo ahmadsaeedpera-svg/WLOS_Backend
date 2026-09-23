@@ -5,6 +5,7 @@ using Maren.Application.Auth;
 using Maren.Contracts;
 using Maren.Shared;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Maren.Tests;
@@ -618,5 +619,74 @@ public sealed class AccountLifecycleTests(DatabaseFixture fixture) : IAsyncLifet
         iterations.Should().BeGreaterThan(1000,
             "a successful sign-in is the one moment the plaintext is "
             + "legitimately in hand, and the only chance to raise the cost");
+    }
+}
+
+/// <summary>
+/// Authorization attributes, checked by reflection rather than over HTTP.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The integration tests above go through MediatR and never touch the
+/// authorization filter, so they cannot see an <c>[Authorize]</c> that does
+/// nothing. This class can.
+/// </para>
+/// <para>
+/// It exists because <c>[AllowAnonymous]</c> sat on <c>AuthController</c> and
+/// silently overrode the <c>[Authorize]</c> on sign-out — an attribute farther
+/// away wins. The endpoint answered 401 anyway, because the action re-reads the
+/// subject claim itself, so nothing looked wrong from outside; the only signal
+/// was an ASP0026 build warning that a quiet verbosity flag was hiding.
+/// </para>
+/// </remarks>
+public sealed class AuthorizationAttributeTests
+{
+    [Fact]
+    public void Signing_out_requires_authentication_at_the_framework_level()
+    {
+        var action = typeof(Maren.Api.Controllers.AuthController)
+            .GetMethod(nameof(Maren.Api.Controllers.AuthController.Logout))!;
+
+        action.GetCustomAttributes(typeof(AuthorizeAttribute), true)
+            .Should().NotBeEmpty("sign-out acts on a known account");
+
+        /*  The part that actually broke. An [AllowAnonymous] anywhere above the
+            action defeats the [Authorize] on it, and nothing in the response
+            gives that away. */
+        typeof(Maren.Api.Controllers.AuthController)
+            .GetCustomAttributes(typeof(AllowAnonymousAttribute), true)
+            .Should().BeEmpty(
+                "a class-level [AllowAnonymous] silently overrides [Authorize] "
+                + "on every action beneath it — declare it per action instead");
+    }
+
+    [Theory]
+    [InlineData(nameof(Maren.Api.Controllers.AuthController.Register))]
+    [InlineData(nameof(Maren.Api.Controllers.AuthController.Login))]
+    [InlineData(nameof(Maren.Api.Controllers.AuthController.Refresh))]
+    public void The_three_endpoints_that_cannot_require_a_token_say_so(string name)
+    {
+        // Moving [AllowAnonymous] off the class has to leave these reachable.
+        // Without a token there is no way to register or sign in, and a
+        // refresh is authenticated by the refresh token in its body rather
+        // than by an access token in a header.
+        typeof(Maren.Api.Controllers.AuthController)
+            .GetMethod(name)!
+            .GetCustomAttributes(typeof(AllowAnonymousAttribute), true)
+            .Should().NotBeEmpty($"{name} cannot require an access token");
+    }
+
+    [Fact]
+    public void Everything_under_api_v1_me_requires_authentication()
+    {
+        // These act on the caller and read her id from the token. One of them
+        // erases her account.
+        typeof(Maren.Api.Controllers.OnboardingController)
+            .GetCustomAttributes(typeof(AuthorizeAttribute), true)
+            .Should().NotBeEmpty();
+
+        typeof(Maren.Api.Controllers.OnboardingController)
+            .GetCustomAttributes(typeof(AllowAnonymousAttribute), true)
+            .Should().BeEmpty();
     }
 }
