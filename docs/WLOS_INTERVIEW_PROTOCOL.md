@@ -2,7 +2,9 @@
 
 **Date:** 23 September 2026
 **Purpose:** test whether the interaction thesis is real before building on it.
-**Status:** research instrument. No implementation.
+**Status:** **LOCKED** 23 September 2026. Frozen for Phase A fieldwork.
+Amending an instrument mid-study invalidates comparability across the 14
+interviews. If something is genuinely wrong, stop the study rather than edit it.
 
 ---
 
@@ -272,24 +274,72 @@ Section 7 is a courtesy.
 
 ---
 
-## 6. Coding — so 20 conversations are comparable
+## 6. Coding — so 14 conversations are comparable
 
-Code each interview **within 24 hours**, against a fixed rubric:
+### 6.0 Sequence discipline — data, coding, aggregate, meaning
+
+**Do not compute or look at aggregate scores until all 14 rows are locked.**
+
+```
+interview -> transcript -> pseudonymise -> code -> LOCK ROW
+                                                     |
+                          (repeat 14 times, no aggregation)
+                                                     |
+                                    aggregate -> interpret
+```
+
+1. **Code within 24 hours**, then **lock the row.** A locked row is not revised
+   in light of a later interview.
+2. **No running totals.** No "we're at 6 of 8 so far." Knowing the count changes
+   how interview 11 is heard, and retroactively changes how interview 3 is
+   remembered.
+3. **No interpretation during fieldwork** — not in notes, not between
+   interviews.
+4. **No AI analysis mid-study**, including asking an assistant "what patterns
+   are you seeing?" after interview 8. That is aggregation.
+
+The failure this prevents is invisible from the inside: the study converges on
+whatever the interviewer began to believe around interview 6.
+
+If a second coder is available, have them code blind and compare on
+**Interaction** and **Trust** — the two most interpretation-prone dimensions.
+
+### 6.1 The rubric
 
 | Dimension | Score | Definition |
 |---|---|---|
-| **Interaction** | 0 / 1 / 2 | 0 = one factor · 1 = connects when asked · **2 = volunteers a chain unprompted** |
-| Recurrence | 0–2 | 0 = one-off · 2 = names it as a recurring pattern |
-| Existing tools | 0–2 | 0 = well served · 2 = has tools and none helped that week |
-| Gap | 0–2 | 0 = nothing missing · 2 = names a specific absence |
-| Memory value | 0–2 | 0 = would not help · 2 = spontaneously wants continuity |
-| Personalization need | 0–2 | 0 = generic advice fine · 2 = generic advice would be useless or wrong |
-| **Trust** | 0–2 | 0 = refuses · **2 = would allow, and says under what conditions** |
-| Frequency | 0–2 | 0 = rare · 2 = monthly or more |
-| Employer trust | 0–2 | 0 = would not believe privacy · 2 = would |
+| **Interaction** *(phenomenon)* | 0 / 1 / 2 | 0 = one factor · 1 = connects when asked · **2 = volunteers a chain unprompted** |
+| **Recurrence** *(viability)* | 0–2 | 0 = one-off · 2 = names it as a recurring pattern |
+| **Gap** *(viability)* | 0–2 | 0 = nothing meaningful unsolved · 2 = names a specific absence |
+| **Memory value** *(viability)* | 0–2 | 0 = would not help · 2 = spontaneously wants continuity |
+| **Trust** *(viability)* | 0–2 | 0 = refuses · **2 = would allow, and says under what conditions** |
+| **Frequency** *(viability)* | 0–2 | 0 = rare · 2 = monthly or more |
+| Existing tools *(descriptive)* | 0–2 | 0 = well served · 2 = has tools and none helped that week |
+| Personalization need *(descriptive)* | 0–2 | 0 = generic advice fine · 2 = generic advice would be useless or wrong |
+| Employer trust *(descriptive)* | 0–2 | 0 = would not believe privacy · 2 = would |
 
-Also capture verbatim: **her first sentence in §1**, and **any causal chain in
-her own words**.
+**Existing tools and Gap are separate and must not be conflated.** *Existing
+tools* records what she currently uses; *Gap* records whether something
+meaningful remains unsolved. A woman with **no** tool may still have **no**
+product opportunity — she may simply not need one. A woman using **five** tools
+may still have a **large** gap. Only Gap is a viability signal; Existing tools
+is context for interpreting it.
+
+### 6.2 Capture verbatim
+
+- **Her first sentence in §1**, before any follow-up
+- **Any causal chain in her own words**
+- **Action taken** — the sequence of what she actually *did*, in order
+
+**Why Action taken is its own field.** WLOS does not exist to describe her
+problem; it exists to help her act differently. A record like
+
+> *bad sleep -> cancelled plans -> more coffee -> worked late -> called my
+> sister -> recovered over the weekend*
+
+shows where an intervention could have landed, and whether she already has a
+working recovery path. **If the interviews reveal interactions but no actionable
+gap, the thesis is intellectually interesting and not a product.**
 
 ### Thresholds, set before the data arrives
 
@@ -299,21 +349,34 @@ sleep and a relationship were interacting. That is real evidence even though she
 did not formulate the chain in her first sentence. A score of 1 is a finding,
 not a failure.
 
-So the gate is a **combination**, not a single number:
+The signals fall into two classes that must never be merged.
+
+#### Supporting phenomenon signal — does the thing exist?
 
 | Signal | Threshold | Reads as |
 |---|---|---|
-| Interaction ≥ 1 | ≥ 9 of 14 | The phenomenon is **common enough to justify prototype testing** |
-| Interaction = 2 | count separately | How *visible* it is to her without help |
+| Interaction ≥ 1 | ≥ 9 of 14 | The phenomenon **appears sufficiently represented in this purposive sample to justify prototype testing** |
+| Interaction = 2 | counted, not gated | How *visible* it is to her without help |
+
+#### Primary viability signals — all five must clear
+
+| Signal | Threshold | Reads as |
+|---|---|---|
 | **Recurrence ≥ 1** | ≥ 9 | It happens again — without this there is no return loop |
-| **Gap ≥ 1** | ≥ 9 | Existing tools do not already handle it |
+| **Gap ≥ 1** | ≥ 9 | Something meaningful remains unsolved |
 | **Memory value ≥ 1** | ≥ 9 | Remembering context could change what happens next |
 | **Trust ≥ 1** | ≥ 9 | She would permit that memory |
-| Frequency ≥ 1 | ≥ 9 | Often enough to support repeated use |
+| **Frequency ≥ 1** | ≥ 9 | Often enough to support repeated use |
 
-**All five of recurrence, gap, memory value, trust and frequency must clear**,
-not just interaction. WLOS needs the combination; any one alone is interesting
-and insufficient.
+**Interaction is not a sixth gate.** It establishes that the phenomenon is
+present; the five viability signals establish whether it is worth building for.
+Treating interaction as a required gate re-creates the pseudo-quantitative error
+this rubric exists to avoid.
+
+**Wording discipline — do not write "common".** This study deliberately recruits
+women who reported a harder week, so prevalence cannot be estimated from it,
+only structure. "Sufficiently represented in this purposive sample" is the
+strongest claim the design supports.
 
 **Independent kill conditions:**
 
@@ -360,12 +423,53 @@ One document, within a week of the last interview:
 1. The rubric table — 14 rows, one per interview
 2. Every §1 opening sentence, verbatim
 3. Every causal chain, in her words
-4. Threshold results against §6
-5. **The strongest counter-evidence**, stated as strongly as the supporting case
-6. Decision: proceed to Phase B · narrow · or change the product
+4. Every **Action taken** sequence
+5. Threshold results — phenomenon and viability signals reported **separately**
+6. **The strongest counter-evidence**, stated as strongly as the supporting case
+7. Decision: proceed to Phase B · narrow · or change the product
 
-Point 5 is not optional. The failure mode of founder-run research is that the
+Point 6 is not optional. The failure mode of founder-run research is that the
 counter-evidence is present in the transcripts and absent from the summary.
+
+### 8.1 A sentence the report must contain
+
+> This study tests the interaction thesis primarily among working women aged
+> 18–35. **It does not establish that this is the optimal WLOS population.**
+
+Phase A concentrates there because that is where existing evidence is
+strongest — which means Phase A **cannot** discover that mothers, women in
+midlife, women in transition or older women experience the interaction more
+sharply. Only Phase B can, and it must be allowed to.
+
+Without this sentence, a hypothesis chosen for evidentiary convenience becomes
+a conclusion by repetition.
+
+### 8.2 What good evidence looks like
+
+**Strong** — she exposes the join herself, from a real event:
+
+> *"I thought I had a sleep problem, but when my manager changed my schedule I
+> started sleeping badly, then I stopped exercising, then I was snapping at my
+> partner."*
+
+**Not enough** — single factor, no structure:
+
+> *"I was stressed because my job was difficult."*
+
+**Nearly worthless alone** — a reaction to a concept, not a report of a life:
+
+> *"I'd love an app that connected everything for me."*
+
+The third is the one most likely to feel like success in the room. It is
+agreement with a founder, and it belongs in §7 where its weight is already
+discounted.
+
+The pattern to look for, in order:
+
+```
+real event -> multiple factors -> recurring pattern ->
+existing workaround -> unresolved gap -> desire for continuity
+```
 
 ---
 

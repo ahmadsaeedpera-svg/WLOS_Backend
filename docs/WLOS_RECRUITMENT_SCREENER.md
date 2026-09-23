@@ -2,7 +2,9 @@
 
 **Date:** 23 September 2026
 **Companion to:** `WLOS_INTERVIEW_PROTOCOL.md`
-**Status:** research instrument. No implementation.
+**Status:** **LOCKED** 23 September 2026. Frozen for Phase A fieldwork.
+Amending an instrument mid-study invalidates comparability. If something is
+genuinely wrong, stop recruitment rather than edit it.
 
 ---
 
