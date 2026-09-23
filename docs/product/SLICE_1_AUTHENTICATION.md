@@ -93,6 +93,65 @@ instead of quietly surviving an erasure.
 publications, role grants — and erasing one leaves that history pointing at
 nothing. Offboarding an operator is a different procedure with different rules.
 
+### The data map, measured not asserted
+
+After an end-to-end deletion, every `uniqueidentifier` column in all 87 tables
+was swept for the user id. **It survives in exactly two rows**, both tombstones,
+and neither carries anything but an identifier, a random GUID and a timestamp.
+
+**Deleted — 29 tables holding her rows**
+
+| Group | Tables |
+|---|---|
+| Identity | `Profile`, `User`, `UserRole`, `UserRoleMode`, `UserLifeStage`, `Device`, `RefreshToken` |
+| Health | `Pregnancy`, `Cycle`, `DailyLog`, `Symptom`, `BodyMeasurement`, `Appointment`, `HospitalBagItem`, `BirthPreference`, `ShareGrant` |
+| Growth | `UserGoal`, `GoalProgress` |
+| Inferred about her | `Predict.Predicted`, `Recommend.Assembled`, `Coach.Explained`, `Intelligence.UserStateSnapshot`, `Behaviour.Observation` |
+| Timeline | `Timeline.Event` |
+| Platform links | `Administration.FeatureFlagAssignment`, `Administration.SupportTicket`, `Content.ContentAuthor` |
+| Notifications | `Notifications.Delivery` |
+| **Security / AI safety** | **`AI.SafetyEvent`** and her rows in **`Audit.AuditLog`** — see the policy decision below |
+
+**Retained — two rows, both tombstones**
+
+| Row | Contents, verbatim from a real deletion | Why it is not her personal data |
+|---|---|---|
+| `Identity.SecurityStampRevocation` | `UserId=F7C57B3F-…` `Stamp=E76F54CF-…` `RevokedBy=NULL` `Reason='Account deleted'` | A random GUID paired with an identifier that, after erasure, resolves to nothing — no email, no profile, no device, no entry. It exists so the access token she is still holding dies now instead of in fifteen minutes. Pruned after a day. |
+| `Audit.AuditLog` | `Action='User.DeleteAccount'` `ActorUserId=NULL` `ActorKind='system'` `EntityId=<the id>` `IpAddress=NULL` `UserAgent=NULL` `BeforeJson=NULL` `AfterJson=NULL` | Proof that an erasure happened, and nothing else. No actor, no address, no payload. |
+
+Nothing else anywhere holds the identifier. `CreatedBy` / `ModifiedBy` /
+`DeletedBy` exist on every table under the audit contract, but a `Member`
+account can only create rows it owns, and `usp_User_DeleteAccount` refuses any
+account with a role beyond `Member`, so no operator-owned row can name her.
+
+### THE POLICY DECISION — deleting immutable security records
+
+**This needs your explicit confirmation. It is not a technicality.**
+
+Hard deletion, as implemented, **removes her rows from two append-only ledgers**:
+
+- `Audit.AuditLog` — every action she took, with the IP address it came from
+- `AI.SafetyEvent` — her refusals, clinical scores and crisis scores
+
+That is a deliberate policy choice, not a side effect. The reasoning: the
+append-only rule exists so an **operator** cannot erase evidence of what they
+did. A woman closing her own account is the **subject** of those logs, not an
+actor in them, and a complete record of everything she did — including a crisis
+score — is exactly the thing the constitution's "deletion means deletion"
+promise is about.
+
+**The defensible alternative, which I did not implement:** keep both ledgers
+intact, treating the user id as a pseudonym that resolves to nothing after
+erasure, and null only the directly-identifying columns (`IpAddress`,
+`UserAgent`). That preserves an immutable security and clinical-safety record
+and is what a regulated medical product would normally do. It is a smaller
+change than reversing it later.
+
+Three things keep the current exception narrow if you confirm it: it is one
+procedure **by name** in all three assertion suites, that procedure **refuses
+operator accounts**, and it **appends a tombstone**. `access_test.sql` 18b
+asserts the operator refusal has not been removed.
+
 ### The collisions
 
 | Rule | Where enforced | Resolution |
@@ -232,16 +291,16 @@ birth as the permanent record of having turned her away.
 | Suite | Result |
 |---|---|
 | Backend integration | **19 new**, in `AccountLifecycleTests.cs` |
-| Backend, whole suite | 263 total — see §11 for the 3 pre-existing failures |
+| Backend, whole suite | **264 total, 262 passing** — the 2 failures are §11 |
 | SQL assertion suites | 21 of 23 clean; 2 fail on pre-existing debris (§11) |
-| App unit | **16 new** (`auth_test.dart`) |
+| App unit | **19 new** (`auth_test.dart`) |
 | App widget | **7 new** (`auth_gate_test.dart`) |
-| App, whole suite | **489 passing**, 3 skipped, analyzer clean |
+| App, whole suite | **492 passing**, 3 skipped, analyzer clean |
 | End to end over HTTP | Age gate 422 · register 200 · authenticated profile 200 · no token 401 · ownership · rotation · replay 401 `TOKEN_REUSED` · logout 200 · wrong password 401 · erasure 0 rows across 30 tables · tombstone · revoked token 401 |
 
 ## 11. Known-failing, and not caused by this slice
 
-Three C# tests and two SQL assertions fail on **an orphan
+Two C# tests and three SQL assertions fail on **an orphan
 `Content.ContentTargetingRule` table** in the local `WlosPlatform` database.
 It is debris from a retracted investigation, it is in no script (script 45 drops
 it by design), and dropping it was refused by the sandbox classifier. One
@@ -251,9 +310,10 @@ command clears all five:
 sqlcmd -S localhost -E -d WlosPlatform -Q "DROP TABLE [Content].[ContentTargetingRule];"
 ```
 
-The third C# failure is a performance budget (`A_client_read_of_the_full_library
-_stays_within_budget`, 1150ms against a 1000ms budget) that also failed before
-this slice and looks environmental.
+A performance-budget test (`A_client_read_of_the_full_library_stays_within_budget`)
+failed at 1150ms against a 1000ms budget on one run and passed on the next
+under lighter load. It is environmental, it is not counted above, and it is
+not caused by this slice.
 
 ## 12. Still open
 
