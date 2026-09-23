@@ -42,7 +42,7 @@ public sealed class LifeOsRepository(IDbConnectionFactory factory) : ILifeOsRepo
         {
             countryIso = await connection.QuerySingleOrDefaultAsync<string?>(
                 new CommandDefinition(
-                    "SELECT Iso2 FROM [Identity].[Country] WHERE CountryId = @countryId",
+                    "SELECT IsoCode FROM [Identity].[Country] WHERE CountryId = @countryId",
                     new { countryId },
                     cancellationToken: ct));
         }
