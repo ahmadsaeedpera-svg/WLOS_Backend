@@ -2,15 +2,19 @@
 
 **As at:** 23 September 2026
 **Status:** **LOCKED** — this is the agreed project state of record.
-Superseded only by the Phase A findings report.
+**Gate changed 23 Sep 2026:** the Phase A interview gate was lifted by product
+decision, not by evidence. Validation risk knowingly accepted. See
+`docs/product/WLOS_PHASE1_PLAN.md` §0 — the five questions the interviews would
+have answered now transfer to product instrumentation.
 **Purpose:** single record of where both products stand, what is decided, what
 is hypothesis, and what is unproven.
 
-> **Engineering rule in force:** no WLOS implementation. The platform work is
-> not discarded — it waits for product evidence. WLOS repo states are
-> preserved; exact HEADs are in section 1.
+> **Engineering rule as of 23 Sep 2026:** the no-implementation rule is lifted.
+> Phase 1 build is authorised in principle; see `docs/product/WLOS_PHASE1_PLAN.md`.
+> Five decisions in §6 of that plan block coding, and decision 3 (deletion
+> semantics) must be settled before the first user record is written.
 >
-> **Research rule in force:** participants are never told the candidate jobs and
+> **Research rule, retained for any future interviews:** participants are never told the candidate jobs and
 > asked which they want. Evidence must emerge from experience → what happened →
 > what she did → what was missing → what she wished existed → whether
 > remembering would have helped.
@@ -392,7 +396,7 @@ Trust / constitution   GREEN   written, and already partly implemented
 Market research        GREEN   sufficient for discovery
 Research instruments   GREEN   LOCKED
 WLOS deployment        n/a     not configured - deliberate, see section 6.4
-Recruitment            AMBER   not started
+Phase A interviews      n/a     NOT RUN - gate lifted by decision, risk accepted
 Segment                AMBER   unknown
 Country                AMBER   unknown
 Business model         AMBER   B2B2C hypothesis only
