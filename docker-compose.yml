@@ -32,11 +32,11 @@ services:
       db:
         condition: service_healthy
     ports:
-      - '5199:8080'
+      - '5299:8080'
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__MarenPlatform: >-
-        Server=db,1433;Database=MarenPlatform;User Id=sa;
+      ConnectionStrings__WlosPlatform: >-
+        Server=db,1433;Database=WlosPlatform;User Id=sa;
         Password=${MSSQL_SA_PASSWORD:-Local!Dev!Passw0rd#2026};
         TrustServerCertificate=True;MultipleActiveResultSets=True
       Jwt__SigningKey: ${JWT_SIGNING_KEY:-dev-only-signing-key-not-for-production-use-32chars}

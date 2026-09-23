@@ -13,8 +13,8 @@ public sealed class JwtOptions
 {
     public const string SectionName = "Jwt";
 
-    public string Issuer { get; set; } = "maren.platform";
-    public string Audience { get; set; } = "maren.app";
+    public string Issuer { get; set; } = "wlos.platform";
+    public string Audience { get; set; } = "wlos.app";
 
     /// <summary>Signing key. Must come from a secret store in production.</summary>
     public string SigningKey { get; set; } = "";

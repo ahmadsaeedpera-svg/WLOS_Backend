@@ -27,9 +27,9 @@ public sealed class SqlConnectionFactory(
     : IDbConnectionFactory
 {
     private readonly string _connectionString =
-        configuration.GetConnectionString("MarenPlatform")
+        configuration.GetConnectionString("WlosPlatform")
         ?? throw new InvalidOperationException(
-            "Connection string 'MarenPlatform' is not configured.");
+            "Connection string 'WlosPlatform' is not configured.");
 
     public async Task<IDbConnection> CreateAsync(CancellationToken ct = default)
     {
