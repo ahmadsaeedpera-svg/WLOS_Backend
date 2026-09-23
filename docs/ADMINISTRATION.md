@@ -24,7 +24,10 @@ regardless of who connects:
 - **You cannot grant a permission you do not hold.** Enforced in
   `usp_User_AssignRole` via `fn_UserHoldsAllPermissionsOfRole`. Without it,
   holding `roles.write` *is* holding every permission.
-- **Audit is append-only.** No procedure updates or deletes `Audit.AuditLog`.
+- **Audit is append-only for the account's lifetime.** No procedure updates or
+  deletes `Audit.AuditLog`, with one named exception: `usp_User_DeleteAccount`
+  removes the rows belonging to an account being erased, and only those. Not a
+  general mutable-audit system — see `CLAUDE.md` §4.8.
 
 A refused escalation is itself recorded as `Security.EscalationRefused`. Probing
 leaves a trail; auditing only successes means the first evidence of an attempt is

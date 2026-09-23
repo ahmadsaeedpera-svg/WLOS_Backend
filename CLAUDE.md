@@ -121,7 +121,7 @@ script that creates a table, renumber this one so it stays at the end;
 ### SQL assertion suites
 
 These are not optional. They test rules that live in the database and that no
-C# test can reach. There are **23 suites, 314 assertions**; every one runs in CI
+C# test can reach. There are **23 suites, 315 assertions**; every one runs in CI
 and `tests/ci_workflow_test.sh` fails if a suite on disk is missing a CI step.
 
 ```bash
@@ -277,30 +277,49 @@ would mean the record of an escalation attempt is erased by the very rollback
 that attempt caused. This is the **only** deliberate escape from the unit of
 work — do not copy the pattern elsewhere.
 
-### 4.8 Audit is append-only, with exactly one named exception
+### 4.8 Append-only for the account's lifetime; erasable on account deletion
 
-No procedure updates or deletes `Audit.AuditLog`. A test asserts it
-(`access_test.sql`, assertion 18).
+**The invariant, stated precisely:**
 
-**The exception is `usp_User_DeleteAccount`, and it is the only one.**
+> Operational audit and AI-safety records are append-only **during account
+> lifetime**. Account deletion may erase records belonging to the deleted user.
+> The deletion operation itself creates only a minimal system tombstone
+> containing no personal payload.
 
-The append-only rule is about accountability: an operator must not be able to
-erase evidence of what they did. That reasoning covers people acting **on** the
-platform. A woman closing her own account is the subject of the log, not an
-actor in it, and the WLOS constitution is unambiguous — *"she can delete
-everything, and deletion means deletion, not a flag."* An audit trail of
-everything she did is still a record of everything she did.
+This replaces an earlier, less accurate claim that these tables were globally
+append-only. They never could be, once deletion means deletion — and having
+three assertion suites insist on a rule the product contradicts is worse than
+naming the boundary. This is **not** a general mutable-audit system, and it must
+not be weakened into one.
 
-Three things keep the exception from eroding the rule:
+**Two tables are in scope: `Audit.AuditLog` and `AI.SafetyEvent`. One procedure
+may erase from them: `usp_User_DeleteAccount`. That is the whole exception.**
 
-- It is one procedure **by name** in the assertion, not a relaxed pattern.
-- That procedure refuses to run for any account holding a role beyond `Member`,
-  so the erasure path cannot be turned on an operator — the case the original
-  rule was written to prevent. Assertion 18b checks the refusal is still there.
-- It appends a tombstone (`User.DeleteAccount`, actor `system`, no IP) so the
-  fact of an erasure outlives the account.
+The append-only property is about accountability — an operator must not be able
+to erase evidence of what they did. That reasoning covers people acting **on**
+the platform. A woman closing her own account is the *subject* of those records,
+not an actor in them, and the WLOS constitution is unambiguous: *"she can delete
+everything, and deletion means deletion, not a flag."* Deleting an account must
+not leave behind a permanent history of her mood, crisis signals, clinical
+scores, refusals, IP addresses and behaviour.
 
-If this list ever grows past one, the rule has stopped meaning anything.
+Four things keep the exception scoped to account erasure:
+
+- It is one procedure **by name** in every assertion, never a relaxed pattern.
+  `access_test.sql` 18, `ai_safety_test.sql` 3 and `observability_test.sql` 9 all
+  name it and nothing else.
+- That procedure refuses any account holding a role beyond `Member`, so the
+  erasure path cannot be turned on an operator — the case the original rule was
+  written to prevent. `access_test.sql` 18b asserts the refusal is still there.
+- It only ever deletes rows **belonging to the user being erased**, scoped by
+  `ActorUserId` / `UserId`. It has no other write path into either table.
+- It appends a tombstone (`User.DeleteAccount`, actor `system`, no IP, no user
+  agent, no payload) so the fact of an erasure outlives the account.
+
+**During an account's lifetime nothing may update or delete either table.** A
+second procedure appearing in any of those three assertions means the rule has
+stopped meaning anything — that is the failure mode to watch for, not the
+existence of the erasure path.
 
 ---
 

@@ -72,7 +72,29 @@ She does. Operationally, not rhetorically:
 - She can export everything, in a readable format, without asking.
 - She can delete everything, and deletion means deletion — not a flag.
 - She can see what WLOS believes about her, in her own words, and correct it.
-- `Audit.AuditLog` is append-only and records access, including by operators.
+- `Audit.AuditLog` and `AI.SafetyEvent` are append-only **for as long as her
+  account exists**, and record access, including by operators.
+
+**On the third and fourth points together**, because they pull against each
+other and the resolution is a decision rather than a detail:
+
+> Operational audit and AI-safety records are append-only **during account
+> lifetime**. Account deletion may erase records belonging to the deleted user.
+> The deletion operation itself creates only a minimal system tombstone
+> containing no personal payload.
+
+Append-only exists so an **operator** cannot erase evidence of what they did. It
+was never meant to outlive the woman it describes. Deleting an account must not
+leave behind a permanent history of her mood, her crisis signals, her clinical
+scores, her refusals, her IP addresses or her behaviour — a product that kept
+those after she asked to be gone would be the thing this document exists to
+prevent, whatever the record was called.
+
+This is **not** a general mutable-audit system. The erasure path is one named
+stored procedure, it may only remove rows belonging to the account being
+erased, it refuses any account holding operator roles, and three assertion
+suites fail if a second name is ever added. Confirmed 23 September 2026; see
+`CLAUDE.md` §4.8 and `docs/product/SLICE_1_AUTHENTICATION.md` §5.
 
 ### 1.4 What WLOS may infer
 

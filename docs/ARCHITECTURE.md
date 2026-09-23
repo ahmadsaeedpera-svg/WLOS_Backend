@@ -308,7 +308,7 @@ src/
 - `AuditLog` — every state change (append-only)
 - `SecurityEvent` — login attempt, permission grant, lock, unlock
 
-**Rule:** Audit is append-only. No update, no delete. Security events are written on refusal (outside the transaction so a rollback does not erase the refusal).
+**Rule:** Audit is append-only **during account lifetime** — no update, no delete — with one named exception: `usp_User_DeleteAccount` erases the rows belonging to an account being deleted and appends a tombstone carrying no personal payload. It is not a general mutable-audit system; see `CLAUDE.md` §4.8. Security events are written on refusal (outside the transaction so a rollback does not erase the refusal).
 
 ### Health Schema
 
@@ -497,7 +497,10 @@ await _cache.InvalidateAsync("feature-flags"); // clear all flags
 - **Before/after state** (for content edits, role changes)
 - **Result** (success or failure code)
 
-Audit entries are **append-only.** No update, no delete. Tested by `AuditAppendOnlyTest`.
+Audit entries are **append-only for as long as the account exists.** No update,
+no delete, except `usp_User_DeleteAccount` on erasure. Asserted by
+`access_test.sql` 18 and 18b, `ai_safety_test.sql` 3 and
+`observability_test.sql` 9 — not by `AuditAppendOnlyTest`, which does not exist.
 
 Used by:
 - Compliance (regulatory)

@@ -150,11 +150,11 @@ INSERT @results VALUES ('unknown correlation remains representable',
     pattern, and newlines hide adjacency), then look for a mutation verb
     immediately against Audit.AuditLog.
 
-    One named exception: usp_User_DeleteAccount. A woman closing her account is
-    the subject of the log rather than an actor in it, and the constitution is
-    unambiguous that deletion means deletion. The full reasoning, and the three
-    things that keep the exception from eroding the rule, are in access_test.sql
-    assertion 18 and in CLAUDE.md section 4.8.
+    THE INVARIANT: append-only DURING ACCOUNT LIFETIME. Account deletion may
+    erase records belonging to the deleted user, and creates only a minimal
+    system tombstone with no personal payload. One exception by name —
+    usp_User_DeleteAccount — and it is not a general mutable-audit system. The
+    full reasoning is in access_test.sql assertion 18 and CLAUDE.md §4.8.
 
     This is the third copy of this check — access_test, ai_safety_test and here
     — and all three had to be amended by hand. That is worth knowing: the next

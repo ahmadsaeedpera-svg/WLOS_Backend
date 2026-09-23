@@ -124,33 +124,42 @@ Nothing else anywhere holds the identifier. `CreatedBy` / `ModifiedBy` /
 account can only create rows it owns, and `usp_User_DeleteAccount` refuses any
 account with a role beyond `Member`, so no operator-owned row can name her.
 
-### THE POLICY DECISION — deleting immutable security records
+### THE POLICY — CONFIRMED
 
-**This needs your explicit confirmation. It is not a technicality.**
+Reviewed and **confirmed** on 23 September 2026. The alternative — permanently
+retaining her AI-safety, clinical and crisis history behind a pseudonymous user
+id — was considered and **rejected**: it would make WLOS a system where deleting
+an account leaves behind a permanent record of a woman's mood, crisis signals,
+clinical scores, refusals, IP addresses and behaviour. That is the specific
+outcome this product exists not to produce.
 
-Hard deletion, as implemented, **removes her rows from two append-only ledgers**:
+Hard deletion removes her rows from two otherwise-append-only ledgers:
 
 - `Audit.AuditLog` — every action she took, with the IP address it came from
 - `AI.SafetyEvent` — her refusals, clinical scores and crisis scores
 
-That is a deliberate policy choice, not a side effect. The reasoning: the
-append-only rule exists so an **operator** cannot erase evidence of what they
-did. A woman closing her own account is the **subject** of those logs, not an
-actor in them, and a complete record of everything she did — including a crisis
-score — is exactly the thing the constitution's "deletion means deletion"
-promise is about.
+**The invariant, restated so it is internally coherent** — this replaces the
+earlier claim that these tables were globally append-only, which the product
+contradicts:
 
-**The defensible alternative, which I did not implement:** keep both ledgers
-intact, treating the user id as a pseudonym that resolves to nothing after
-erasure, and null only the directly-identifying columns (`IpAddress`,
-`UserAgent`). That preserves an immutable security and clinical-safety record
-and is what a regulated medical product would normally do. It is a smaller
-change than reversing it later.
+> Operational audit and AI-safety records are append-only **during account
+> lifetime**. Account deletion may erase records belonging to the deleted user.
+> The deletion operation itself creates only a minimal system tombstone
+> containing no personal payload.
 
-Three things keep the current exception narrow if you confirm it: it is one
-procedure **by name** in all three assertion suites, that procedure **refuses
-operator accounts**, and it **appends a tombstone**. `access_test.sql` 18b
-asserts the operator refusal has not been removed.
+**This is not a general mutable-audit system and must not be weakened into one.**
+The exception is scoped to account erasure and to nothing else. Four things hold
+that scope, and all four are asserted:
+
+| Guard | Where |
+|---|---|
+| One procedure **by name**, never a relaxed pattern | `access_test.sql` 18, `ai_safety_test.sql` 3, `observability_test.sql` 9 |
+| Refuses any account with a role beyond `Member` | `access_test.sql` 18b |
+| Deletes only rows **belonging to the erased user**, scoped by `ActorUserId`/`UserId` | `usp_User_DeleteAccount` |
+| Appends a tombstone with no personal payload | `Deletion_takes_her_audit_history_and_leaves_a_tombstone` |
+
+A **second** procedure name appearing in any of those three assertions is the
+failure mode to watch for. The existence of the erasure path is not.
 
 ### The collisions
 
@@ -315,15 +324,54 @@ failed at 1150ms against a 1000ms budget on one run and passed on the next
 under lighter load. It is environmental, it is not counted above, and it is
 not caused by this slice.
 
-## 12. Still open
+## 12. Carried forward — decided, deferred, not forgotten
 
-- **RC-4 compliance.** The Play Store Data Safety declaration, privacy policy
-  and GDPR record of processing all describe the old posture (no account,
-  nothing uploaded) and have to be rewritten. Not engineering work, not done.
-- **Confirm or reverse the append-only exception** (§5).
-- **Decide whether the no-`WLOS_API_BASE` path should exist** (§8).
-- **Three copies of the append-only assertion** now exist in three suites, and
-  all three had to be amended by hand.
-- **No email confirmation and no password reset.** Neither was in scope. A
-  forgotten password currently has no recovery path, which matters more now that
-  an account holds her data.
+These were reviewed at Slice 1 acceptance and deliberately deferred. None of
+them blocks closing Slice 1; the first two block public launch.
+
+### Password reset — REQUIRED BEFORE PUBLIC LAUNCH
+
+Not a Slice 1 failure: it was never in scope. It is a launch-blocking
+capability, because the account now holds real data. Someone who creates an
+account, signs out and forgets the password currently has **no recovery path at
+all** and the account is permanently inaccessible.
+
+Email confirmation is a separate question to be evaluated on its own, not
+bundled with this.
+
+### Production must not silently run unauthenticated
+
+`AuthGate` is active only when `WLOS_API_BASE` is set (§8). The rule going
+forward:
+
+- **Development** — no API URL, local/offline mode, acceptable.
+- **Production** — no API URL must **fail the build or the launch**, never
+  silently produce a release that looks like WLOS but is not connected to the
+  WLOS account system.
+
+To be handled in build/release configuration rather than by complicating the
+app.
+
+### Revocation-cache propagation window — documented, not redesigned
+
+Deletion and session revocation take effect within the stamp validator's
+**30-second cache TTL** (measured ~15s). This is an **existing security
+propagation window**, accepted for now because deletion happens first, her rows
+are already gone, the token is invalid after expiry, and the final
+`401 SESSION_REVOKED` was demonstrated over HTTP.
+
+It stays **explicitly documented as a propagation window**. A future
+higher-security operation may warrant immediate invalidation. **Do not redesign
+it now.**
+
+### RC-4 compliance — not engineering work, not done
+
+The Play Store Data Safety declaration, the privacy policy and the GDPR record
+of processing all describe the old posture (no account, nothing uploaded) and
+have to be rewritten for the new one.
+
+### Known maintenance hazard
+
+**Three copies of the append-only assertion** exist — `access_test.sql`,
+`ai_safety_test.sql`, `observability_test.sql` — and all three had to be amended
+by hand. The next change to that invariant will also have to find all three.

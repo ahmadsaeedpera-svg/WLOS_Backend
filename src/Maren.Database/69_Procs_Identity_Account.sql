@@ -499,6 +499,18 @@ GO
     needs to see what was removed and by whom. None of that reasoning applies
     to a woman's own account. She is not an operator's audit subject.
 
+    THE INVARIANT THIS PROCEDURE IS THE EXCEPTION TO
+
+    Operational audit and AI-safety records are append-only DURING ACCOUNT
+    LIFETIME. Account deletion may erase records belonging to the deleted user.
+    The deletion operation itself creates only a minimal system tombstone
+    containing no personal payload.
+
+    This is the only procedure in the database permitted to remove rows from
+    Audit.AuditLog or AI.SafetyEvent, it may only remove rows belonging to the
+    account being erased, and it refuses operator accounts outright. It is not a
+    licence to mutate either table for any other purpose. See CLAUDE.md §4.8.
+
     WHAT SURVIVES
 
     One row in Audit.AuditLog saying an account with this identifier was

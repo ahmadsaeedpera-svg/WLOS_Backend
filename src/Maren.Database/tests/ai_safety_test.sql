@@ -58,21 +58,29 @@ SELECT 'ledger cannot hold message content',
        CASE WHEN @n = 0 THEN 'PASS' ELSE 'FAIL' END;
 
 -- 3 -------------------------------------------------------------------------
-/*  Append-only: nothing may update or delete it. Mirrors the rule enforced on
-    Audit.AuditLog. Checked against every procedure body in the database.
+/*  THE INVARIANT
 
-    One named exception, and it is the same one for the same reason:
-    usp_User_DeleteAccount.
+    AI-safety records are append-only DURING ACCOUNT LIFETIME. Account deletion
+    may erase records belonging to the deleted user. The deletion operation
+    itself creates only a minimal system tombstone containing no personal
+    payload.
+
+    The same invariant as Audit.AuditLog (access_test.sql assertion 18) and the
+    same single exception: usp_User_DeleteAccount, which may remove rows
+    belonging to the account being erased and nothing else. Checked against
+    every procedure body in the database.
 
     A safety event is a refusal, a clinical score and a crisis score attached
     to a person. That makes it the most sensitive thing in this database and
-    unambiguously hers, so an erasure that kept it would not be an erasure.
-    Append-only protects the ledger from being tidied up after the fact; it was
-    never meant to outlive the woman it describes.
+    unambiguously hers. Retaining it past her deletion would mean WLOS keeps a
+    permanent record of a woman's crisis signals after she asked to be gone —
+    which is the specific outcome this product exists not to produce. Append-
+    only protects the ledger from being tidied up after the fact; it was never
+    meant to outlive the woman it describes.
 
-    The same three things keep the exception narrow as on the audit log: it is
-    one procedure by name, that procedure refuses any account holding a role
-    beyond Member, and it appends a tombstone for the deletion itself. */
+    Not a general mutable ledger. The exception is one procedure BY NAME, that
+    procedure refuses any account holding a role beyond Member, and it appends
+    a tombstone. A second name here is the failure mode to watch for. */
 SELECT @n = COUNT(*)
 FROM sys.sql_modules m
 JOIN sys.objects o ON o.object_id = m.object_id

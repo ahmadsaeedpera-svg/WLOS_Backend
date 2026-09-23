@@ -293,7 +293,8 @@ Database: `MarenPlatform`
 - Role deletion prevented if in use
 - Last administrator cannot be demoted
 - Permission enforcement on procedures
-- Audit is append-only
+- Audit is append-only during account lifetime; account erasure is the one
+  named exception (`usp_User_DeleteAccount`)
 
 ---
 

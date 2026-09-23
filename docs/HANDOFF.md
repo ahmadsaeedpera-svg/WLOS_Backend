@@ -84,7 +84,9 @@ Client → API (MediatR pipeline) → Stored Procedures → SQL Server
 1. **Stored procedures only.** No ORM, no ad-hoc SQL. Rules belong in the database.
 2. **Authorization is permission-based.** Never check roles in code.
 3. **Clients read published snapshots.** Not live tables.
-4. **Audit is append-only.** No update, no delete.
+4. **Audit is append-only during account lifetime.** No update, no delete —
+   except `usp_User_DeleteAccount`, which erases the rows of an account being
+   deleted and nothing else.
 5. **Integration tests are real.** No repository mocks.
 
 ---

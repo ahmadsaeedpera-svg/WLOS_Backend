@@ -334,24 +334,33 @@ SELECT 'audit search filters by actor and resolves their email',
 FROM @auditRows;
 
 -- 18 -------------------------------------------------------------------------
-/*  The audit trail must have no write path other than append.
+/*  THE INVARIANT
 
-    One named exception: usp_User_DeleteAccount.
+    Operational audit records are append-only DURING ACCOUNT LIFETIME. Account
+    deletion may erase records belonging to the deleted user. The deletion
+    operation itself creates only a minimal system tombstone containing no
+    personal payload.
 
-    The append-only rule exists for accountability — so an operator cannot
-    erase the evidence of what they did. That reasoning is about people acting
-    ON the platform. A woman closing her own account is the subject of the log,
-    not an actor in it, and the constitution is unambiguous that "she can
-    delete everything, and deletion means deletion, not a flag". An audit trail
-    of everything she did is still a record of everything she did.
+    So: no procedure may update or delete Audit.AuditLog, with exactly one
+    exception — usp_User_DeleteAccount, which may remove rows belonging to the
+    account being erased and nothing else.
 
-    The exception is deliberately one procedure by name rather than a relaxed
-    pattern, and that procedure refuses to run for any account holding a role
-    beyond Member — so the erasure path cannot be turned on an operator, which
-    is the case the original rule was written to prevent. It appends a
-    tombstone for the deletion itself, so the fact of an erasure survives it.
+    The append-only property is about accountability: an operator must not be
+    able to erase the evidence of what they did. That is about people acting ON
+    the platform. A woman closing her own account is the SUBJECT of the log, not
+    an actor in it, and the constitution is unambiguous that "she can delete
+    everything, and deletion means deletion, not a flag". Deleting an account
+    must not leave behind a permanent history of her behaviour and her IP
+    addresses.
 
-    If this list ever grows past one, the rule has stopped meaning anything. */
+    This is NOT a general mutable-audit system and must not be weakened into
+    one. The exception is one procedure BY NAME rather than a relaxed pattern,
+    and that procedure refuses any account holding a role beyond Member — so
+    the erasure path cannot be turned on an operator, which is the case the
+    original rule was written to prevent (assertion 18b).
+
+    A SECOND name appearing in this list is the failure mode to watch for. The
+    existence of the erasure path is not. */
 INSERT @results
 SELECT 'no procedure updates or deletes the audit log',
        CONCAT('offenders=', COUNT(*)),
