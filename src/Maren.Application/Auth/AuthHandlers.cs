@@ -305,8 +305,25 @@ public sealed record DeleteAccountCommand(Guid UserId, DeleteAccountRequest Requ
 
 public sealed class DeleteAccountValidator : AbstractValidator<DeleteAccountCommand>
 {
-    public DeleteAccountValidator() =>
-        RuleFor(x => x.Request.Password).NotEmpty().MaximumLength(256);
+    /*  One or the other, not both and not neither. Which one is right depends
+        on the account, and the validator cannot see the account -- so it only
+        checks that something arrived to confirm with, and the handler decides
+        whether it is the kind this account accepts. */
+    public DeleteAccountValidator()
+    {
+        RuleFor(x => x.Request)
+            .Must(r => !string.IsNullOrEmpty(r.Password) || r.AuthSecret is not null)
+            .WithMessage("Your password is needed to confirm this.");
+
+        RuleFor(x => x.Request.Password)
+            .MaximumLength(256)
+            .When(x => !string.IsNullOrEmpty(x.Request.Password));
+
+        RuleFor(x => x.Request.AuthSecret!)
+            .Must(b => b.Length == 32)
+            .WithMessage("The authentication secret must be 32 bytes.")
+            .When(x => x.Request.AuthSecret is not null);
+    }
 }
 
 /// <summary>Erases the account and everything behind it.</summary>
@@ -320,33 +337,70 @@ public sealed class DeleteAccountValidator : AbstractValidator<DeleteAccountComm
 /// <para>
 /// Re-reading the login material by <em>email</em> would mean the handler
 /// needed an address it has no business asking a client for. It reads by user
-/// id instead, so the only thing crossing the boundary is the password she has
-/// just typed.
+/// id instead, so the only thing crossing the boundary is the confirmation
+/// she has just produced.
+/// </para>
+/// <para>
+/// <b>Two credential schemes, and the account decides which one applies.</b>
+/// A client-derived account holds no server-side password at all, so this
+/// handler used to refuse every one of them: "deletion means deletion" was
+/// true for version 1 accounts and quietly false for encrypted ones. The
+/// client-derived branch is tried first because it is the scheme an account
+/// is migrated <em>to</em> — an account that has both has moved on from the
+/// version 1 material, which <c>usp_UserCredential_SetAuthoritative</c>
+/// deliberately leaves in place.
 /// </para>
 /// </remarks>
 public sealed class DeleteAccountHandler(
     IAuthRepository repository,
+    ICryptoRepository cryptoRepository,
+    IAuthSecretVerifier authSecretVerifier,
     IPasswordHasher hasher)
     : IRequestHandler<DeleteAccountCommand, Result>
 {
     public async Task<Result> Handle(
         DeleteAccountCommand command, CancellationToken ct)
     {
+        var confirmed = await ConfirmAsync(command, ct);
+
+        if (!confirmed)
+            return Result.Failure(FailureCodes.InvalidCredentials);
+
+        return await repository.DeleteAccountAsync(command.UserId, ct);
+    }
+
+    private async Task<bool> ConfirmAsync(
+        DeleteAccountCommand command, CancellationToken ct)
+    {
+        var clientDerived = await cryptoRepository.GetReauthMaterialAsync(
+            command.UserId, ct);
+
+        if (clientDerived is not null)
+        {
+            /*  Her account is on the client-derived scheme, so a password is
+                not something this server can check and must not be accepted
+                as if it were. Sending one here is a client that has not
+                noticed the account was migrated. */
+            return command.Request.AuthSecret is { } secret
+                && authSecretVerifier.Verify(
+                    secret, clientDerived.AuthSecretSalt, clientDerived.AuthSecretHash);
+        }
+
+        if (command.Request.Password is not { Length: > 0 } password)
+            return false;
+
         var material = await repository.GetLoginMaterialAsync(command.UserId, ct);
 
         if (material?.PasswordHash is null || material.PasswordSalt is null ||
             material.PasswordIterations is null)
         {
-            return Result.Failure(FailureCodes.InvalidCredentials);
+            return false;
         }
 
         var (verified, _) = hasher.Verify(
-            command.Request.Password, material.PasswordHash,
+            password, material.PasswordHash,
             material.PasswordSalt, material.PasswordIterations.Value);
 
-        if (!verified)
-            return Result.Failure(FailureCodes.InvalidCredentials);
-
-        return await repository.DeleteAccountAsync(command.UserId, ct);
+        return verified;
     }
 }

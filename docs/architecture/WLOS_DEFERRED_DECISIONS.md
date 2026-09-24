@@ -84,6 +84,7 @@ register items.
 |---|---|
 | **D12** | A web client is ever proposed, or the device-approval adapters cannot both ship |
 | **D7 / KDF profiles** | Any code hard-codes Argon2id parameters instead of reading a profile row |
+| **D7 / profile pickup** | **A second KDF profile exists.** A password change generates a fresh salt but reuses the profile her credential already names, because the only lookup that returns a profile is keyed by address and returns hers rather than the current one. Harmless while there is one profile; the moment there are two, a password change silently declines a strengthened profile, and the authenticated client needs a way to ask for the current one. Found while implementing the change-password slice and recorded here rather than left to be discovered by a profile rotation that appeared to do nothing |
 | **A3** | Neither adapter can produce a non-syncable credential on a target device — then **E3b becomes unimplementable** and D12 resolves itself by elimination |
 | **A7** | Generation recovery enters a slice |
 | **H1 anti-rollback** | Any document claims integrity or completeness rather than confidentiality |

@@ -83,7 +83,53 @@ public interface ICryptoRepository
 
     /// <summary>Counts and states for an operator. Never content.</summary>
     Task<CryptoAccountSummary?> GetAccountSummaryAsync(Guid userId, CancellationToken ct);
+
+    /// <summary>
+    /// The verification material for an account the caller has already
+    /// authenticated as, so it can be asked to prove the password again.
+    /// </summary>
+    /// <remarks>
+    /// By user id, never by address. An authenticated endpoint that accepted
+    /// an email address to name the account would be offering a second and
+    /// weaker way of saying who is being acted on than the token it already
+    /// holds. The version 1 path keeps <c>usp_User_GetLoginMaterial</c> for
+    /// the same reason.
+    /// </remarks>
+    Task<ReauthMaterial?> GetReauthMaterialAsync(Guid userId, CancellationToken ct);
+
+    /// <summary>
+    /// Replaces the credential and reseals the data key, in one transaction.
+    /// </summary>
+    /// <remarks>
+    /// Both or neither. A new password derives a new key-encryption key, and
+    /// the stored wrapper was sealed under the old one; writing the credential
+    /// alone would leave an account whose new password signs in and opens
+    /// nothing, with the old password already gone.
+    /// </remarks>
+    Task<bool> ChangePasswordAsync(
+        Guid userId, byte[] authSecretVerifier, byte[] authSecretSalt,
+        int kdfProfileId, byte[] passwordWrapper, CancellationToken ct);
+
+    /// <summary>New twelve words for the generation she is writing into.</summary>
+    /// <remarks>
+    /// The old wrapper and the old public key are both replaced, so the
+    /// retired phrase stops opening anything and stops proving anything. The
+    /// data key itself is untouched — this changes which words open her
+    /// journal, not what they open.
+    /// </remarks>
+    Task<bool> ReplaceRecoveryKeyAsync(
+        Guid userId, byte[] recoveryWrapper, byte[] recoveryPublicKey,
+        CancellationToken ct);
 }
+
+/// <summary>What is needed to re-verify a password for an authenticated caller.</summary>
+/// <remarks>
+/// No user id: the caller already knows which account it asked about, and
+/// carrying one here would invite passing it on to something that should have
+/// taken it from the token instead.
+/// </remarks>
+public sealed record ReauthMaterial(
+    byte[] AuthSecretHash, byte[] AuthSecretSalt, int KdfProfileId);
 
 /// <summary>
 /// Produces a stable, unpredictable salt for an address that has no account.

@@ -139,7 +139,19 @@ public sealed record CryptoAccountSummary(
     int RecordCount,
     bool HasRecoveryWrapper,
     DateTime? FirstRecordOn,
-    DateTime? LastRecordOn);
+    DateTime? LastRecordOn,
+
+    /*  When each was last replaced, or null if never. From the audit log
+        rather than a column, because that is where the fact already lives and
+        a second copy is a second thing to keep true.
+
+        These two are here on her behalf. "Your password was changed on the
+        fourteenth" -- or, far more importantly, "no, it was not" -- is the
+        answer to *did someone else get into my account*, and for a woman
+        whose phone is not only hers that is not an idle question. They say
+        when a credential changed, never what it became. */
+    DateTime? PasswordChangedOn,
+    DateTime? RecoveryPhraseChangedOn);
 
 /*  Path R — getting back in with the recovery phrase.
 
@@ -223,5 +235,58 @@ public sealed record RecoveryCompleteUnrecoverableRequest(
     int KdfProfileId,
     Guid NewGenerationId,
     byte[] PasswordWrapper,
+    byte[] RecoveryWrapper,
+    byte[] RecoveryPublicKey);
+
+/*  Account security: changing a password, and replacing the twelve words.
+
+    Both are done by a woman who is signed in and knows her current password,
+    and both re-verify it. A stolen session must not be able to do either: one
+    would lock her out of her own account, and the other would destroy the
+    credential she could have used to take it back.
+
+    Two authentication secrets appear in the change-password request and they
+    are not interchangeable. `CurrentAuthSecret` is derived under the salt and
+    parameters her credential already has, because it has to reproduce a value
+    computed months ago. `AuthSecret` is derived under a fresh salt and the
+    current profile. Reusing the old salt would mean a password change never
+    picked up a strengthened KDF profile, which is most of the reason for
+    having profiles at all. */
+
+/// <summary>A new password, and the data key resealed under it.</summary>
+/// <remarks>
+/// <para>
+/// The device does all of this: derive from the old password to prove it,
+/// derive from the new one, open the wrapper with the old key-encryption key
+/// and reseal it under the new. <b>Neither password is in this request</b>,
+/// and the server cannot open the wrapper it is being handed.
+/// </para>
+/// <para>
+/// The wrapper is required, not optional. The credential and the wrapper are
+/// written in one transaction because an account whose new password
+/// authenticates and opens nothing is worse than one that refused the change.
+/// </para>
+/// </remarks>
+public sealed record ChangePasswordRequest(
+    byte[] CurrentAuthSecret,
+    byte[] AuthSecret,
+    byte[] AuthSecretSalt,
+    int KdfProfileId,
+    byte[] PasswordWrapper);
+
+/// <summary>New twelve words. The old ones stop working.</summary>
+/// <remarks>
+/// <para>
+/// For the woman who has lost the piece of paper, or who has just used her
+/// phrase and would rather the old one stopped opening anything.
+/// </para>
+/// <para>
+/// <b>Destructive to the old phrase and not reversible.</b> Her journal is
+/// untouched — the data key does not move, so this changes which words open
+/// it, not what they open.
+/// </para>
+/// </remarks>
+public sealed record ReplaceRecoveryPhraseRequest(
+    byte[] CurrentAuthSecret,
     byte[] RecoveryWrapper,
     byte[] RecoveryPublicKey);

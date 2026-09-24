@@ -218,11 +218,20 @@ IF OBJECT_ID('Identity.usp_UserCredential_SetAuthoritative') IS NOT NULL
     DROP PROCEDURE [Identity].[usp_UserCredential_SetAuthoritative];
 GO
 CREATE PROCEDURE [Identity].[usp_UserCredential_SetAuthoritative]
-    @UserId         UNIQUEIDENTIFIER,
-    @AuthSecretHash VARBINARY(64),
-    @AuthSecretSalt VARBINARY(32),
-    @KdfProfileId   INT,
-    @RevokeSessions BIT = 1
+    @UserId          UNIQUEIDENTIFIER,
+    @AuthSecretHash  VARBINARY(64),
+    @AuthSecretSalt  VARBINARY(32),
+    @KdfProfileId    INT,
+    /*  The data key, resealed under the key-encryption key the new password
+        derives. Required, and in the same transaction as the credential.
+
+        Changing a password changes KEK_password, and the stored wrapper was
+        sealed under the old one. Writing the credential without the wrapper
+        would leave an account whose new password authenticates and opens
+        nothing, with the old password gone -- her journal unreachable by any
+        route. The two are one change. */
+    @PasswordWrapper VARBINARY(MAX),
+    @RevokeSessions  BIT = 1
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -255,6 +264,26 @@ BEGIN
         VALUES
             (@UserId, 2, @AuthSecretHash, @AuthSecretSalt,
              @KdfProfileId, 1);
+
+        /*  The data key, resealed. Same transaction, for the reason in the
+            parameter comment: a credential without a matching wrapper is an
+            account she can sign in to and cannot open.
+
+            Null generation means she has no key yet, which is possible only
+            for an account that never finished registering. Nothing to reseal,
+            and nothing to refuse over. */
+        DECLARE @activeGenerationId UNIQUEIDENTIFIER =
+            (SELECT GenerationId FROM [Crypto].[Generation]
+              WHERE UserId = @UserId AND [State] = 'ACTIVE');
+
+        IF @activeGenerationId IS NOT NULL
+        BEGIN
+            DELETE FROM [Crypto].[Wrapper]
+             WHERE GenerationId = @activeGenerationId AND WrapperKind = 'PASSWORD';
+
+            INSERT INTO [Crypto].[Wrapper] (GenerationId, WrapperKind, Envelope)
+            VALUES (@activeGenerationId, 'PASSWORD', @PasswordWrapper);
+        END
 
         /*  This procedure deliberately does NOT clear the version 1 material
             on Identity.User, even though an account with a version 2
@@ -694,6 +723,22 @@ GO
     an operator can honestly tell her: whether a recovery phrase can still
     open the current generation. Whether it *will* is between her and the
     phrase.
+
+    `PasswordChangedOn` and `RecoveryPhraseChangedOn` are the two dates a
+    woman asks about when something is wrong, and they come from the audit log
+    rather than from a column, because the audit log is where the fact already
+    lives and a second copy is a second thing to keep true.
+
+    They are here on her behalf rather than for reporting. "Your password was
+    changed on the fourteenth" -- or, far more importantly, "no, it was not" --
+    is the answer to *did someone else get into my account*, and for a woman
+    whose phone is not only hers that is not an idle question. Withholding it
+    would protect nothing: it says when a credential changed, never what it
+    became.
+
+    Dates, not instants. An operator does not need to know she was awake at
+    three in the morning, and the client formats these as dates for the same
+    reason.
 */
 IF OBJECT_ID('Crypto.usp_Crypto_GetAccountSummary') IS NOT NULL
     DROP PROCEDURE [Crypto].[usp_Crypto_GetAccountSummary];
@@ -723,7 +768,15 @@ BEGIN
         (SELECT MIN(r.CreatedOn) FROM [Crypto].[Record] r WHERE r.UserId = u.UserId)
             AS FirstRecordOn,
         (SELECT MAX(r.ModifiedOn) FROM [Crypto].[Record] r WHERE r.UserId = u.UserId)
-            AS LastRecordOn
+            AS LastRecordOn,
+        (SELECT MAX(a.OccurredUtc) FROM [Audit].[AuditLog] a
+          WHERE a.ActorUserId = u.UserId
+            AND a.[Action] = 'Credential.SetAuthoritative')
+            AS PasswordChangedOn,
+        (SELECT MAX(a.OccurredUtc) FROM [Audit].[AuditLog] a
+          WHERE a.ActorUserId = u.UserId
+            AND a.[Action] = 'Recovery.KeyReplaced')
+            AS RecoveryPhraseChangedOn
     FROM [Identity].[User] u
     WHERE u.UserId = @UserId AND u.IsDeleted = 0;
 END
@@ -880,5 +933,118 @@ BEGIN
 
     SELECT CAST(1 AS BIT) AS Succeeded, CAST(NULL AS VARCHAR(64)) AS FailureCode,
            @userId AS UserId, @generationId AS GenerationId;
+END
+GO
+
+-- ---------------------------------------------------------------------------
+-- Identity.usp_UserCredential_GetForUser
+-- ---------------------------------------------------------------------------
+/*
+    The same verification material, found by user id rather than by address.
+
+    For re-confirming a password when the caller has already authenticated,
+    which is how an irreversible action is gated. The version 1 path has
+    `usp_User_GetLoginMaterial` for exactly this and for exactly this reason:
+    the alternative is an authenticated endpoint accepting an email address to
+    name an account the token already names, which is a second and weaker way
+    of saying who is being acted on.
+
+    Comparison happens in the application, constant-time, as everywhere else.
+*/
+IF OBJECT_ID('Identity.usp_UserCredential_GetForUser') IS NOT NULL
+    DROP PROCEDURE [Identity].[usp_UserCredential_GetForUser];
+GO
+CREATE PROCEDURE [Identity].[usp_UserCredential_GetForUser]
+    @UserId UNIQUEIDENTIFIER
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT TOP 1
+        c.AuthSecretHash,
+        c.AuthSecretSalt,
+        c.KdfProfileId
+    FROM [Identity].[UserCredential] c
+    JOIN [Identity].[User] u ON u.UserId = c.UserId
+    WHERE c.UserId = @UserId
+      AND c.IsAuthoritative = 1
+      AND c.CredentialVersion = 2
+      AND u.IsDeleted = 0;
+END
+GO
+
+-- ---------------------------------------------------------------------------
+-- Crypto.usp_Crypto_ReplaceRecoveryKey
+-- ---------------------------------------------------------------------------
+/*
+    A new recovery phrase for the generation she is writing into.
+
+    For the woman who has lost the piece of paper, or who used her phrase and
+    would rather the old one stopped working. The old wrapper and the old
+    public key are both replaced, so the old twelve words stop opening
+    anything and stop proving anything.
+
+    **This is destructive to the old phrase and cannot be undone**, which is
+    why the caller must have re-authenticated with the current password first.
+    A stolen session must not be able to do this: it would let an attacker
+    replace the one credential she could have used to take the account back.
+
+    It does not touch the data key. Her journal is unaffected -- this changes
+    which words open it, not what they open.
+
+    Only the ACTIVE generation. A dormant generation's phrase is the only
+    thing that still opens it, and replacing that wrapper would orphan every
+    record written under it.
+*/
+IF OBJECT_ID('Crypto.usp_Crypto_ReplaceRecoveryKey') IS NOT NULL
+    DROP PROCEDURE [Crypto].[usp_Crypto_ReplaceRecoveryKey];
+GO
+CREATE PROCEDURE [Crypto].[usp_Crypto_ReplaceRecoveryKey]
+    @UserId             UNIQUEIDENTIFIER,
+    @RecoveryWrapper    VARBINARY(MAX),
+    @RecoveryPublicKey  VARBINARY(32)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @generationId UNIQUEIDENTIFIER =
+        (SELECT GenerationId FROM [Crypto].[Generation]
+          WHERE UserId = @UserId AND [State] = 'ACTIVE');
+
+    IF @generationId IS NULL
+    BEGIN
+        SELECT CAST(0 AS BIT) AS Succeeded, 'NO_ACTIVE_GENERATION' AS FailureCode;
+        RETURN;
+    END
+
+    BEGIN TRAN;
+
+        DELETE FROM [Crypto].[Wrapper]
+         WHERE GenerationId = @generationId AND WrapperKind = 'RECOVERY';
+
+        INSERT INTO [Crypto].[Wrapper] (GenerationId, WrapperKind, Envelope)
+        VALUES (@generationId, 'RECOVERY', @RecoveryWrapper);
+
+        DELETE FROM [Crypto].[RecoveryVerifier] WHERE GenerationId = @generationId;
+
+        INSERT INTO [Crypto].[RecoveryVerifier] (GenerationId, PublicKey)
+        VALUES (@generationId, @RecoveryPublicKey);
+
+        /*  Outstanding challenges against the old key are dead. Leaving them
+            ISSUED would mean a challenge she asked for a minute ago could
+            still be answered by the phrase she has just retired. */
+        DELETE FROM [Crypto].[RecoveryChallenge]
+         WHERE UserId = @UserId AND [State] IN ('ISSUED', 'CONSUMED', 'VERIFIED');
+
+        INSERT INTO [Audit].[AuditLog]
+            (ActorUserId, ActorKind, [Action], EntityType, EntityId)
+        VALUES
+            (@UserId, 'user', 'Recovery.KeyReplaced', 'Generation',
+             CONVERT(NVARCHAR(50), @generationId));
+
+    COMMIT;
+
+    SELECT CAST(1 AS BIT) AS Succeeded, CAST(NULL AS VARCHAR(64)) AS FailureCode;
 END
 GO

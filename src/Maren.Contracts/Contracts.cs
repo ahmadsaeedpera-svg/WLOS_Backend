@@ -38,11 +38,36 @@ public sealed record LogoutRequest(
     bool AllDevices = false);
 
 /// <summary>Closing an account for good.</summary>
+/// <remarks>
+/// <para>
+/// Exactly one of the two fields is sent, and which one depends on how the
+/// account stores its credential rather than on anything the client chooses.
+/// The handler decides from the account, not from what arrived: an account
+/// holding a client-derived credential will not accept a password, because
+/// there is nothing on this server to check one against.
+/// </para>
+/// <para>
+/// <b>This shape exists because the encrypted path had no way to close an
+/// account at all.</b> A client-derived account holds no server-side password
+/// — an assertion in <c>crypto_test.sql</c> insists on it — so the original
+/// single-field request could only ever fail for one, and "deletion means
+/// deletion" was true for version 1 accounts only.
+/// </para>
+/// </remarks>
 /// <param name="Password">
-/// Re-entered to confirm. The action is irreversible and there is no undo to
-/// fall back on, so an unattended phone should not be enough to do it.
+/// Re-entered to confirm, for an account on the version 1 credential. The
+/// action is irreversible and there is no undo to fall back on, so an
+/// unattended phone should not be enough to do it.
 /// </param>
-public sealed record DeleteAccountRequest(string Password);
+/// <param name="AuthSecret">
+/// The same confirmation for an account on the client-derived credential: a
+/// 32-byte Argon2id output her device produced from the password she has just
+/// typed, under her own stored salt. <b>The password itself does not travel</b>
+/// — that is the whole point of the scheme, and closing an account is not a
+/// reason to make an exception to it.
+/// </param>
+public sealed record DeleteAccountRequest(
+    string? Password = null, byte[]? AuthSecret = null);
 
 public sealed record DeviceInfo(
     Guid DeviceId,

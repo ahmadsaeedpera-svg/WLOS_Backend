@@ -450,3 +450,201 @@ public sealed class GetCryptoAccountSummaryHandler(ICryptoRepository repository)
             : Result<CryptoAccountSummary>.Success(summary);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Account security
+// ---------------------------------------------------------------------------
+
+/*  Changing a password, and replacing the twelve words.
+
+    Both re-verify the current password even though the caller already holds a
+    valid access token, and for the reason DeleteAccountHandler gives: a token
+    proves the session was hers when it started, not that she is the one
+    holding the phone now. These are the two actions where that distinction
+    decides whether an attacker who picked up an unlocked phone can lock her
+    out of her own account, or destroy the credential she would have used to
+    take it back.
+
+    A failed re-verification is deliberately NOT recorded as a failed login,
+    matching the version 1 path. Counting it would mean an attacker with a
+    stolen session could lock the real owner out of her own account by
+    guessing wrong at this screen a few times -- turning a confirmation step
+    into a denial-of-service lever. Nothing is written and nothing changes;
+    she is simply told it was wrong.
+*/
+
+/// <summary>Re-verifies the current password for an authenticated caller.</summary>
+/// <remarks>
+/// Shared by both commands here rather than written twice. It reads by user
+/// id, so the only thing crossing the boundary is the secret her device has
+/// just derived.
+/// </remarks>
+internal static class Reauthentication
+{
+    internal static async Task<bool> ConfirmAsync(
+        ICryptoRepository repository, IAuthSecretVerifier verifier,
+        Guid userId, byte[] currentAuthSecret, CancellationToken ct)
+    {
+        var material = await repository.GetReauthMaterialAsync(userId, ct);
+
+        /*  No client-derived credential: an account on the version 1 scheme,
+            or one that does not exist. The comparison runs against a zero
+            salt anyway. This endpoint is authenticated so an enumeration
+            oracle is not the worry -- keeping one code path is. */
+        if (material is null)
+        {
+            verifier.Compute(currentAuthSecret, new byte[32]);
+            return false;
+        }
+
+        return verifier.Verify(
+            currentAuthSecret, material.AuthSecretSalt, material.AuthSecretHash);
+    }
+}
+
+public sealed record ChangePasswordCommand(ChangePasswordRequest Request)
+    : IRequest<Result<AuthResponse>>;
+
+public sealed class ChangePasswordValidator : AbstractValidator<ChangePasswordCommand>
+{
+    public ChangePasswordValidator()
+    {
+        RuleFor(x => x.Request.CurrentAuthSecret)
+            .NotNull().Must(b => b.Length == 32)
+            .WithMessage("The authentication secret must be 32 bytes.");
+
+        RuleFor(x => x.Request.AuthSecret)
+            .NotNull().Must(b => b.Length == 32)
+            .WithMessage("The authentication secret must be 32 bytes.");
+
+        RuleFor(x => x.Request.AuthSecretSalt)
+            .NotNull().Must(b => b.Length is >= 16 and <= 32)
+            .WithMessage("The salt must be between 16 and 32 bytes.");
+
+        /*  A new salt, not the old one. Reusing it would mean a password
+            change never picked up a strengthened KDF profile, which is most
+            of the reason for having profiles. This cannot be checked here --
+            the old salt is not in the request -- so it is the client's
+            obligation, stated in the contract and covered by a test. */
+        RuleFor(x => x.Request.PasswordWrapper)
+            .NotNull().Must(b => b.Length >= 48)
+            .WithMessage("The password wrapper is not a valid envelope.");
+
+        RuleFor(x => x.Request.KdfProfileId).GreaterThan(0);
+    }
+}
+
+/// <summary>A new password, and the data key resealed under it.</summary>
+/// <remarks>
+/// <para>
+/// Every session is revoked, including this one — the procedure rotates the
+/// security stamp and clears her refresh tokens. That is the right behaviour
+/// for a password change and it would also sign her out of the phone she is
+/// holding, so a fresh token pair is issued here and returned. Without that,
+/// changing a password would look exactly like being kicked out.
+/// </para>
+/// <para>
+/// Revoking first and issuing second is deliberate: any session that existed
+/// before this call is gone, and the only one that survives is the one that
+/// proved the password a moment ago.
+/// </para>
+/// </remarks>
+public sealed class ChangePasswordHandler(
+    ICryptoRepository repository,
+    IAuthRepository authRepository,
+    IAuthSecretVerifier verifier,
+    ITokenService tokens,
+    ICurrentUser currentUser)
+    : IRequestHandler<ChangePasswordCommand, Result<AuthResponse>>
+{
+    public async Task<Result<AuthResponse>> Handle(
+        ChangePasswordCommand command, CancellationToken ct)
+    {
+        if (currentUser.UserId is not { } userId)
+            return Result<AuthResponse>.Failure(FailureCodes.Forbidden);
+
+        var request = command.Request;
+
+        var confirmed = await Reauthentication.ConfirmAsync(
+            repository, verifier, userId, request.CurrentAuthSecret, ct);
+
+        if (!confirmed)
+            return Result<AuthResponse>.Failure(FailureCodes.InvalidCredentials);
+
+        var stored = verifier.Compute(request.AuthSecret, request.AuthSecretSalt);
+
+        var changed = await repository.ChangePasswordAsync(
+            userId, stored, request.AuthSecretSalt, request.KdfProfileId,
+            request.PasswordWrapper, ct);
+
+        if (!changed)
+            return Result<AuthResponse>.Failure(FailureCodes.NotFound);
+
+        var permissions = await authRepository.GetPermissionsAsync(userId, ct);
+        return await RegisterHandler.IssueAsync(
+            authRepository, tokens, currentUser, userId, permissions, null, ct);
+    }
+}
+
+public sealed record ReplaceRecoveryPhraseCommand(ReplaceRecoveryPhraseRequest Request)
+    : IRequest<Result>;
+
+public sealed class ReplaceRecoveryPhraseValidator
+    : AbstractValidator<ReplaceRecoveryPhraseCommand>
+{
+    public ReplaceRecoveryPhraseValidator()
+    {
+        RuleFor(x => x.Request.CurrentAuthSecret)
+            .NotNull().Must(b => b.Length == 32)
+            .WithMessage("The authentication secret must be 32 bytes.");
+
+        RuleFor(x => x.Request.RecoveryWrapper)
+            .NotNull().Must(b => b.Length >= 48)
+            .WithMessage("The recovery wrapper is not a valid envelope.");
+
+        RuleFor(x => x.Request.RecoveryPublicKey)
+            .NotNull().Must(b => b.Length == 32)
+            .WithMessage("The recovery public key must be 32 bytes.");
+    }
+}
+
+/// <summary>New twelve words. The old ones stop working.</summary>
+/// <remarks>
+/// <para>
+/// Her sessions are untouched, unlike a password change. Nothing she signs in
+/// with has changed — the phrase is the other way in, not this one.
+/// </para>
+/// <para>
+/// <b>Destructive to the old phrase.</b> Both halves go in one write: the
+/// wrapper the words open and the public key they prove. Replacing one
+/// without the other would leave either words that prove possession of a key
+/// they cannot open, or a key openable by words this platform will no longer
+/// accept.
+/// </para>
+/// </remarks>
+public sealed class ReplaceRecoveryPhraseHandler(
+    ICryptoRepository repository,
+    IAuthSecretVerifier verifier,
+    ICurrentUser currentUser)
+    : IRequestHandler<ReplaceRecoveryPhraseCommand, Result>
+{
+    public async Task<Result> Handle(
+        ReplaceRecoveryPhraseCommand command, CancellationToken ct)
+    {
+        if (currentUser.UserId is not { } userId)
+            return Result.Failure(FailureCodes.Forbidden);
+
+        var request = command.Request;
+
+        var confirmed = await Reauthentication.ConfirmAsync(
+            repository, verifier, userId, request.CurrentAuthSecret, ct);
+
+        if (!confirmed)
+            return Result.Failure(FailureCodes.InvalidCredentials);
+
+        var replaced = await repository.ReplaceRecoveryKeyAsync(
+            userId, request.RecoveryWrapper, request.RecoveryPublicKey, ct);
+
+        return replaced ? Result.Success() : Result.Failure(FailureCodes.NotFound);
+    }
+}

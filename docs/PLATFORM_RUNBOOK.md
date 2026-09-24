@@ -199,11 +199,81 @@ not a degraded mode. Her old records are kept as ciphertext — a device may
 still hold the key, and deleting the only remaining copy of what she wrote
 because one unwrap failed would be the worst possible answer.
 
+### Account security — `/api/v1/me/crypto` (authenticated)
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/password` | New credential **and** the data key resealed. Returns a fresh token pair |
+| POST | `/recovery-phrase` | New recovery wrapper and public key. Her journal is untouched |
+
+Both re-verify the current password, by `currentAuthSecret`, even though the
+caller holds a valid token. A token proves the session was hers when it
+started; it does not prove she is the one holding the phone now. These are the
+two actions where that decides whether someone who picked up an unlocked phone
+can lock her out, or destroy the twelve words she would take the account back
+with.
+
+**A failed re-verification is not recorded as a failed login**, matching the
+version 1 path. Counting it would let an attacker holding a stolen session lock
+the real owner out by guessing wrong a few times — a confirmation step turned
+into a denial-of-service lever.
+
+**The credential and the wrapper are one transaction.** A new password derives
+a new key-encryption key and the stored wrapper was sealed under the old one;
+writing the credential alone leaves an account whose new password signs in and
+opens nothing, with the old password already gone. No operator can undo that,
+because no operator can read the key either. `@PasswordWrapper` is required on
+`usp_UserCredential_SetAuthoritative` for exactly this reason.
+
+A password change **revokes every session, including the caller's** — the
+procedure rotates the security stamp and clears the refresh tokens. The
+endpoint therefore issues and returns a new pair, or changing a password would
+be indistinguishable from being signed out.
+
+Replacing a phrase writes the wrapper and the verifier together and deletes
+every outstanding challenge against the old key. It touches **only the ACTIVE
+generation**: a dormant generation's recovery wrapper is the one thing that
+still opens what she wrote under that key, and the caller could not produce a
+replacement for it.
+
+**Known limit, recorded rather than discovered later.** The client generates a
+fresh salt for the new password but reuses the KDF profile the credential
+already has, because the only lookup that returns a profile is keyed by address
+and returns *hers*. There is one profile today (D6/D7 are open), so nothing
+differs yet; when a second exists, picking up a strengthened profile on a
+password change needs a way to ask for the current one.
+
+### Closing an account — `DELETE /api/v1/me`
+
+`DeleteAccountRequest` carries **either** `password` **or** `authSecret`, and
+the handler decides which is acceptable from the account rather than from what
+arrived. A client-derived account holds no server-side password — an assertion
+in `crypto_test.sql` insists on it — so this path refused every encrypted
+account until Slice 2: "deletion means deletion" was true for version 1
+accounts and quietly false for the rest. Every existing test of the path used a
+version 1 account, which is why nothing noticed.
+
+The client-derived branch is tried first. An account that has both has moved on
+from the version 1 material, which `usp_UserCredential_SetAuthoritative`
+deliberately leaves in place.
+
 ### Encryption state for an operator — `/api/v1/admin/users/{id}/crypto`
 
 Requires `users.read`. Returns counts and states: how many entries, which
 generation, whether a recovery wrapper still exists, and first and last dates.
 **No content, and nothing that could carry any.**
+
+It also returns `passwordChangedOn` and `recoveryPhraseChangedOn`, read from
+the audit log. These are the exception to the thinness rule and were argued for
+rather than added: they answer *did someone else get into my account*, which an
+operator cannot answer from anything else on the screen, and which for a woman
+whose phone is not only hers is not an idle question. They say when a
+credential changed, never what it became.
+
+**No operator can perform either change.** The portal says so on the same card,
+because it is the thing support will be asked for: a password reset from that
+side would leave her with an account she can sign into and a journal she can
+never open again. There is no endpoint that does it.
 
 ### Verifying the whole path end to end
 

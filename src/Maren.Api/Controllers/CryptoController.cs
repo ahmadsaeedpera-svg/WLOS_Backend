@@ -64,6 +64,28 @@ public sealed class CryptoAuthController(ISender sender) : MarenControllerBase
     [HttpGet("~/api/v1/me/crypto/generation")]
     public async Task<IActionResult> ActiveGeneration(CancellationToken ct) =>
         FromResult(await sender.Send(new GetActiveGenerationQuery(), ct));
+
+    /// <summary>A new password, and the data key resealed under it.</summary>
+    /// <remarks>
+    /// Returns a fresh token pair. The change revokes every session including
+    /// this one, which is right for a password change and would otherwise sign
+    /// her out of the phone she is holding.
+    /// </remarks>
+    [HttpPost("~/api/v1/me/crypto/password")]
+    public async Task<IActionResult> ChangePassword(
+        [FromBody] ChangePasswordRequest request, CancellationToken ct) =>
+        FromResult(await sender.Send(new ChangePasswordCommand(request), ct));
+
+    /// <summary>New twelve words. The old ones stop working.</summary>
+    /// <remarks>
+    /// Her journal is untouched — this changes which words open the data key,
+    /// not the key itself. Both halves of the phrase, what it opens and what
+    /// it proves, are replaced in one write.
+    /// </remarks>
+    [HttpPost("~/api/v1/me/crypto/recovery-phrase")]
+    public async Task<IActionResult> ReplaceRecoveryPhrase(
+        [FromBody] ReplaceRecoveryPhraseRequest request, CancellationToken ct) =>
+        FromResult(await sender.Send(new ReplaceRecoveryPhraseCommand(request), ct));
 }
 
 /// <summary>

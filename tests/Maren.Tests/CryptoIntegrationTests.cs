@@ -598,7 +598,15 @@ public sealed class CryptoIntegrationTests(DatabaseFixture fixture) : IAsyncLife
                 nameof(CryptoAccountSummary.RecordCount),
                 nameof(CryptoAccountSummary.HasRecoveryWrapper),
                 nameof(CryptoAccountSummary.FirstRecordOn),
-                nameof(CryptoAccountSummary.LastRecordOn)
+                nameof(CryptoAccountSummary.LastRecordOn),
+
+                /*  Credentials, not content. These two are the exception and
+                    were argued for rather than slipped in: they answer "did
+                    someone else get into my account", which an operator
+                    cannot answer from anything else here, and neither says
+                    what the credential became. */
+                nameof(CryptoAccountSummary.PasswordChangedOn),
+                nameof(CryptoAccountSummary.RecoveryPhraseChangedOn)
             ], "an operator sees that records exist, never what is in them");
     }
 

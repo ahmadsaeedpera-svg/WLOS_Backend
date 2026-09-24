@@ -19,7 +19,7 @@
     Run:
       sqlcmd -S "$SERVER" -I -d "$DB" -i src/Maren.Database/tests/crypto_test.sql
 
-    Expect: TOTAL: 36  FAILED: 0
+    Expect: TOTAL: 42  FAILED: 0
 
     Creates and removes its own data. Re-runnable and order-independent:
     it cleans up on the way in as well as on the way out, so a previous
@@ -379,12 +379,17 @@ END
     The version 1 list names four procedures against Identity.User; these are
     the version 2 equivalents against Identity.UserCredential. The list is
     longer, and grouping it by what each one does is the only way to keep it
-    readable -- a flat list of seven names is one nobody checks:
+    readable -- a flat list of eight names is one nobody checks:
 
       reads it
         usp_UserCredential_GetForLogin      verify an authentication secret
         usp_UserCredential_GetKdfParameters the salt a device needs before it
                                             can derive anything
+        usp_UserCredential_GetForUser       the same verification, by user id
+                                            rather than by address, for an
+                                            already-authenticated caller
+                                            re-confirming her password before
+                                            something irreversible
 
       writes it
         usp_User_RegisterClientDerived      sets the first one -- the
@@ -414,6 +419,7 @@ DECLARE @authSecretLeaks int =
       WHERE o.type = 'P'
         AND o.name NOT IN ('usp_UserCredential_GetForLogin',
                            'usp_UserCredential_GetKdfParameters',
+                           'usp_UserCredential_GetForUser',
                            'usp_UserCredential_SetAuthoritative',
                            'usp_User_RegisterClientDerived',
                            'usp_Recovery_Complete',
@@ -707,6 +713,159 @@ BEGIN
     PRINT ' 35 both registration paths refuse the same under-age date        FAIL';
 END
 
+-- ---------------------------------------------------------------------------
+-- Account security: changing a password, and replacing the twelve words.
+-- ---------------------------------------------------------------------------
+/*  Both are done by a woman who is signed in. The invariants below are the
+    ones that decide whether she can still open her journal afterwards, and
+    every one of them is a way an account can be bricked by a change that
+    looked like it succeeded. */
+
+DECLARE @pwEnv2  varbinary(max) = CAST(REPLICATE(CAST(0xB1 AS binary(1)), 48) AS varbinary(max));
+DECLARE @recEnv2 varbinary(max) = CAST(REPLICATE(CAST(0xB2 AS binary(1)), 48) AS varbinary(max));
+DECLARE @recPk2  varbinary(32)  = CAST(REPLICATE(CAST(0xB3 AS binary(1)), 32) AS varbinary(32));
+DECLARE @hash2   varbinary(64)  = CAST(REPLICATE(CAST(0xB4 AS binary(1)), 32) AS varbinary(64));
+DECLARE @salt2   varbinary(32)  = CAST(REPLICATE(CAST(0xB5 AS binary(1)), 16) AS varbinary(32));
+
+/*  The one that matters most. A new password derives a new key-encryption
+    key, and the wrapper on disk was sealed under the old one. Writing the
+    credential without resealing the wrapper leaves an account whose new
+    password signs in and opens nothing, with the old password already gone --
+    and no operator on this platform can undo that, because none of them can
+    read the key either. So the two writes are one transaction, and this
+    asserts both landed. */
+DECLARE @changeResult TABLE (Succeeded bit, FailureCode varchar(64));
+INSERT @changeResult EXEC [Identity].[usp_UserCredential_SetAuthoritative]
+    @UserId = @regUserId,
+    @AuthSecretHash = @hash2,
+    @AuthSecretSalt = @salt2,
+    @KdfProfileId = @profile,
+    @PasswordWrapper = @pwEnv2;
+
+IF EXISTS (SELECT 1 FROM @changeResult WHERE Succeeded = 1)
+   AND EXISTS (SELECT 1 FROM [Identity].[UserCredential]
+            WHERE UserId = @regUserId AND IsAuthoritative = 1
+              AND CredentialVersion = 2 AND AuthSecretSalt = @salt2)
+   AND (SELECT COUNT(*) FROM [Crypto].[Wrapper] w
+         JOIN [Crypto].[Generation] g ON g.GenerationId = w.GenerationId
+        WHERE g.UserId = @regUserId AND w.WrapperKind = 'PASSWORD') = 1
+   AND EXISTS (SELECT 1 FROM [Crypto].[Wrapper] w
+                JOIN [Crypto].[Generation] g ON g.GenerationId = w.GenerationId
+               WHERE g.UserId = @regUserId AND w.WrapperKind = 'PASSWORD'
+                 AND w.Envelope = @pwEnv2)
+    PRINT ' 36 a password change reseals the data key in the same write      PASS';
+ELSE
+BEGIN
+    SET @failed = @failed + 1;
+    PRINT ' 36 a password change reseals the data key in the same write      FAIL';
+END
+
+/*  And leaves the other way in alone. Her twelve words are on paper and she
+    did not retype them to change her password; a change that quietly retired
+    them would mean the paper she is relying on stopped working without anyone
+    telling her. */
+IF EXISTS (SELECT 1 FROM [Crypto].[Wrapper] w
+            JOIN [Crypto].[Generation] g ON g.GenerationId = w.GenerationId
+           WHERE g.UserId = @regUserId AND w.WrapperKind = 'RECOVERY'
+             AND w.Envelope = @env48)
+   AND EXISTS (SELECT 1 FROM [Crypto].[RecoveryVerifier] v
+                JOIN [Crypto].[Generation] g ON g.GenerationId = v.GenerationId
+               WHERE g.UserId = @regUserId AND v.PublicKey = @pk32)
+    PRINT ' 37 a password change leaves her recovery phrase working         PASS';
+ELSE
+BEGIN
+    SET @failed = @failed + 1;
+    PRINT ' 37 a password change leaves her recovery phrase working         FAIL';
+END
+
+/*  A challenge outstanding against the phrase she is about to retire. It has
+    to die with the key -- see assertion 40. */
+DECLARE @chNonce varbinary(32) = CAST(REPLICATE(CAST(0xB6 AS binary(1)), 32) AS varbinary(32));
+DECLARE @chIssued TABLE (ChallengeId uniqueidentifier, Nonce varbinary(32),
+                         ExpiresOn datetime2(3));
+INSERT @chIssued EXEC [Crypto].[usp_Recovery_IssueChallenge]
+    @Email = @regEmail, @Nonce = @chNonce;
+
+/*  A dormant generation with a recovery wrapper of its own. Replacing the
+    phrase must not reach it: its wrapper is the only thing that still opens
+    what she wrote under that key, and this procedure has no new envelope for
+    it -- the caller could not have produced one, because it would need a key
+    the caller cannot derive. */
+DECLARE @dormantGen uniqueidentifier = NEWID();
+DECLARE @dormantEnv varbinary(max) = CAST(REPLICATE(CAST(0xB7 AS binary(1)), 48) AS varbinary(max));
+
+INSERT INTO [Crypto].[Generation] (GenerationId, UserId, GenerationNumber, [State])
+VALUES (@dormantGen, @regUserId, 9, 'DORMANT');
+INSERT INTO [Crypto].[Wrapper] (GenerationId, WrapperKind, Envelope)
+VALUES (@dormantGen, 'RECOVERY', @dormantEnv);
+
+DECLARE @replaceResult TABLE (Succeeded bit, FailureCode varchar(64));
+INSERT @replaceResult EXEC [Crypto].[usp_Crypto_ReplaceRecoveryKey]
+    @UserId = @regUserId,
+    @RecoveryWrapper = @recEnv2,
+    @RecoveryPublicKey = @recPk2;
+
+/*  Both halves, or the old phrase still proves something. The wrapper is what
+    the words open; the verifier is what they prove. Replacing one and not the
+    other leaves either words that prove possession of a key they cannot open,
+    or a key openable by words the platform will no longer accept. */
+IF EXISTS (SELECT 1 FROM @replaceResult WHERE Succeeded = 1)
+   AND EXISTS (SELECT 1 FROM [Crypto].[Wrapper]
+                WHERE GenerationId = @genReg AND WrapperKind = 'RECOVERY'
+                  AND Envelope = @recEnv2)
+   AND (SELECT COUNT(*) FROM [Crypto].[Wrapper]
+         WHERE GenerationId = @genReg AND WrapperKind = 'RECOVERY') = 1
+   AND EXISTS (SELECT 1 FROM [Crypto].[RecoveryVerifier]
+                WHERE GenerationId = @genReg AND PublicKey = @recPk2)
+   AND (SELECT COUNT(*) FROM [Crypto].[RecoveryVerifier]
+         WHERE GenerationId = @genReg) = 1
+    PRINT ' 38 new words replace both what they open and what they prove     PASS';
+ELSE
+BEGIN
+    SET @failed = @failed + 1;
+    PRINT ' 38 new words replace both what they open and what they prove     FAIL';
+END
+
+/*  The data key did not move. This is the whole claim the screen makes to
+    her: new words, same journal. Same generation, same number, same password
+    wrapper as the change above left, and the records still readable under it. */
+IF EXISTS (SELECT 1 FROM [Crypto].[Generation]
+            WHERE GenerationId = @genReg AND UserId = @regUserId
+              AND [State] = 'ACTIVE' AND GenerationNumber = 1)
+   AND EXISTS (SELECT 1 FROM [Crypto].[Wrapper]
+                WHERE GenerationId = @genReg AND WrapperKind = 'PASSWORD'
+                  AND Envelope = @pwEnv2)
+    PRINT ' 39 new words do not move the key that opens her journal          PASS';
+ELSE
+BEGIN
+    SET @failed = @failed + 1;
+    PRINT ' 39 new words do not move the key that opens her journal          FAIL';
+END
+
+/*  A challenge issued a minute ago must not still be answerable by the phrase
+    she has just retired. Leaving it ISSUED would mean the old words kept one
+    last use. */
+IF NOT EXISTS (SELECT 1 FROM [Crypto].[RecoveryChallenge]
+                WHERE UserId = @regUserId
+                  AND [State] IN ('ISSUED', 'CONSUMED', 'VERIFIED'))
+    PRINT ' 40 retiring a phrase kills the challenges outstanding for it     PASS';
+ELSE
+BEGIN
+    SET @failed = @failed + 1;
+    PRINT ' 40 retiring a phrase kills the challenges outstanding for it     FAIL';
+END
+
+/*  And the dormant generation kept its own. */
+IF EXISTS (SELECT 1 FROM [Crypto].[Wrapper]
+            WHERE GenerationId = @dormantGen AND WrapperKind = 'RECOVERY'
+              AND Envelope = @dormantEnv)
+    PRINT ' 41 replacing a phrase does not reach a dormant generation        PASS';
+ELSE
+BEGIN
+    SET @failed = @failed + 1;
+    PRINT ' 41 replacing a phrase does not reach a dormant generation        FAIL';
+END
+
 /*  Deleting a client-derived account has to reach the same places as any
     other, and it is a different shape of account -- no password material, a
     credential row, a generation. */
@@ -716,11 +875,11 @@ INSERT @regDelete EXEC [Identity].[usp_User_DeleteAccount] @UserId = @regUserId;
 IF NOT EXISTS (SELECT 1 FROM [Identity].[User] WHERE UserId = @regUserId)
    AND NOT EXISTS (SELECT 1 FROM [Identity].[UserCredential] WHERE UserId = @regUserId)
    AND NOT EXISTS (SELECT 1 FROM [Crypto].[Generation] WHERE UserId = @regUserId)
-    PRINT ' 36 deleting a client-derived account leaves nothing behind       PASS';
+    PRINT ' 42 deleting a client-derived account leaves nothing behind       PASS';
 ELSE
 BEGIN
     SET @failed = @failed + 1;
-    PRINT ' 36 deleting a client-derived account leaves nothing behind       FAIL';
+    PRINT ' 42 deleting a client-derived account leaves nothing behind       FAIL';
 END
 
 DELETE FROM [Identity].[User] WHERE NormalisedEmail IN (@regNorm, UPPER(@childEmail));
@@ -739,7 +898,7 @@ DELETE FROM [Identity].[User]           WHERE UserId IN (@userA, @userB);
 
 PRINT '';
 PRINT '---------------------------------------------';
-PRINT 'TOTAL: 36  FAILED: ' + CAST(@failed AS varchar(10));
+PRINT 'TOTAL: 42  FAILED: ' + CAST(@failed AS varchar(10));
 PRINT '---------------------------------------------';
 
 IF @failed > 0

@@ -121,7 +121,7 @@ script that creates a table, renumber this one so it stays at the end;
 ### SQL assertion suites
 
 These are not optional. They test rules that live in the database and that no
-C# test can reach. There are **23 suites, 315 assertions**; every one runs in CI
+C# test can reach. There are **25 suites, 375 assertions**; every one runs in CI
 and `tests/ci_workflow_test.sh` fails if a suite on disk is missing a CI step.
 
 ```bash

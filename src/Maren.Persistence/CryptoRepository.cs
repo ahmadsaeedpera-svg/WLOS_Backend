@@ -54,7 +54,8 @@ public sealed class CryptoRepository(IDbConnectionFactory factory) : ICryptoRepo
     private sealed record SummaryRow(
         Guid UserId, string? Email, int GenerationCount, int ActiveGenerationNumber,
         int RecordCount, bool HasRecoveryWrapper,
-        DateTime? FirstRecordOn, DateTime? LastRecordOn);
+        DateTime? FirstRecordOn, DateTime? LastRecordOn,
+        DateTime? PasswordChangedOn, DateTime? RecoveryPhraseChangedOn);
 
     public async Task<StoredKdfProfile?> GetCurrentKdfProfileAsync(CancellationToken ct)
     {
@@ -247,7 +248,68 @@ public sealed class CryptoRepository(IDbConnectionFactory factory) : ICryptoRepo
             ? null
             : new CryptoAccountSummary(row.UserId, row.Email, row.GenerationCount,
                 row.ActiveGenerationNumber, row.RecordCount, row.HasRecoveryWrapper,
-                row.FirstRecordOn, row.LastRecordOn);
+                row.FirstRecordOn, row.LastRecordOn,
+                row.PasswordChangedOn, row.RecoveryPhraseChangedOn);
+    }
+
+    private sealed record ReauthRow(
+        byte[] AuthSecretHash, byte[] AuthSecretSalt, int KdfProfileId);
+
+    private sealed record OutcomeRow(bool Succeeded, string? FailureCode);
+
+    public async Task<ReauthMaterial?> GetReauthMaterialAsync(
+        Guid userId, CancellationToken ct)
+    {
+        using var connection = await factory.CreateAsync(ct);
+        var row = await connection.QuerySingleOrDefaultAsync<ReauthRow>(
+            new CommandDefinition(
+                "[Identity].[usp_UserCredential_GetForUser]",
+                new { UserId = userId },
+                commandType: CommandType.StoredProcedure, cancellationToken: ct));
+
+        return row is null
+            ? null
+            : new ReauthMaterial(row.AuthSecretHash, row.AuthSecretSalt, row.KdfProfileId);
+    }
+
+    public async Task<bool> ChangePasswordAsync(
+        Guid userId, byte[] authSecretVerifier, byte[] authSecretSalt,
+        int kdfProfileId, byte[] passwordWrapper, CancellationToken ct)
+    {
+        using var connection = await factory.CreateAsync(ct);
+        var row = await connection.QuerySingleAsync<OutcomeRow>(
+            new CommandDefinition(
+                "[Identity].[usp_UserCredential_SetAuthoritative]",
+                new
+                {
+                    UserId = userId,
+                    AuthSecretHash = authSecretVerifier,
+                    AuthSecretSalt = authSecretSalt,
+                    KdfProfileId = kdfProfileId,
+                    PasswordWrapper = passwordWrapper
+                },
+                commandType: CommandType.StoredProcedure, cancellationToken: ct));
+
+        return row.Succeeded;
+    }
+
+    public async Task<bool> ReplaceRecoveryKeyAsync(
+        Guid userId, byte[] recoveryWrapper, byte[] recoveryPublicKey,
+        CancellationToken ct)
+    {
+        using var connection = await factory.CreateAsync(ct);
+        var row = await connection.QuerySingleAsync<OutcomeRow>(
+            new CommandDefinition(
+                "[Crypto].[usp_Crypto_ReplaceRecoveryKey]",
+                new
+                {
+                    UserId = userId,
+                    RecoveryWrapper = recoveryWrapper,
+                    RecoveryPublicKey = recoveryPublicKey
+                },
+                commandType: CommandType.StoredProcedure, cancellationToken: ct));
+
+        return row.Succeeded;
     }
 
     private static RecordResponse ToResponse(RecordRow r) => new(
