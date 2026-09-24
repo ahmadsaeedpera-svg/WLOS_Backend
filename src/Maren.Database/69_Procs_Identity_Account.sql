@@ -718,6 +718,11 @@ BEGIN
             off a generation, then the generations, then the credentials. */
         DELETE FROM [Crypto].[Record]                WHERE UserId = @UserId;
 
+        /*  Recovery challenges, including the failed ones. They record that
+            somebody tried her phrase and when, which is a history of attempts
+            on her account and goes with the account. */
+        DELETE FROM [Crypto].[RecoveryChallenge]     WHERE UserId = @UserId;
+
         DELETE FROM [Crypto].[RecoveryVerifier]
         WHERE GenerationId IN (SELECT GenerationId FROM [Crypto].[Generation]
                                WHERE UserId = @UserId);

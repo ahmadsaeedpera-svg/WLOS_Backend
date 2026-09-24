@@ -138,3 +138,53 @@ public sealed class CryptoAdminController(ISender sender) : MarenControllerBase
     public async Task<IActionResult> Summary(Guid userId, CancellationToken ct) =>
         FromResult(await sender.Send(new GetCryptoAccountSummaryQuery(userId), ct));
 }
+
+/// <summary>
+/// Path R: getting back in with the recovery phrase.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Anonymous, necessarily. She is here because she has lost the thing she
+/// would authenticate with; requiring authentication would make this endpoint
+/// useful only to people who do not need it.
+/// </para>
+/// <para>
+/// So everything here answers for every address, in the same shape, and every
+/// refusal is the same code. <b>No endpoint accepts the phrase, the entropy
+/// behind it, or a password.</b> What arrives is a signature, and at
+/// completion, material her device produced.
+/// </para>
+/// </remarks>
+[Route("api/v1/auth/recovery")]
+[AllowAnonymous]
+public sealed class RecoveryController(ISender sender) : MarenControllerBase
+{
+    /// <summary>Something to sign. Issued for any address.</summary>
+    [HttpPost("challenge")]
+    public async Task<IActionResult> Challenge(
+        [FromBody] RecoveryChallengeRequest request, CancellationToken ct) =>
+        FromResult(await sender.Send(new RecoveryChallengeCommand(request), ct));
+
+    /// <summary>The proof. On success, the wrapped key and a grant.</summary>
+    [HttpPost("verify")]
+    public async Task<IActionResult> Verify(
+        [FromBody] RecoveryVerifyRequest request, CancellationToken ct) =>
+        FromResult(await sender.Send(new RecoveryVerifyCommand(request), ct));
+
+    /// <summary>The wrapper opened. Her generation and her journal survive.</summary>
+    [HttpPost("complete")]
+    public async Task<IActionResult> Complete(
+        [FromBody] RecoveryCompleteRequest request, CancellationToken ct) =>
+        FromResult(await sender.Send(new RecoveryCompleteCommand(request), ct));
+
+    /// <summary>
+    /// The wrapper did not open. She gets the account and a new key, and the
+    /// old generation is not recovered.
+    /// </summary>
+    [HttpPost("complete-unrecoverable")]
+    public async Task<IActionResult> CompleteUnrecoverable(
+        [FromBody] RecoveryCompleteUnrecoverableRequest request,
+        CancellationToken ct) =>
+        FromResult(await sender.Send(
+            new RecoveryCompleteUnrecoverableCommand(request), ct));
+}

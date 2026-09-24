@@ -74,6 +74,17 @@ public static class FailureCodes
     public const string UnknownToken = "UNKNOWN_TOKEN";
     public const string TokenExpired = "TOKEN_EXPIRED";
     public const string TokenReused = "TOKEN_REUSED";
+    /// <summary>Every refusal on the recovery path, without exception.</summary>
+    /// <remarks>
+    /// Unknown address, unknown challenge, expired challenge, spent challenge,
+    /// bad signature, rate-limited account, expired grant — one code for all of
+    /// them. Each distinction an attacker would like answered, and several of
+    /// them are the thing the path exists to keep private. The woman who is
+    /// genuinely locked out gets the same sentence whichever it was, written
+    /// for her: try again, and check the words.
+    /// </remarks>
+    public const string RecoveryFailed = "RECOVERY_FAILED";
+
     public const string NotFound = "NOT_FOUND";
     public const string Forbidden = "FORBIDDEN";
     public const string ValidationFailed = "VALIDATION_FAILED";

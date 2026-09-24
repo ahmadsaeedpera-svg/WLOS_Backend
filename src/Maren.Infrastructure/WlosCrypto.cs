@@ -208,3 +208,39 @@ public static class RecoverySignatureVerifier
         }
     }
 }
+
+/// <summary>
+/// The bytes a device signs to prove it holds the recovery phrase.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <c>"WLOS/v1/recovery-reset" ‖ challengeId(16) ‖ nonce(32)</c> — seventy
+/// bytes, fixed width. The mirror of <c>RecoveryContext</c> in the client, and
+/// a vector pins the two together.
+/// </para>
+/// <para>
+/// <b>No account reference</b>, which differs from the specification text.
+/// That text assumed a context carrying <c>accountRef</c> and a hash of the
+/// new credential material, and on this path the signer knows neither: she is
+/// not signed in, and she cannot choose a new password until the wrapper has
+/// opened, which happens after this signature. Binding something the signer
+/// cannot know is not a stronger binding — it is one nobody can produce. The
+/// challenge id names the account on this side, where the lookup happens, and
+/// it is single-use.
+/// </para>
+/// </remarks>
+public static class WlosRecoveryContext
+{
+    public const string Label = "WLOS/v1/recovery-reset";
+
+    public static byte[] Build(Guid challengeId, ReadOnlySpan<byte> nonce)
+    {
+        if (nonce.Length != 32)
+            throw new ArgumentException("nonce must be 32 bytes", nameof(nonce));
+
+        return WlosCanonicalBytes.Concat(
+            WlosCanonicalBytes.Label(Label),
+            WlosCanonicalBytes.Uuid(challengeId),
+            nonce.ToArray());
+    }
+}

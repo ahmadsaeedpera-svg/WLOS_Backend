@@ -137,6 +137,7 @@ public static class InfrastructureRegistration
         services.AddSingleton<ITokenService, JwtTokenService>();
         services.AddSingleton<IKdfDecoy, HmacKdfDecoy>();
         services.AddSingleton<IAuthSecretVerifier, HmacAuthSecretVerifier>();
+        services.AddSingleton<IRecoveryProof, Ed25519RecoveryProof>();
         return services;
     }
 }

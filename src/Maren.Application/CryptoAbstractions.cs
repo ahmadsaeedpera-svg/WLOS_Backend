@@ -137,3 +137,71 @@ public interface IAuthSecretVerifier
     /// <summary>Constant-time. A short-circuiting compare leaks how much matched.</summary>
     bool Verify(byte[] authSecret, byte[] salt, byte[] expected);
 }
+
+/// <summary>A nonce to sign, issued for any address.</summary>
+public sealed record RecoveryChallenge(Guid ChallengeId, byte[] Nonce, DateTime ExpiresOn);
+
+/// <summary>What a spent challenge yields, for checking a signature.</summary>
+public sealed record RecoveryAttempt(
+    Guid UserId, Guid GenerationId, byte[] Nonce, byte[] PublicKey, int GenerationNumber);
+
+/// <summary>A verified challenge: the wrapped key, and what it belongs to.</summary>
+/// <remarks>
+/// <see cref="RecoveryWrapper"/> is null when the generation has no recovery
+/// wrapper at all. That is not an error to report differently — it is exactly
+/// the case the caller discovers by trying to open it, and it ends in the same
+/// place as a wrapper that will not decrypt.
+/// </remarks>
+public sealed record RecoveryGrant(
+    Guid UserId, Guid GenerationId, int GenerationNumber, byte[]? RecoveryWrapper);
+
+/// <summary>
+/// Path R: getting back in with the recovery phrase.
+/// </summary>
+/// <remarks>
+/// <b>No method here takes a phrase, the entropy behind it, a derived key or a
+/// password.</b> What travels is a signature and, at completion, material the
+/// device produced. The same is true one layer down, where an assertion scans
+/// every procedure in the database by parameter name.
+/// </remarks>
+public interface IRecoveryRepository
+{
+    Task<RecoveryChallenge> IssueChallengeAsync(
+        string email, byte[] nonce, string? ip, CancellationToken ct);
+
+    /// <summary>
+    /// Spends a challenge and returns what is needed to verify a signature.
+    /// </summary>
+    /// <remarks>
+    /// <b>Spent on any attempt, valid or not.</b> The signature has not been
+    /// checked when this runs, and a challenge that survived a failure would
+    /// let an attacker grind guesses against one nonce.
+    /// </remarks>
+    Task<RecoveryAttempt?> ConsumeChallengeAsync(Guid challengeId, CancellationToken ct);
+
+    Task<RecoveryGrant?> IssueGrantAsync(
+        Guid challengeId, byte[] grantHash, CancellationToken ct);
+
+    Task<bool> CompleteAsync(
+        byte[] grantHash, byte[] authSecretVerifier, byte[] authSecretSalt,
+        int kdfProfileId, byte[] passwordWrapper, CancellationToken ct);
+
+    /// <summary>Returns the new generation number, or null if refused.</summary>
+    Task<int?> CompleteUnrecoverableAsync(
+        byte[] grantHash, byte[] authSecretVerifier, byte[] authSecretSalt,
+        int kdfProfileId, Guid newGenerationId, byte[] passwordWrapper,
+        byte[] recoveryWrapper, byte[] recoveryPublicKey, CancellationToken ct);
+}
+
+/// <summary>Verifies an Ed25519 signature, and builds the bytes it covers.</summary>
+/// <remarks>
+/// Verification only. This platform holds a public key derived from her
+/// recovery entropy and nothing else; it cannot sign, and the key that opens
+/// her journal comes from the same entropy under a different label.
+/// </remarks>
+public interface IRecoveryProof
+{
+    byte[] BuildContext(Guid challengeId, byte[] nonce);
+
+    bool Verify(byte[] publicKey, byte[] context, byte[] signature);
+}

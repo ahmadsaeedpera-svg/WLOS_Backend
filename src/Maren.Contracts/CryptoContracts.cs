@@ -140,3 +140,88 @@ public sealed record CryptoAccountSummary(
     bool HasRecoveryWrapper,
     DateTime? FirstRecordOn,
     DateTime? LastRecordOn);
+
+/*  Path R — getting back in with the recovery phrase.
+
+    Three steps, and the order is the security:
+
+      challenge  a nonce, issued for any address in constant time
+      verify     a signature over it; on success, the wrapper and a grant
+      complete   the new credential, and the wrapper resealed under it
+
+    **Nothing here carries the phrase, the entropy behind it, or a password.**
+    There is no field that could, on any of these records.
+*/
+
+/// <summary>Ask for something to sign. Answered for any address.</summary>
+public sealed record RecoveryChallengeRequest(string Email);
+
+/// <summary>
+/// The nonce to sign, and how long it lives.
+/// </summary>
+/// <remarks>
+/// Returned for an address with no account too, with the same shape and the
+/// same timing. A challenge that came back only for real accounts would answer
+/// the question this endpoint must not answer, and it cannot be authenticated
+/// — she has nothing to authenticate with, which is why she is here.
+/// </remarks>
+public sealed record RecoveryChallengeResponse(
+    Guid ChallengeId, byte[] Nonce, DateTime ExpiresOn);
+
+/// <summary>The proof.</summary>
+/// <remarks>
+/// An Ed25519 signature over
+/// <c>"WLOS/v1/recovery-reset" ‖ challengeId ‖ nonce</c>, made with a key
+/// derived from her recovery entropy under its own HKDF label. The platform
+/// holds the public half and nothing else.
+/// </remarks>
+public sealed record RecoveryVerifyRequest(Guid ChallengeId, byte[] Signature);
+
+/// <summary>
+/// The wrapped data key, and a grant that can complete one reset.
+/// </summary>
+/// <remarks>
+/// The wrapper is released here and not a step earlier. It is the target of
+/// any offline attack on the phrase, so handing it to whoever knows an email
+/// address would be an oracle; handing it to someone who has just proved
+/// possession costs nothing, because she can already open it.
+/// </remarks>
+public sealed record RecoveryVerifyResponse(
+    string Grant,
+    byte[] RecoveryWrapper,
+    Guid GenerationId,
+    int GenerationNumber,
+    DateTime GrantExpiresOn);
+
+/// <summary>The wrapper opened. A new password, and the key resealed under it.</summary>
+/// <remarks>
+/// Her generation does not change and her old journal is still hers — the data
+/// key never moved, only the key that wraps it. That is the whole difference
+/// between this path and an email reset.
+/// </remarks>
+public sealed record RecoveryCompleteRequest(
+    string Grant,
+    byte[] AuthSecret,
+    byte[] AuthSecretSalt,
+    int KdfProfileId,
+    byte[] PasswordWrapper);
+
+/// <summary>The wrapper did not open. She gets the account and a new key.</summary>
+/// <remarks>
+/// <b>This is cryptographic data loss for that generation</b>, and the name
+/// says so rather than calling it degraded. The signature verified, so the
+/// phrase is hers; the wrapper that held the data key is gone or corrupt, and
+/// nobody can derive that key again. Her old records are kept as ciphertext —
+/// a device somewhere may still hold the key, and deleting the only remaining
+/// copy of what she wrote on the strength of one failed unwrap would be the
+/// worst possible answer to it.
+/// </remarks>
+public sealed record RecoveryCompleteUnrecoverableRequest(
+    string Grant,
+    byte[] AuthSecret,
+    byte[] AuthSecretSalt,
+    int KdfProfileId,
+    Guid NewGenerationId,
+    byte[] PasswordWrapper,
+    byte[] RecoveryWrapper,
+    byte[] RecoveryPublicKey);

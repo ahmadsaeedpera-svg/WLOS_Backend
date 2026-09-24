@@ -90,3 +90,19 @@ public sealed class HmacAuthSecretVerifier : IAuthSecretVerifier
     public bool Verify(byte[] authSecret, byte[] salt, byte[] expected)
         => AuthSecretVerifier.Verify(authSecret, salt, expected);
 }
+
+/// <summary>The injectable face of the recovery proof.</summary>
+/// <remarks>
+/// Both halves behind one interface because they are one decision: the bytes
+/// that are covered and the check that they were signed. Splitting them would
+/// let a caller verify a signature over a context it built some other way,
+/// which is the mistake worth making impossible.
+/// </remarks>
+public sealed class Ed25519RecoveryProof : IRecoveryProof
+{
+    public byte[] BuildContext(Guid challengeId, byte[] nonce)
+        => WlosRecoveryContext.Build(challengeId, nonce);
+
+    public bool Verify(byte[] publicKey, byte[] context, byte[] signature)
+        => RecoverySignatureVerifier.Verify(publicKey, context, signature);
+}

@@ -106,6 +106,15 @@
     "expectedEnvelopeHex": "574c4f5301010102404142434445464748494a4b4c4d4e4f50515253545556576c0e2842288cb5673f37ccafae57f4f89ff9b6426902e108693cce9fcbf3e2a16847056d64a738f81193473dff08299a7f1b517871a2c5b9b27b4bc43b508ed21e40bb9d95636c462b85f798f906a5939528e3ed8b9653fc13bbd2abd2c0a551d69f59a91ba871fdb132a72bf9facecad3f2b9107088346c03aa76e99af761a6164fcb24fb3f0263080d17e92f4ed6a988163e96adbfd583b0914ff099bcc34012392a86f52443566982eafd32854e6aadba75d158ab45b1504446e4474c480b321a306acb59fd79071290bd3d70cd8912cc2bfd4aa71b632bea23b41ccb27f2",
     "expectedEnvelopeLength": 256
   },
+  "recoveryContext": {
+    "note": "Path R proof of possession. Dart signs, .NET verifies. No account reference: the signer is not signed in and cannot know one, and the challenge id names the account on the platform side.",
+    "label": "WLOS/v1/recovery-reset",
+    "challengeId": "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed",
+    "nonceHex": "909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+    "expectedContextHex": "574c4f532f76312f7265636f766572792d72657365741b9d6bcdbbfd4b2d9b5dab8dfbbd4bed909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+    "publicKeyHex": "93a6bf7bc297bf4293c6123bd284be0f72043068a9abf468b9c1f77a9cc165fe",
+    "signatureHex": "8d919517f5ad58afac9735815019ff7921711357243e6b064e72025c250f92cd2eb8c6b0ec4fd58f7797ea8c3bf5df14184954050497693ffb111c62a1c54306"
+  },
   "wrapper": {
     "kekHex": "f5c7b9448786028496279dadb1c78abac380dd1d2c30068fe6c9b86fbc78205d",
     "dekHex": "101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f",

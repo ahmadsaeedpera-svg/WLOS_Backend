@@ -41,7 +41,7 @@ for f in 01_Schemas.sql 02_Identity.sql 03_Administration.sql 04_Health.sql \
          49_Behaviour.sql 50_Procs_Behaviour.sql 51_Procs_Inspector_Behaviour.sql \
          52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
          55_Growth_Routines.sql 56_Procs_Growth_Routines.sql 58_Recommendation.sql \
-         59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 69_Procs_Identity_Account.sql 70_Operations.sql 71_Procs_Operations.sql 72_Procs_Bootstrap.sql 73_Observability.sql 74_Crypto.sql 75_Procs_Crypto.sql 76_AuditContract_Apply.sql; do
+         59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 69_Procs_Identity_Account.sql 70_Operations.sql 71_Procs_Operations.sql 72_Procs_Bootstrap.sql 73_Observability.sql 74_Crypto.sql 75_Procs_Crypto.sql 76_Recovery.sql 77_Procs_Recovery.sql 78_AuditContract_Apply.sql; do
   sqlcmd -S "(localdb)\MSSQLLocalDB" -I -b -d WlosPlatform -i "$f" || break
 done
 ```
@@ -163,6 +163,42 @@ would build a precise behavioural history of the one part of WLOS that exists
 to be private, and encrypting the payload does not help — the pattern is the
 sensitive part.
 
+### Recovery by phrase — `/api/v1/auth/recovery` (anonymous)
+
+`POST challenge` · `POST verify` · `POST complete` · `POST complete-unrecoverable`
+
+Path R. She has forgotten her password and has twelve words on paper.
+
+| Step | What happens |
+|---|---|
+| `challenge` | A 32-byte nonce, issued for **every** address whether or not it has an account |
+| `verify` | An Ed25519 signature over `"WLOS/v1/recovery-reset" ‖ challengeId ‖ nonce`. On success: the recovery wrapper and a 5-minute single-use grant |
+| `complete` | The wrapper opened. New credential, wrapper resealed, **generation unchanged** |
+| `complete-unrecoverable` | The wrapper did not open. Account restored under a new generation |
+
+**Anonymous, necessarily** — she is here because she has lost the thing she
+would authenticate with. So every refusal on this path returns the same
+`RECOVERY_FAILED`: unknown address, unknown challenge, expired challenge,
+spent challenge, bad signature, rate-limited account, expired grant. Each
+distinction is a question an attacker would like answered.
+
+**The challenge is spent on any attempt, valid or not.** That makes each guess
+cost a round trip and removes the oracle that grinding against one nonce would
+give. Limits are 5/hour and 20/day per account, 20/hour per IP, and 10 failures
+in a day locks the path for 24 hours — and a limited request still returns a
+challenge, because saying "too many attempts" would only ever be said about an
+address that has an account.
+
+**The wrapper is released only after the signature verifies.** It is the target
+of any offline attack on the phrase; handing it to whoever knows an email
+address would be an oracle, and handing it to someone who has just proved
+possession costs nothing.
+
+`complete-unrecoverable` is **cryptographic data loss for that generation**,
+not a degraded mode. Her old records are kept as ciphertext — a device may
+still hold the key, and deleting the only remaining copy of what she wrote
+because one unwrap failed would be the worst possible answer.
+
 ### Encryption state for an operator — `/api/v1/admin/users/{id}/crypto`
 
 Requires `users.read`. Returns counts and states: how many entries, which
@@ -179,9 +215,11 @@ dotnet run --project src/Maren.Api --urls http://localhost:5299
 dart run tool/e2e_encrypted_record.dart http://localhost:5299
 ```
 
-Registers an account, signs in, fetches and unwraps the key, seals an entry,
-stores it, reads it back, and asserts that what the platform holds contains
-none of what was written. Exits non-zero on the first thing that does not hold.
+Seventeen checks. Registers an account, signs in, fetches and unwraps the key,
+seals an entry, stores it, reads it back, and asserts that what the platform
+holds contains none of what was written — then forgets the password, recovers
+with the twelve-word phrase, and reads the same entry again. Exits non-zero on
+the first thing that does not hold.
 It leaves the account behind on purpose, so the row can be inspected.
 
 ### Content administration — `/api/v1/content` (authenticated)

@@ -38,7 +38,7 @@ public sealed class CryptoVectorTests
     /// there; a deliberate regeneration changes it in both, visibly, in review.
     /// </summary>
     private const string ExpectedDigest =
-        "f048bae1b27e80e46e86ec7965692d7795b7dacc6ee28ee66b03955b2969317c";
+        "695a38564b795f76b05019b55d18433042da2f6f6b1b57e0d43f9987dffb4dd4";
 
     private static readonly JsonDocument Vectors = Load();
 
@@ -251,5 +251,47 @@ public sealed class CryptoVectorTests
                 Unhex(vector.GetProperty("messageHex").GetString()!),
                 Unhex(vector.GetProperty("signatureHex").GetString()!))
             .Should().BeFalse("every failure on the reset path is one generic no");
+    }
+
+    [Fact]
+    public void The_recovery_context_reproduces_and_its_signature_verifies()
+    {
+        /*  Path R, and the moment it matters: she is locked out, she has
+            twelve words, and this is the byte string her device signs. This
+            server builds the identical bytes to check it. A one-byte
+            disagreement fails at exactly the point she has nothing else. */
+        var vector = Section("recoveryContext");
+
+        var context = WlosRecoveryContext.Build(
+            Guid.Parse(vector.GetProperty("challengeId").GetString()!),
+            Unhex(vector.GetProperty("nonceHex").GetString()!));
+
+        Hex(context).Should().Be(vector.GetProperty("expectedContextHex").GetString(),
+            "the client built these bytes and this server must build the same ones");
+
+        RecoverySignatureVerifier.Verify(
+                Unhex(vector.GetProperty("publicKeyHex").GetString()!),
+                context,
+                Unhex(vector.GetProperty("signatureHex").GetString()!))
+            .Should().BeTrue("Dart signed it and .NET must accept it");
+    }
+
+    [Fact]
+    public void A_recovery_signature_does_not_verify_over_a_different_challenge()
+    {
+        /*  The binding that makes the challenge single-use mean something. A
+            captured signature must not be replayable against the next
+            challenge the platform issues. */
+        var vector = Section("recoveryContext");
+
+        var otherContext = WlosRecoveryContext.Build(
+            Guid.NewGuid(),
+            Unhex(vector.GetProperty("nonceHex").GetString()!));
+
+        RecoverySignatureVerifier.Verify(
+                Unhex(vector.GetProperty("publicKeyHex").GetString()!),
+                otherContext,
+                Unhex(vector.GetProperty("signatureHex").GetString()!))
+            .Should().BeFalse();
     }
 }

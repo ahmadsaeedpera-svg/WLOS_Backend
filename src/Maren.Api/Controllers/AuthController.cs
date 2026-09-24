@@ -57,6 +57,11 @@ public abstract class MarenControllerBase : ControllerBase
     private static int StatusFor(string? code) => code switch
     {
         FailureCodes.InvalidCredentials => StatusCodes.Status401Unauthorized,
+
+        /*  401, like a wrong password, and for the same reason: it is a
+            credential that did not check out. Anything more specific would
+            start distinguishing the cases this path deliberately does not. */
+        FailureCodes.RecoveryFailed => StatusCodes.Status401Unauthorized,
         FailureCodes.AccountLocked => StatusCodes.Status423Locked,
         FailureCodes.UnknownToken or
         FailureCodes.TokenExpired or

@@ -377,20 +377,36 @@ END
 /*  The section 4.3 allow-list, extended to the client-derived scheme.
 
     The version 1 list names four procedures against Identity.User; these are
-    the version 2 equivalents against Identity.UserCredential, and each is on
-    the credential path rather than on it for convenience:
+    the version 2 equivalents against Identity.UserCredential. The list is
+    longer, and grouping it by what each one does is the only way to keep it
+    readable -- a flat list of seven names is one nobody checks:
 
-      usp_UserCredential_GetForLogin      verify an authentication secret
-      usp_UserCredential_GetKdfParameters the salt a device needs before it
-                                          can derive anything
-      usp_UserCredential_SetAuthoritative replace the stored verifier
-      usp_User_RegisterClientDerived      set the first one -- the counterpart
-                                          of usp_User_Register on the v1 list
-      usp_User_DeleteAccount              erase it with the account
+      reads it
+        usp_UserCredential_GetForLogin      verify an authentication secret
+        usp_UserCredential_GetKdfParameters the salt a device needs before it
+                                            can derive anything
 
-    A name added here that is not one of those five is the signal that the
-    rule has stopped meaning anything. Watch for that rather than for the
-    length of the list. */
+      writes it
+        usp_User_RegisterClientDerived      sets the first one -- the
+                                            counterpart of usp_User_Register
+        usp_UserCredential_SetAuthoritative replaces it on a password change
+        usp_Recovery_Complete               replaces it after a recovery
+        usp_Recovery_CompleteUnrecoverable  the same, when the old generation
+                                            could not be opened
+
+      erases it
+        usp_User_DeleteAccount              with the account
+
+    The two recovery procedures are here because a completed recovery IS a
+    password reset, and it has to replace the credential in the same
+    transaction that replaces the wrapper. Splitting them would leave a window
+    where the wrapper is sealed under a key-encryption key derived from the
+    new password while the stored credential is still the old one -- and in
+    that window neither password signs in and nothing opens her journal.
+
+    A name that does not belong to one of those three groups is the signal
+    that the rule has stopped meaning anything. Watch for that rather than for
+    the length of the list. */
 DECLARE @authSecretLeaks int =
     (SELECT COUNT(*)
        FROM sys.sql_modules m
@@ -400,6 +416,8 @@ DECLARE @authSecretLeaks int =
                            'usp_UserCredential_GetKdfParameters',
                            'usp_UserCredential_SetAuthoritative',
                            'usp_User_RegisterClientDerived',
+                           'usp_Recovery_Complete',
+                           'usp_Recovery_CompleteUnrecoverable',
                            'usp_User_DeleteAccount')
         AND (m.definition LIKE '%AuthSecretHash%'
           OR m.definition LIKE '%AuthSecretSalt%'));
