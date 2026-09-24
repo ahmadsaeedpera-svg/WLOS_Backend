@@ -106,6 +106,7 @@ public sealed class CryptoRepository(IDbConnectionFactory factory) : ICryptoRepo
                 {
                     request.Email,
                     request.DateOfBirth,
+                    request.GenerationId,
                     AuthSecretHash = authSecretVerifier,
                     request.AuthSecretSalt,
                     request.KdfProfileId,

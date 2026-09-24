@@ -422,6 +422,7 @@ DECLARE @saveResult TABLE (Succeeded bit, FailureCode varchar(64),
                            CurrentVersion int);
 
 DECLARE @userC uniqueidentifier = '0C0DE000-0000-4000-A000-00000000000C';
+DECLARE @genC  uniqueidentifier = '0C0DE000-0000-4000-6E00-00000000000C';
 DELETE FROM [Identity].[User] WHERE UserId = @userC;
 INSERT INTO [Identity].[User] (UserId, Email, NormalisedEmail)
 VALUES (@userC, N'crypto_test_c@test.invalid', N'CRYPTO_TEST_C@TEST.INVALID');
@@ -444,7 +445,7 @@ END
 
 DELETE FROM @genResult;
 INSERT @genResult EXEC [Crypto].[usp_Generation_CreateInitial]
-    @UserId = @userC, @PasswordWrapper = @env48,
+    @UserId = @userC, @GenerationId = @genC, @PasswordWrapper = @env48,
     @RecoveryWrapper = @env48, @RecoveryPublicKey = @pk32;
 
 IF EXISTS (SELECT 1 FROM @genResult WHERE Succeeded = 1)
@@ -465,7 +466,7 @@ END
 
 DELETE FROM @genResult;
 INSERT @genResult EXEC [Crypto].[usp_Generation_CreateInitial]
-    @UserId = @userC, @PasswordWrapper = @env48,
+    @UserId = @userC, @GenerationId = @genC, @PasswordWrapper = @env48,
     @RecoveryWrapper = @env48, @RecoveryPublicKey = @pk32;
 
 IF EXISTS (SELECT 1 FROM @genResult WHERE Succeeded = 0 AND FailureCode = 'GENERATION_EXISTS')
@@ -576,6 +577,8 @@ DECLARE @regResult TABLE (Succeeded bit, FailureCode varchar(64),
 DECLARE @regEmail  nvarchar(256) = N'crypto_test_reg@test.invalid';
 DECLARE @regNorm   nvarchar(256) = N'CRYPTO_TEST_REG@TEST.INVALID';
 DECLARE @regUserId uniqueidentifier;
+DECLARE @genReg   uniqueidentifier = '0C0DE000-0000-4000-6E00-0000000000E1';
+DECLARE @genChild uniqueidentifier = '0C0DE000-0000-4000-6E00-0000000000E2';
 
 DECLARE @adult DATE = DATEADD(YEAR, -30, CAST(SYSUTCDATETIME() AS DATE));
 DECLARE @salt16a varbinary(32)  = CAST(REPLICATE(CAST(0xC1 AS binary(1)), 16) AS varbinary(32));
@@ -601,7 +604,7 @@ BEGIN
 END
 
 INSERT @regResult EXEC [Identity].[usp_User_RegisterClientDerived]
-    @Email = @regEmail, @DateOfBirth = @adult,
+    @Email = @regEmail, @DateOfBirth = @adult, @GenerationId = @genReg,
     @AuthSecretHash = @pk32,
     @AuthSecretSalt = @salt16a,
     @KdfProfileId = @profile,
@@ -663,7 +666,7 @@ DECLARE @childV1 TABLE (Succeeded bit, FailureCode varchar(50),
 DECLARE @childEmail nvarchar(256) = N'crypto_test_child@test.invalid';
 
 INSERT @childResult EXEC [Identity].[usp_User_RegisterClientDerived]
-    @Email = @childEmail, @DateOfBirth = @child,
+    @Email = @childEmail, @DateOfBirth = @child, @GenerationId = @genChild,
     @AuthSecretHash = @pk32,
     @AuthSecretSalt = @salt16b,
     @KdfProfileId = @profile,

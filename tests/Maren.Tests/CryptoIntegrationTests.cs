@@ -96,7 +96,8 @@ public sealed class CryptoIntegrationTests(DatabaseFixture fixture) : IAsyncLife
 
         var result = await Sender(scope).Send(new RegisterClientDerivedCommand(
             new RegisterClientDerivedRequest(
-                email, Aged(age), authSecret, Bytes(16, 0x10), profile!.KdfProfileId,
+                email, Aged(age), Guid.NewGuid(), authSecret, Bytes(16, 0x10),
+                profile!.KdfProfileId,
                 Envelope(seed: 0x50), Envelope(seed: 0x60), Bytes(32, 0x70),
                 "GB", "en-GB")));
 
@@ -222,8 +223,9 @@ public sealed class CryptoIntegrationTests(DatabaseFixture fixture) : IAsyncLife
         var email = NewEmail();
         var result = await Sender(scope).Send(new RegisterClientDerivedCommand(
             new RegisterClientDerivedRequest(
-                email, Aged(12), RandomNumberGenerator.GetBytes(32), Bytes(16, 0x10),
-                profile!.KdfProfileId, Envelope(), Envelope(), Bytes(32, 0x70),
+                email, Aged(12), Guid.NewGuid(), RandomNumberGenerator.GetBytes(32),
+                Bytes(16, 0x10), profile!.KdfProfileId,
+                Envelope(), Envelope(), Bytes(32, 0x70),
                 null, null)));
 
         result.Succeeded.Should().BeFalse();

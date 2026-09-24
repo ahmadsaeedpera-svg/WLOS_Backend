@@ -54,6 +54,9 @@ public sealed record KdfParametersResponse(
 public sealed record RegisterClientDerivedRequest(
     string Email,
     DateOnly DateOfBirth,
+    // Chosen by the client, because both wrappers are sealed against it
+    // before this request is sent. See usp_User_RegisterClientDerived.
+    Guid GenerationId,
     byte[] AuthSecret,
     byte[] AuthSecretSalt,
     int KdfProfileId,

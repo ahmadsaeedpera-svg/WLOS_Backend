@@ -38,7 +38,7 @@ public sealed class CryptoVectorTests
     /// there; a deliberate regeneration changes it in both, visibly, in review.
     /// </summary>
     private const string ExpectedDigest =
-        "c8e8057f457a694bc12aa7a9559b433280b474fce983c52f172df777d76645c7";
+        "f048bae1b27e80e46e86ec7965692d7795b7dacc6ee28ee66b03955b2969317c";
 
     private static readonly JsonDocument Vectors = Load();
 

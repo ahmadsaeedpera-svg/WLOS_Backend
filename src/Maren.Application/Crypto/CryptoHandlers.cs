@@ -106,6 +106,10 @@ public sealed class RegisterClientDerivedValidator
     {
         RuleFor(x => x.Request.Email).NotEmpty().EmailAddress().MaximumLength(256);
 
+        RuleFor(x => x.Request.GenerationId)
+            .NotEmpty()
+            .WithMessage("A generation identifier is required.");
+
         /*  Lengths, not contents. Everything here is opaque to this server, so
             the only thing it can honestly check is that a field is the size
             the protocol says. A wrong-sized key is a client bug worth a clear

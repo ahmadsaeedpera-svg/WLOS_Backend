@@ -327,6 +327,7 @@ IF OBJECT_ID('Crypto.usp_Generation_CreateInitial') IS NOT NULL
 GO
 CREATE PROCEDURE [Crypto].[usp_Generation_CreateInitial]
     @UserId             UNIQUEIDENTIFIER,
+    @GenerationId       UNIQUEIDENTIFIER,
     @PasswordWrapper    VARBINARY(MAX),
     @RecoveryWrapper    VARBINARY(MAX),
     @RecoveryPublicKey  VARBINARY(32)
@@ -350,7 +351,17 @@ BEGIN
         RETURN;
     END
 
-    DECLARE @generationId UNIQUEIDENTIFIER = NEWID();
+    /*  The client chose this, and had to.
+
+        Both wrappers are sealed before this call, with the generation id
+        inside their associated data -- so it has to exist before the round
+        trip, which means the client generates it. Assigning one here would
+        produce wrappers that open in the session that made them and never
+        again, on any device.
+
+        A client-chosen identifier is safe here because it is 122 random bits
+        from a CSPRNG and the primary key refuses a collision outright. */
+
 
     BEGIN TRAN;
 
@@ -764,6 +775,7 @@ GO
 CREATE PROCEDURE [Identity].[usp_User_RegisterClientDerived]
     @Email              NVARCHAR(256),
     @DateOfBirth        DATE,
+    @GenerationId       UNIQUEIDENTIFIER,
     @AuthSecretHash     VARBINARY(64),
     @AuthSecretSalt     VARBINARY(32),
     @KdfProfileId       INT,
@@ -780,7 +792,6 @@ BEGIN
 
     DECLARE @normalised NVARCHAR(256) = UPPER(LTRIM(RTRIM(@Email)));
     DECLARE @userId UNIQUEIDENTIFIER;
-    DECLARE @generationId UNIQUEIDENTIFIER = NEWID();
     DECLARE @countryId INT =
         (SELECT CountryId FROM [Identity].[Country] WHERE IsoCode = @CountryIso);
 
