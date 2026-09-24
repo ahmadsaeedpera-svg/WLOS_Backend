@@ -158,6 +158,24 @@ The version is supplied by the client because it is bound into the envelope's
 associated data before sealing — the concurrency check and the cryptographic
 binding are the same check. A stale write returns `VERSION_CONFLICT`.
 
+**What the client does with that refusal is the approved invariant, and it is
+not a retry.** *Journal content is never silently discarded.* The device writes
+her version as a **separate record** and keeps both, linked inside the
+ciphertext — never last-write-wins, which destroys a paragraph, and never an
+automatic merge, which invents a sentence she did not write. She is shown both
+and decides.
+
+> Two entries is an inconvenience. A lost paragraph is a broken promise.
+
+This platform sees two ordinary records and **cannot tell that they are
+versions of one another**: the link is in the payload, under her key. That is
+deliberate — which of her entries are rewrites of which is a shape of her
+thinking. The consequence for an operator is that `RecordCount` is a count of
+records and not of entries she would recognise, and the portal says so.
+
+Nothing here is a server-side capability: the platform's job is to refuse the
+stale write honestly, which it already did.
+
 **Record writes are deliberately not audited.** An audit row per journal write
 would build a precise behavioural history of the one part of WLOS that exists
 to be private, and encrypting the payload does not help — the pattern is the
