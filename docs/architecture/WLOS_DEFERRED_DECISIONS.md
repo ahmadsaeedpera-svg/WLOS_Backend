@@ -28,9 +28,43 @@ actually deferred.
 | **D12** | E3a or E3b | `ResetApprovalPolicy` strategy, one configuration value. `E3a` → no-response commits at t+24 h; `E3b` → no-response expires at t+24 h. **Both branches implemented and both tested** | **None.** One config value |
 | **D11** | Destroy delay | `DestroyDelay` as a configured duration, `0` meaning immediate. The `DESTROY_PENDING` state and its cancellation exist regardless | **None.** One config value |
 | **D6** | Minimum supported Android device | Nothing in the schema or protocol references a device class | **None** |
-| **D7** | Argon2id p95 ceiling | `Crypto.KdfProfile` — **versioned KDF parameters as data, not constants.** Each credential row names its profile; the platform already does exactly this for PBKDF2 via per-row `PasswordIterations` | **None.** Insert a profile row and let rehash-on-login upgrade carry accounts forward |
+| **D7** | Argon2id p95 ceiling | `Crypto.KdfProfile` — **versioned KDF parameters as data, not constants.** Each credential row names its profile; the platform already does exactly this for PBKDF2 via per-row `PasswordIterations`. **First real measurement taken 2026-09-24 — see §1b. It does not close this.** | **None.** Insert a profile row and let rehash-on-login upgrade carry accounts forward |
 | **A3** | Is a `BE = 0` platform credential obtainable on target OS versions? | `IDeviceApprovalCredential` with two adapters — WebAuthn and DBK (Keystore / Secure Enclave). The protocol-level `approval_context` is identical for both | **None**, provided both adapters exist behind the interface |
 | **P1** | libsodium's real binary and ABI cost on device | `AeadCipher` interface, with a pure-Dart XChaCha20-Poly1305 behind it today. **An Argon2id and an envelope vector are frozen**, so swapping the implementation is checked against fixed bytes rather than assumed to be equivalent | **None.** One class, one vector run |
+
+## 1b. The first Argon2id measurement — and why it does not close D6 or D7
+
+**Taken 2026-09-24**, the first time the app was run on Android at all. Seeded
+profile: `m=65536 KiB, t=3, p=4`, pure-Dart Argon2id.
+
+| Build | Cost | What it is |
+|---|---|---|
+| debug (`flutter test integration_test/`) | **4,827 ms** | Dart under the JIT. **Not a slow version of the real number — a different execution mode from any a phone runs.** Recorded only so nobody quotes it |
+| profile (`flutter drive --profile`) | **1,545 ms** | AOT, the mode a release build uses. 3.1× faster than debug |
+
+**Both figures are from an Android emulator**, which is a desktop CPU wearing a
+costume. A low-end phone — the device class D6 is about — will be slower, and
+nothing here says by how much. The honest reading is: *on the fastest thing we
+have, sign-in costs a second and a half.* That is the floor, not the answer.
+
+**Why this is not enough to close either decision:**
+
+- D6 asks which devices are supported. One emulator is not a device class.
+- D7 asks for a **p95 ceiling**. A single measurement on one machine has no
+  p95 in it, and the instruction at the checkpoint was explicit: *do not
+  invent a production benchmark result.*
+
+**What it is good for.** It moves the question from unmeasured to bounded, and
+it already says something uncomfortable: 1.5 s is the optimistic end, and the
+same derivation runs on sign-in, on password change, and on closing an
+account. If a real low-end device lands at 4–6 s, the profile needs revisiting
+before launch rather than after — and because parameters are data, revisiting
+it is a row, not a release.
+
+The measurement lives in `WLOS_App/integration_test/crypto_flow_test.dart` and
+is asserted only against 30 s, as a smoke alarm rather than a threshold.
+
+---
 
 ## 1a. Resolved since the register was opened
 
