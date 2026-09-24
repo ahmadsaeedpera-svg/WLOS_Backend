@@ -19,7 +19,7 @@
     Run:
       sqlcmd -S "$SERVER" -I -d "$DB" -i src/Maren.Database/tests/crypto_test.sql
 
-    Expect: TOTAL: 32  FAILED: 0
+    Expect: TOTAL: 36  FAILED: 0
 
     Creates and removes its own data. Re-runnable and order-independent:
     it cleans up on the way in as well as on the way out, so a previous
@@ -374,10 +374,23 @@ BEGIN
     PRINT ' 22 no procedure accepts a password, phrase or raw key            FAIL';
 END
 
-/*  The section 4.3 allow-list, extended to the client-derived scheme. The
-    version 1 list names four procedures against Identity.User; these are the
-    version 2 equivalents against Identity.UserCredential. Adding a fifth name
-    to either list is the signal that the rule has stopped meaning anything. */
+/*  The section 4.3 allow-list, extended to the client-derived scheme.
+
+    The version 1 list names four procedures against Identity.User; these are
+    the version 2 equivalents against Identity.UserCredential, and each is on
+    the credential path rather than on it for convenience:
+
+      usp_UserCredential_GetForLogin      verify an authentication secret
+      usp_UserCredential_GetKdfParameters the salt a device needs before it
+                                          can derive anything
+      usp_UserCredential_SetAuthoritative replace the stored verifier
+      usp_User_RegisterClientDerived      set the first one -- the counterpart
+                                          of usp_User_Register on the v1 list
+      usp_User_DeleteAccount              erase it with the account
+
+    A name added here that is not one of those five is the signal that the
+    rule has stopped meaning anything. Watch for that rather than for the
+    length of the list. */
 DECLARE @authSecretLeaks int =
     (SELECT COUNT(*)
        FROM sys.sql_modules m
@@ -386,6 +399,7 @@ DECLARE @authSecretLeaks int =
         AND o.name NOT IN ('usp_UserCredential_GetForLogin',
                            'usp_UserCredential_GetKdfParameters',
                            'usp_UserCredential_SetAuthoritative',
+                           'usp_User_RegisterClientDerived',
                            'usp_User_DeleteAccount')
         AND (m.definition LIKE '%AuthSecretHash%'
           OR m.definition LIKE '%AuthSecretSalt%'));
@@ -554,6 +568,143 @@ END
 DELETE FROM [Identity].[User] WHERE UserId = @userC;
 
 -- ---------------------------------------------------------------------------
+-- Registration on the client-derived path
+-- ---------------------------------------------------------------------------
+
+DECLARE @regResult TABLE (Succeeded bit, FailureCode varchar(64),
+                          UserId uniqueidentifier, GenerationId uniqueidentifier);
+DECLARE @regEmail  nvarchar(256) = N'crypto_test_reg@test.invalid';
+DECLARE @regNorm   nvarchar(256) = N'CRYPTO_TEST_REG@TEST.INVALID';
+DECLARE @regUserId uniqueidentifier;
+
+DECLARE @adult DATE = DATEADD(YEAR, -30, CAST(SYSUTCDATETIME() AS DATE));
+DECLARE @salt16a varbinary(32)  = CAST(REPLICATE(CAST(0xC1 AS binary(1)), 16) AS varbinary(32));
+DECLARE @salt16b varbinary(32)  = CAST(REPLICATE(CAST(0xC2 AS binary(1)), 16) AS varbinary(32));
+DECLARE @salt128 varbinary(128) = CAST(REPLICATE(CAST(0xC3 AS binary(1)), 16) AS varbinary(128));
+DECLARE @child DATE = DATEADD(YEAR, -12, CAST(SYSUTCDATETIME() AS DATE));
+
+-- Clean up any previous run before asserting anything.
+SET @regUserId = (SELECT UserId FROM [Identity].[User] WHERE NormalisedEmail = @regNorm);
+IF @regUserId IS NOT NULL
+BEGIN
+    DELETE FROM [Crypto].[Record]           WHERE UserId = @regUserId;
+    DELETE FROM [Crypto].[RecoveryVerifier] WHERE GenerationId IN
+           (SELECT GenerationId FROM [Crypto].[Generation] WHERE UserId = @regUserId);
+    DELETE FROM [Crypto].[Wrapper]          WHERE GenerationId IN
+           (SELECT GenerationId FROM [Crypto].[Generation] WHERE UserId = @regUserId);
+    DELETE FROM [Crypto].[Generation]       WHERE UserId = @regUserId;
+    DELETE FROM [Identity].[UserCredential] WHERE UserId = @regUserId;
+    DELETE FROM [Identity].[UserRole]       WHERE UserId = @regUserId;
+    DELETE FROM [Identity].[Profile]        WHERE UserId = @regUserId;
+    DELETE FROM [Audit].[AuditLog]          WHERE ActorUserId = @regUserId;
+    DELETE FROM [Identity].[User]           WHERE UserId = @regUserId;
+END
+
+INSERT @regResult EXEC [Identity].[usp_User_RegisterClientDerived]
+    @Email = @regEmail, @DateOfBirth = @adult,
+    @AuthSecretHash = @pk32,
+    @AuthSecretSalt = @salt16a,
+    @KdfProfileId = @profile,
+    @PasswordWrapper = @env48, @RecoveryWrapper = @env48,
+    @RecoveryPublicKey = @pk32;
+
+SET @regUserId = (SELECT TOP 1 UserId FROM @regResult);
+
+/*  One transaction, or none. Every partial outcome here is unrecoverable
+    without an operator reaching into her account, and this platform does not
+    give operators that reach. */
+IF EXISTS (SELECT 1 FROM @regResult WHERE Succeeded = 1)
+   AND @regUserId IS NOT NULL
+   AND EXISTS (SELECT 1 FROM [Identity].[UserCredential]
+                WHERE UserId = @regUserId AND CredentialVersion = 2 AND IsAuthoritative = 1)
+   AND (SELECT COUNT(*) FROM [Crypto].[Generation]
+         WHERE UserId = @regUserId AND [State] = 'ACTIVE' AND GenerationNumber = 1) = 1
+   AND (SELECT COUNT(*) FROM [Crypto].[Wrapper] w
+         JOIN [Crypto].[Generation] g ON g.GenerationId = w.GenerationId
+        WHERE g.UserId = @regUserId) = 2
+   AND (SELECT COUNT(*) FROM [Crypto].[RecoveryVerifier] v
+         JOIN [Crypto].[Generation] g ON g.GenerationId = v.GenerationId
+        WHERE g.UserId = @regUserId) = 1
+   AND EXISTS (SELECT 1 FROM [Identity].[UserRole] ur
+                JOIN [Identity].[Role] r ON r.RoleId = ur.RoleId
+               WHERE ur.UserId = @regUserId AND r.Name = 'Member')
+    PRINT ' 33 registration creates account, credential, key and wrappers at once PASS';
+ELSE
+BEGIN
+    SET @failed = @failed + 1;
+    PRINT ' 33 registration creates account, credential, key and wrappers at once FAIL';
+END
+
+/*  A version 2 account has no server-verified password, and the version 1
+    login path must refuse it rather than return an all-NULL row a caller
+    might mistake for a valid credential. */
+DELETE FROM @v1Rows;
+INSERT @v1Rows EXEC [Identity].[usp_User_GetForLogin] @Email = @regEmail;
+
+IF NOT EXISTS (SELECT 1 FROM @v1Rows)
+   AND NOT EXISTS (SELECT 1 FROM [Identity].[User]
+                    WHERE UserId = @regUserId AND PasswordHash IS NOT NULL)
+    PRINT ' 34 a client-derived account holds no server-side password        PASS';
+ELSE
+BEGIN
+    SET @failed = @failed + 1;
+    PRINT ' 34 a client-derived account holds no server-side password        FAIL';
+END
+
+/*  The age gate is duplicated between usp_User_Register and this procedure,
+    because sharing it would mean one procedure calling another inside a
+    transaction it did not open. Duplication is only safe while something
+    holds the copies in step. This is that something: the same under-age date
+    must be refused identically by both, and neither may leave a row behind. */
+DECLARE @childResult TABLE (Succeeded bit, FailureCode varchar(64),
+                            UserId uniqueidentifier, GenerationId uniqueidentifier);
+DECLARE @childV1 TABLE (Succeeded bit, FailureCode varchar(50),
+                        UserId uniqueidentifier);
+DECLARE @childEmail nvarchar(256) = N'crypto_test_child@test.invalid';
+
+INSERT @childResult EXEC [Identity].[usp_User_RegisterClientDerived]
+    @Email = @childEmail, @DateOfBirth = @child,
+    @AuthSecretHash = @pk32,
+    @AuthSecretSalt = @salt16b,
+    @KdfProfileId = @profile,
+    @PasswordWrapper = @env48, @RecoveryWrapper = @env48,
+    @RecoveryPublicKey = @pk32;
+
+INSERT @childV1 EXEC [Identity].[usp_User_Register]
+    @Email = @childEmail, @PasswordHash = @pk32,
+    @PasswordSalt = @salt128,
+    @PasswordIterations = 210000, @DateOfBirth = @child;
+
+IF EXISTS (SELECT 1 FROM @childResult WHERE Succeeded = 0 AND FailureCode = 'UNDER_MINIMUM_AGE')
+   AND EXISTS (SELECT 1 FROM @childV1 WHERE Succeeded = 0 AND FailureCode = 'UNDER_MINIMUM_AGE')
+   AND NOT EXISTS (SELECT 1 FROM [Identity].[User]
+                    WHERE NormalisedEmail = UPPER(@childEmail))
+    PRINT ' 35 both registration paths refuse the same under-age date        PASS';
+ELSE
+BEGIN
+    SET @failed = @failed + 1;
+    PRINT ' 35 both registration paths refuse the same under-age date        FAIL';
+END
+
+/*  Deleting a client-derived account has to reach the same places as any
+    other, and it is a different shape of account -- no password material, a
+    credential row, a generation. */
+DECLARE @regDelete TABLE (Succeeded bit, FailureCode varchar(64));
+INSERT @regDelete EXEC [Identity].[usp_User_DeleteAccount] @UserId = @regUserId;
+
+IF NOT EXISTS (SELECT 1 FROM [Identity].[User] WHERE UserId = @regUserId)
+   AND NOT EXISTS (SELECT 1 FROM [Identity].[UserCredential] WHERE UserId = @regUserId)
+   AND NOT EXISTS (SELECT 1 FROM [Crypto].[Generation] WHERE UserId = @regUserId)
+    PRINT ' 36 deleting a client-derived account leaves nothing behind       PASS';
+ELSE
+BEGIN
+    SET @failed = @failed + 1;
+    PRINT ' 36 deleting a client-derived account leaves nothing behind       FAIL';
+END
+
+DELETE FROM [Identity].[User] WHERE NormalisedEmail IN (@regNorm, UPPER(@childEmail));
+
+-- ---------------------------------------------------------------------------
 -- Clean up on the way out.
 -- ---------------------------------------------------------------------------
 DELETE FROM [Crypto].[Record]           WHERE UserId IN (@userA, @userB);
@@ -567,7 +718,7 @@ DELETE FROM [Identity].[User]           WHERE UserId IN (@userA, @userB);
 
 PRINT '';
 PRINT '---------------------------------------------';
-PRINT 'TOTAL: 32  FAILED: ' + CAST(@failed AS varchar(10));
+PRINT 'TOTAL: 36  FAILED: ' + CAST(@failed AS varchar(10));
 PRINT '---------------------------------------------';
 
 IF @failed > 0

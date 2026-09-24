@@ -135,6 +135,8 @@ public static class InfrastructureRegistration
     {
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
         services.AddSingleton<ITokenService, JwtTokenService>();
+        services.AddSingleton<IKdfDecoy, HmacKdfDecoy>();
+        services.AddSingleton<IAuthSecretVerifier, HmacAuthSecretVerifier>();
         return services;
     }
 }

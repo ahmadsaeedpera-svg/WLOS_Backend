@@ -467,6 +467,7 @@ public static class PersistenceRegistration
         services.AddScoped<IAmbientConnection>(sp => sp.GetRequiredService<SqlUnitOfWork>());
 
         services.AddScoped<IAuthRepository, AuthRepository>();
+        services.AddScoped<ICryptoRepository, CryptoRepository>();
         services.AddScoped<IConfigurationRepository, ConfigurationRepository>();
         services.AddScoped<IContentRepository, ContentRepository>();
         services.AddScoped<IAccessRepository, AccessRepository>();

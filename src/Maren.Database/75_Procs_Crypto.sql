@@ -94,6 +94,7 @@ BEGIN
 
     SELECT TOP 1
         c.AuthSecretSalt,
+        c.KdfProfileId,
         p.Algorithm,
         p.MemoryKiB,
         p.Iterations,
@@ -495,6 +496,28 @@ BEGIN
     DECLARE @existingVersion INT;
     DECLARE @existingOwner   UNIQUEIDENTIFIER;
 
+    /*  An explicit transaction, because the hint above only means something
+        inside one.
+
+        UPDLOCK and HOLDLOCK in autocommit are released when the SELECT
+        finishes, so two devices saving the same entry could both read version
+        3, both compute 4, and the second would overwrite the first with no
+        conflict reported -- which is exactly the case the version check
+        exists to catch. Holding the lock to the COMMIT is what makes the
+        check and the write one decision. */
+    BEGIN TRAN;
+
+    /*  The refusal paths below COMMIT rather than ROLLBACK, which looks wrong
+        and is not. Nothing has been written at that point -- the transaction
+        exists only to hold the lock taken by the SELECT -- so committing an
+        empty transaction and rolling one back are the same outcome.
+
+        ROLLBACK is worse than merely unnecessary here: a procedure that rolls
+        back cannot be called from INSERT ... EXEC, which fails with error
+        3915 and makes this procedure untestable from the SQL assertion suite.
+        A hidden constraint on how a procedure may be called is exactly the
+        kind of thing that is discovered much later, by someone else. */
+
     SELECT @existingVersion = [Version], @existingOwner = UserId
       FROM [Crypto].[Record] WITH (UPDLOCK, HOLDLOCK)
      WHERE RecordId = @RecordId;
@@ -504,6 +527,7 @@ BEGIN
         id exists, and the caller has no legitimate way to have guessed it. */
     IF @existingOwner IS NOT NULL AND @existingOwner <> @UserId
     BEGIN
+        COMMIT TRAN;
         SELECT CAST(0 AS BIT) AS Succeeded, 'VERSION_CONFLICT' AS FailureCode,
                CAST(NULL AS INT) AS CurrentVersion;
         RETURN;
@@ -511,6 +535,7 @@ BEGIN
 
     IF @Version <> ISNULL(@existingVersion, 0) + 1
     BEGIN
+        COMMIT TRAN;
         SELECT CAST(0 AS BIT) AS Succeeded, 'VERSION_CONFLICT' AS FailureCode,
                @existingVersion AS CurrentVersion;
         RETURN;
@@ -531,6 +556,8 @@ BEGIN
                Envelope      = @Envelope,
                ModifiedOn    = SYSUTCDATETIME()
          WHERE RecordId = @RecordId;
+
+    COMMIT TRAN;
 
     SELECT CAST(1 AS BIT) AS Succeeded, CAST(NULL AS VARCHAR(64)) AS FailureCode,
            @Version AS CurrentVersion;
@@ -631,5 +658,216 @@ BEGIN
 
     SELECT CAST(CASE WHEN @@ROWCOUNT > 0 THEN 1 ELSE 0 END AS BIT) AS Succeeded,
            CAST(NULL AS VARCHAR(64)) AS FailureCode;
+END
+GO
+
+-- ---------------------------------------------------------------------------
+-- Crypto.usp_Crypto_GetAccountSummary
+-- ---------------------------------------------------------------------------
+/*
+    What an operator may see about a woman's encrypted records: that they
+    exist, and how many.
+
+    **Deliberately shaped to be unhelpful to curiosity.** Counts and states,
+    one first and one last timestamp, and nothing else. No record kinds broken
+    down, no sizes, no per-record times, no titles — because those are absent
+    by design rather than by omission, and a shape that begins as "how much is
+    there" grows into a behavioural profile one reasonable-sounding request at
+    a time.
+
+    It returns no ciphertext. An operator who could retrieve envelopes could
+    not read them, but there is no support question whose answer requires
+    holding a woman's encrypted journal, so the procedure does not offer it.
+
+    `HasRecoveryWrapper` is here because it is the one fact that changes what
+    an operator can honestly tell her: whether a recovery phrase can still
+    open the current generation. Whether it *will* is between her and the
+    phrase.
+*/
+IF OBJECT_ID('Crypto.usp_Crypto_GetAccountSummary') IS NOT NULL
+    DROP PROCEDURE [Crypto].[usp_Crypto_GetAccountSummary];
+GO
+CREATE PROCEDURE [Crypto].[usp_Crypto_GetAccountSummary]
+    @UserId UNIQUEIDENTIFIER
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT TOP 1
+        u.UserId,
+        u.Email,
+        (SELECT COUNT(*) FROM [Crypto].[Generation] g2 WHERE g2.UserId = u.UserId)
+            AS GenerationCount,
+        ISNULL((SELECT g3.GenerationNumber FROM [Crypto].[Generation] g3
+                 WHERE g3.UserId = u.UserId AND g3.[State] = 'ACTIVE'), 0)
+            AS ActiveGenerationNumber,
+        (SELECT COUNT(*) FROM [Crypto].[Record] r WHERE r.UserId = u.UserId)
+            AS RecordCount,
+        CAST(CASE WHEN EXISTS (
+                SELECT 1 FROM [Crypto].[Wrapper] w
+                JOIN [Crypto].[Generation] g4 ON g4.GenerationId = w.GenerationId
+                WHERE g4.UserId = u.UserId AND g4.[State] = 'ACTIVE'
+                  AND w.WrapperKind = 'RECOVERY')
+             THEN 1 ELSE 0 END AS BIT) AS HasRecoveryWrapper,
+        (SELECT MIN(r.CreatedOn) FROM [Crypto].[Record] r WHERE r.UserId = u.UserId)
+            AS FirstRecordOn,
+        (SELECT MAX(r.ModifiedOn) FROM [Crypto].[Record] r WHERE r.UserId = u.UserId)
+            AS LastRecordOn
+    FROM [Identity].[User] u
+    WHERE u.UserId = @UserId AND u.IsDeleted = 0;
+END
+GO
+
+-- ---------------------------------------------------------------------------
+-- Identity.usp_User_RegisterClientDerived
+-- ---------------------------------------------------------------------------
+/*
+    Register an account whose credential was derived on her device.
+
+    Everything this procedure receives was computed on the phone: an
+    authentication secret, two wrapped copies of a data key, and a public key.
+    **It receives no password.** There is no parameter that could carry one,
+    and the assertion suite checks that across every procedure in the database.
+
+    Why this is one transaction
+    --------------------------
+    An account, its credential and its first generation have to appear
+    together or not at all. Each partial outcome is its own kind of stranded:
+
+      * account without a credential  -> she cannot sign in, and cannot
+                                         register again because the address is
+                                         taken
+      * credential without a generation -> she can sign in and has no key, so
+                                         her first entry has nowhere to go
+      * generation without wrappers   -> a data key nobody can ever unwrap,
+                                         and every record written under it is
+                                         lost from the first write
+
+    All three are unrecoverable without an operator touching her account, and
+    this platform does not give operators that reach. So: one transaction.
+
+    The age gate
+    ------------
+    Duplicated from `usp_User_Register` rather than shared, because sharing it
+    would mean one procedure calling another inside a transaction it did not
+    open, and nested transaction semantics in T-SQL are a trap. The two copies
+    are held in step by an assertion that feeds the same under-age date to both
+    and requires the same refusal.
+
+    A refused registration stores nothing. Recording it would mean keeping a
+    child's email address and date of birth as the permanent record of having
+    turned her away, which is the opposite of what the gate is for.
+*/
+IF OBJECT_ID('Identity.usp_User_RegisterClientDerived') IS NOT NULL
+    DROP PROCEDURE [Identity].[usp_User_RegisterClientDerived];
+GO
+CREATE PROCEDURE [Identity].[usp_User_RegisterClientDerived]
+    @Email              NVARCHAR(256),
+    @DateOfBirth        DATE,
+    @AuthSecretHash     VARBINARY(64),
+    @AuthSecretSalt     VARBINARY(32),
+    @KdfProfileId       INT,
+    @PasswordWrapper    VARBINARY(MAX),
+    @RecoveryWrapper    VARBINARY(MAX),
+    @RecoveryPublicKey  VARBINARY(32),
+    @CountryIso         CHAR(2) = NULL,
+    @LanguageCode       CHAR(5) = 'en-GB',
+    @IpAddress          VARCHAR(45) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @normalised NVARCHAR(256) = UPPER(LTRIM(RTRIM(@Email)));
+    DECLARE @userId UNIQUEIDENTIFIER;
+    DECLARE @generationId UNIQUEIDENTIFIER = NEWID();
+    DECLARE @countryId INT =
+        (SELECT CountryId FROM [Identity].[Country] WHERE IsoCode = @CountryIso);
+
+    IF @DateOfBirth IS NULL
+       OR @DateOfBirth > CAST(SYSUTCDATETIME() AS DATE)
+       OR @DateOfBirth < DATEADD(YEAR, -120, CAST(SYSUTCDATETIME() AS DATE))
+    BEGIN
+        SELECT CAST(0 AS BIT) AS Succeeded, 'INVALID_DATE_OF_BIRTH' AS FailureCode,
+               CAST(NULL AS UNIQUEIDENTIFIER) AS UserId,
+               CAST(NULL AS UNIQUEIDENTIFIER) AS GenerationId;
+        RETURN;
+    END
+
+    IF [Identity].[fn_IsOfMinimumAge](@DateOfBirth) = 0
+    BEGIN
+        SELECT CAST(0 AS BIT) AS Succeeded, 'UNDER_MINIMUM_AGE' AS FailureCode,
+               CAST(NULL AS UNIQUEIDENTIFIER) AS UserId,
+               CAST(NULL AS UNIQUEIDENTIFIER) AS GenerationId;
+        RETURN;
+    END
+
+    IF NOT EXISTS (SELECT 1 FROM [Crypto].[KdfProfile] WHERE KdfProfileId = @KdfProfileId)
+    BEGIN
+        SELECT CAST(0 AS BIT) AS Succeeded, 'KDF_PROFILE_NOT_FOUND' AS FailureCode,
+               CAST(NULL AS UNIQUEIDENTIFIER) AS UserId,
+               CAST(NULL AS UNIQUEIDENTIFIER) AS GenerationId;
+        RETURN;
+    END
+
+    IF EXISTS (SELECT 1 FROM [Identity].[User]
+               WHERE NormalisedEmail = @normalised AND IsDeleted = 0)
+    BEGIN
+        SELECT CAST(0 AS BIT) AS Succeeded, 'EMAIL_IN_USE' AS FailureCode,
+               CAST(NULL AS UNIQUEIDENTIFIER) AS UserId,
+               CAST(NULL AS UNIQUEIDENTIFIER) AS GenerationId;
+        RETURN;
+    END
+
+    BEGIN TRAN;
+
+        /*  The version 1 credential columns are left untouched, and are not
+            named here. This account has never had a server-verified password
+            and never will; the login path for version 1 returns nothing for
+            an account holding an authoritative version 2 credential. */
+        INSERT INTO [Identity].[User]
+            (Email, NormalisedEmail, CountryId, LanguageCode)
+        VALUES
+            (@Email, @normalised, @countryId, @LanguageCode);
+
+        SET @userId = (SELECT UserId FROM [Identity].[User]
+                       WHERE NormalisedEmail = @normalised AND IsDeleted = 0);
+
+        INSERT INTO [Identity].[Profile] (UserId, DateOfBirth)
+        VALUES (@userId, @DateOfBirth);
+
+        INSERT INTO [Identity].[UserRole] (UserId, RoleId)
+        SELECT @userId, RoleId FROM [Identity].[Role] WHERE Name = 'Member';
+
+        INSERT INTO [Identity].[UserCredential]
+            (UserId, CredentialVersion, AuthSecretHash, AuthSecretSalt,
+             KdfProfileId, IsAuthoritative)
+        VALUES
+            (@userId, 2, @AuthSecretHash, @AuthSecretSalt, @KdfProfileId, 1);
+
+        INSERT INTO [Crypto].[Generation]
+            (GenerationId, UserId, GenerationNumber, [State])
+        VALUES
+            (@generationId, @userId, 1, 'ACTIVE');
+
+        INSERT INTO [Crypto].[Wrapper] (GenerationId, WrapperKind, Envelope)
+        VALUES (@generationId, 'PASSWORD', @PasswordWrapper),
+               (@generationId, 'RECOVERY', @RecoveryWrapper);
+
+        INSERT INTO [Crypto].[RecoveryVerifier] (GenerationId, PublicKey)
+        VALUES (@generationId, @RecoveryPublicKey);
+
+        /*  That she registered, and that a key exists. Not the date of birth,
+            not the wrappers, not the public key. */
+        INSERT INTO [Audit].[AuditLog]
+            (ActorUserId, ActorKind, [Action], EntityType, EntityId, IpAddress)
+        VALUES
+            (@userId, 'user', 'User.RegisterClientDerived', 'User',
+             CONVERT(NVARCHAR(50), @userId), @IpAddress);
+
+    COMMIT TRAN;
+
+    SELECT CAST(1 AS BIT) AS Succeeded, CAST(NULL AS VARCHAR(64)) AS FailureCode,
+           @userId AS UserId, @generationId AS GenerationId;
 END
 GO

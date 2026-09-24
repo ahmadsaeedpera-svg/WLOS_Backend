@@ -120,6 +120,70 @@ All responses use one envelope:
 Access tokens last 15 minutes. Refresh tokens are opaque, stored SHA-256 hashed,
 rotated on use, and reuse is detected and treated as compromise.
 
+### Client-derived credentials — `/api/v1/auth/crypto` (anonymous)
+
+`GET kdf-parameters?email=` · `POST register` · `POST login`
+
+**No endpoint here accepts a password, and none may ever be added that does.**
+What arrives is an authentication secret her device derived with Argon2id. The
+key that opens her journal is a different HKDF output of the same master secret
+and never leaves the phone — so a server that saw the password could derive it,
+which is the entire reason this path exists alongside `/api/v1/auth`.
+
+`kdf-parameters` answers for **every** address, registered or not. It has to be
+anonymous, because a device cannot prove anything until it holds the key these
+parameters produce; the defence against enumeration is that an unknown address
+gets a stable decoy salt derived from the address under a server-held key.
+
+An account on this path has `CredentialVersion = 2` and **no password material
+on `Identity.User`**. `usp_User_GetForLogin` returns nothing for it, so the
+version 1 path is closed structurally rather than by routing.
+
+### Encrypted records — `/api/v1/me/records` (authenticated)
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/v1/me/crypto/generation` | The active generation and its wrapped keys |
+| PUT | `/{recordId}` | `version` must be exactly one past what is stored |
+| GET | `/` | `?kind=&skip=&take=` — bounded at 200 |
+| GET | `/{recordId}` | |
+| DELETE | `/{recordId}` | |
+
+Every envelope is ciphertext this platform cannot open. There is no user id or
+generation parameter anywhere: the subject comes from the token and the
+generation is resolved server-side, because a caller that could name one could
+write into a retired key.
+
+The version is supplied by the client because it is bound into the envelope's
+associated data before sealing — the concurrency check and the cryptographic
+binding are the same check. A stale write returns `VERSION_CONFLICT`.
+
+**Record writes are deliberately not audited.** An audit row per journal write
+would build a precise behavioural history of the one part of WLOS that exists
+to be private, and encrypting the payload does not help — the pattern is the
+sensitive part.
+
+### Encryption state for an operator — `/api/v1/admin/users/{id}/crypto`
+
+Requires `users.read`. Returns counts and states: how many entries, which
+generation, whether a recovery wrapper still exists, and first and last dates.
+**No content, and nothing that could carry any.**
+
+### Verifying the whole path end to end
+
+```bash
+# Terminal 1
+dotnet run --project src/Maren.Api --urls http://localhost:5299
+
+# Terminal 2, from WLOS_App
+dart run tool/e2e_encrypted_record.dart http://localhost:5299
+```
+
+Registers an account, signs in, fetches and unwraps the key, seals an entry,
+stores it, reads it back, and asserts that what the platform holds contains
+none of what was written. Exits non-zero on the first thing that does not hold.
+It leaves the account behind on purpose, so the row can be inspected.
+
 ### Content administration — `/api/v1/content` (authenticated)
 
 | Method | Path | Permission |
