@@ -176,6 +176,36 @@ records and not of entries she would recognise, and the portal says so.
 Nothing here is a server-side capability: the platform's job is to refuse the
 stale write honestly, which it already did.
 
+### Export — a capability this platform structurally cannot have
+
+She can take a readable copy of her journal, and **the only place that can
+happen is her device**. This is worth stating here precisely because someone
+will eventually be asked for it and will reach for the API.
+
+There is no endpoint, and there cannot be one. The platform holds envelopes
+sealed under a key derived from her password on her phone; an export endpoint
+would be able to return exactly what `GET /api/v1/me/records` already returns,
+which is ciphertext. Anything that could turn that into readable text would be
+the server holding her key, which is the one thing this whole design exists to
+prevent.
+
+So the client reads her records, opens them with the key it already holds, and
+writes a plaintext JSON archive. **Support cannot produce this file, and no
+operator should ever promise it.** What an operator can truthfully say is that
+it takes one action inside her app, on a device where she is signed in.
+
+Two consequences worth knowing:
+
+- **The archive is not encrypted**, and says so in its own manifest as well as
+  on the screen that makes it. A copy she cannot read is not a copy, so the
+  plaintext leaves the key's protection deliberately rather than by oversight.
+- **Records that will not open are named in the file** by record id rather
+  than omitted. A woman whose earlier generation is unrecoverable gets an
+  archive that tells her what is missing, instead of one that looks complete.
+
+This is the other half of `usp_User_DeleteAccount`. Deletion means deletion is
+only a fair promise if leaving with your own writing is possible first.
+
 **Record writes are deliberately not audited.** An audit row per journal write
 would build a precise behavioural history of the one part of WLOS that exists
 to be private, and encrypting the payload does not help — the pattern is the
