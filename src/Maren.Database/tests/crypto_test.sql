@@ -19,7 +19,7 @@
     Run:
       sqlcmd -S "$SERVER" -I -d "$DB" -i src/Maren.Database/tests/crypto_test.sql
 
-    Expect: TOTAL: 31  FAILED: 0
+    Expect: TOTAL: 32  FAILED: 0
 
     Creates and removes its own data. Re-runnable and order-independent:
     it cleans up on the way in as well as on the way out, so a previous
@@ -201,6 +201,19 @@ BEGIN TRY
 END TRY
 BEGIN CATCH
     PRINT ' 11 duplicate generation number refused                             PASS';
+END CATCH
+
+/*  The envelope names its generation in a uint16 field, so a generation the
+    envelope cannot name is one no record could ever be sealed under. The
+    column has to agree with the format rather than merely with itself. */
+BEGIN TRY
+    INSERT INTO [Crypto].[Generation] (GenerationId, UserId, GenerationNumber, [State])
+    VALUES (@genA3, @userA, 65536, 'DORMANT');
+    SET @failed = @failed + 1;
+    PRINT ' 11b generation number beyond the envelope uint16 refused          FAIL';
+END TRY
+BEGIN CATCH
+    PRINT ' 11b generation number beyond the envelope uint16 refused          PASS';
 END CATCH
 
 -- ---------------------------------------------------------------------------
@@ -554,7 +567,7 @@ DELETE FROM [Identity].[User]           WHERE UserId IN (@userA, @userB);
 
 PRINT '';
 PRINT '---------------------------------------------';
-PRINT 'TOTAL: 31  FAILED: ' + CAST(@failed AS varchar(10));
+PRINT 'TOTAL: 32  FAILED: ' + CAST(@failed AS varchar(10));
 PRINT '---------------------------------------------';
 
 IF @failed > 0

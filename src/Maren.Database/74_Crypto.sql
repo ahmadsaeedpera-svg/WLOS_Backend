@@ -285,9 +285,32 @@ BEGIN
             REFERENCES [Identity].[User](UserId),
         CONSTRAINT CK_Generation_State
             CHECK ([State] IN ('ACTIVE', 'MIGRATING', 'DORMANT', 'ORPHANED')),
-        CONSTRAINT CK_Generation_Number CHECK (GenerationNumber > 0),
+        /*  Upper bound is the envelope, not the column. `dek_gen` is a
+            uint16 field in the record envelope, so a generation the envelope
+            cannot name is a generation no record can be sealed under. The
+            two have to agree, and the database is where that is enforced.
+            Generation 0 does not exist: the first generation is 1, and a
+            `dek_gen` of 0 in an envelope is malformed by construction. */
+        CONSTRAINT CK_Generation_Number
+            CHECK (GenerationNumber BETWEEN 1 AND 65535),
         CONSTRAINT UQ_Generation_Number UNIQUE (UserId, GenerationNumber)
     );
+END
+GO
+
+/*  Reconcile the bound on an already-deployed database. The table body above
+    only runs when the table is being created, so a constraint that changes
+    after first deployment needs its own idempotent block or it silently
+    applies to new databases only -- which is the worst of both, because the
+    verification database and production then disagree. */
+IF EXISTS (SELECT 1 FROM sys.check_constraints
+           WHERE name = 'CK_Generation_Number'
+             AND parent_object_id = OBJECT_ID('Crypto.Generation')
+             AND definition NOT LIKE '%65535%')
+BEGIN
+    ALTER TABLE [Crypto].[Generation] DROP CONSTRAINT CK_Generation_Number;
+    ALTER TABLE [Crypto].[Generation] ADD CONSTRAINT CK_Generation_Number
+        CHECK (GenerationNumber BETWEEN 1 AND 65535);
 END
 GO
 
