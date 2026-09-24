@@ -129,7 +129,65 @@ Consequences to accept explicitly:
 
 ---
 
-## 5. What this checkpoint asks for
+## 5. Resolved — checkpoint approved, decisions locked
+
+| | Decision | Built |
+|---|---|---|
+| **P2** | **HKDF-SHA256**, not libsodium's BLAKE2b KDF. WLOS labels are authoritative | `KeyHierarchy`, four labels, pinned by vectors |
+| **S2** | **Salted HMAC-SHA256** for the server's `auth_secret` verifier. No PBKDF2 on top | `AuthSecretVerifier` |
+| **E1** | **Fixed-width, explicit big-endian** | `CanonicalBytes` / `WlosCanonicalBytes` |
+| **E2** | **Canonical byte-string AD.** No JSON, no framework serialisation | `WlosEnvelope.associatedData`, 56 fixed bytes |
+| **E3** | **uint16 `dek_gen`.** Generation 0 does not exist; the first is 1 | Enforced in the codec *and* by `CK_Generation_Number BETWEEN 1 AND 65535` |
+| **E4** | **4-byte length prefix inside the AEAD**, then content, then padding | `WlosEnvelope` |
+| **E5** | **Reject over-size in v1.** No chunking; attachments are a later capability | See the correction below |
+| **E6** | **24-byte CSPRNG nonce per seal** | Caller-supplied so the codec stays deterministic |
+| **S1** | **BouncyCastle**, after confirming .NET 10 has no Ed25519 | `RecoverySignatureVerifier` |
+| **P1** | libsodium accepted in principle; size measured during implementation | `AeadCipher` interface; pure-Dart implementation behind it |
+| **P3 / D6 / D7** | Argon2id parameters stay versioned and configurable | `KdfProfile`, `isProvisional` surfaced to callers |
+
+### The one number that needed correcting
+
+**E5's "64 KiB" is the envelope, not the payload.** Buckets are envelope sizes,
+so:
+
+```
+  capacity(B) = B − 48 − 4          48 = header(32) + tag(16),  4 = length prefix
+  max payload = 65536 − 52          =  65,484 bytes
+```
+
+Calling the limit 64 KiB would be wrong by 52 bytes — the kind of error that
+only shows up on a real record months later. The constant is
+`WlosEnvelope.maxPayloadBytes = 65484` and a test asserts the bucket
+boundaries exactly.
+
+### One strengthening, flagged rather than slipped in
+
+**The header is inside the associated data.** The earlier specification text
+said `AD = recordId ‖ version ‖ schemaVersion`. Without the header in there,
+header tamper-detection rests on indirect arguments — a changed generation
+happens to select the wrong key, a changed version happens to be rejected
+structurally. Those are all true today and all fragile. `AD` is now
+`header(32) ‖ recordId(16) ‖ version(4) ‖ schemaVersion(4)`, every header byte
+is unconditionally tamper-evident, and it costs nothing.
+
+### Cross-language vectors — done
+
+`wlos_crypto_vectors.json`, generated deliberately by
+`WLOS_App/tool/generate_crypto_vectors.dart`, **never by a test run**. Committed
+identically to both repositories; both suites assert its SHA-256, so a copy
+edited on one side fails on that side.
+
+Twelve assertions each side. A signature produced in Dart is verified in .NET.
+UUID byte order, HKDF labels, integer widths and the auth-secret verifier all
+agree byte for byte.
+
+Argon2id and the envelope are pinned on the client only — the server runs
+neither, and a .NET implementation of either would be production code holding
+keys it must never touch.
+
+---
+
+## 6. What this checkpoint originally asked for
 
 | | Decision |
 |---|---|
