@@ -65,6 +65,8 @@ public sealed class CryptoIntegrationTests(DatabaseFixture fixture) : IAsyncLife
             DECLARE @ids TABLE (UserId UNIQUEIDENTIFIER PRIMARY KEY);
             INSERT @ids SELECT UserId FROM [Identity].[User] WHERE Email LIKE @p;
 
+            DELETE FROM [Crypto].[RecordTombstone] WHERE UserId IN (SELECT UserId FROM @ids);
+
             DELETE FROM [Crypto].[Record]           WHERE UserId IN (SELECT UserId FROM @ids);
             DELETE FROM [Crypto].[RecoveryVerifier] WHERE GenerationId IN
                    (SELECT GenerationId FROM [Crypto].[Generation]

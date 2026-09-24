@@ -134,6 +134,25 @@ public sealed class RecordsController(ISender sender) : MarenControllerBase
         [FromQuery] int take = 50, CancellationToken ct = default) =>
         FromResult(await sender.Send(new GetRecordsQuery(kind, skip, take), ct));
 
+    /// <summary>Everything that changed after a cursor, in the order it did.</summary>
+    /// <remarks>
+    /// <para>
+    /// How a second device catches up. Writes and deletions arrive in one
+    /// ordered stream so the client applies them in the order received; a
+    /// deletion is a change with no envelope.
+    /// </para>
+    /// <para>
+    /// The cursor is base64 of a SQL Server <c>rowversion</c> and is
+    /// <b>ordering only, never a time</b>. Omit it for a first sync. Keep
+    /// asking until a page comes back empty.
+    /// </para>
+    /// </remarks>
+    [HttpGet("changes")]
+    public async Task<IActionResult> Changes(
+        [FromQuery] string? kind, [FromQuery] string? since,
+        [FromQuery] int take = 200, CancellationToken ct = default) =>
+        FromResult(await sender.Send(new GetRecordChangesQuery(kind, since, take), ct));
+
     [HttpGet("{recordId:guid}")]
     public async Task<IActionResult> Get(Guid recordId, CancellationToken ct) =>
         FromResult(await sender.Send(new GetRecordQuery(recordId), ct));

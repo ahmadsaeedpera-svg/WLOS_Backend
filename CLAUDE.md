@@ -80,7 +80,7 @@ for f in 01_Schemas.sql 02_Identity.sql 03_Administration.sql 04_Health.sql \
          49_Behaviour.sql 50_Procs_Behaviour.sql 51_Procs_Inspector_Behaviour.sql \
          52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
          55_Growth_Routines.sql 56_Procs_Growth_Routines.sql 58_Recommendation.sql \
-         59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 69_Procs_Identity_Account.sql 70_Operations.sql 71_Procs_Operations.sql 72_Procs_Bootstrap.sql 73_Observability.sql 74_Crypto.sql 75_Procs_Crypto.sql 76_Recovery.sql 77_Procs_Recovery.sql 78_AuditContract_Apply.sql; do
+         59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 69_Procs_Identity_Account.sql 70_Operations.sql 71_Procs_Operations.sql 72_Procs_Bootstrap.sql 73_Observability.sql 74_Crypto.sql 75_Procs_Crypto.sql 76_Recovery.sql 77_Procs_Recovery.sql 79_RecordSync.sql 80_Procs_RecordSync.sql 81_AuditContract_Apply.sql; do
   sqlcmd -S "(localdb)\MSSQLLocalDB" -I -b -d WlosPlatform -i "$f" || break
 done
 ```
@@ -102,11 +102,13 @@ indexes fail to create.
 
 **Never add a `USE` statement** to a script. The database name comes from `-d`.
 
-**`78_AuditContract_Apply.sql` must stay last.** It has been 48, 51, 54, 65, 69,
-74, 76 and is now 78 — renumbered each time a script added tables, which is exactly
-the case this rule exists for. This paragraph has now been wrong twice: it said
+**`81_AuditContract_Apply.sql` must stay last.** It has been 48, 51, 54, 65, 69,
+74, 76, 78 and is now 81 — renumbered each time a script added tables, which is exactly
+the case this rule exists for. This paragraph has now been wrong three times: it said
 "54" while the file was 65, was corrected to "69" while the file was already
-74, and both times the surrounding prose was the only thing that knew. Treat
+74, and said "78" while the file was 81 — each time the surrounding prose was
+the only thing that knew, which is the argument for the check and not for a
+more careful reader. Treat
 the number here as documentation and `tests/audit_contract_test.sql` as the
 check — it is the only one of the two that fails. `08_AuditContract.sql` applies
 the audit contract with a cursor over `sys.tables`, and it runs ninth — it
@@ -121,7 +123,7 @@ script that creates a table, renumber this one so it stays at the end;
 ### SQL assertion suites
 
 These are not optional. They test rules that live in the database and that no
-C# test can reach. There are **25 suites, 375 assertions**; every one runs in CI
+C# test can reach. There are **26 suites, 389 assertions**; every one runs in CI
 and `tests/ci_workflow_test.sh` fails if a suite on disk is missing a CI step.
 
 ```bash

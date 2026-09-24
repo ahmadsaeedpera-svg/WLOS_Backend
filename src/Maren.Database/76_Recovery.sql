@@ -50,7 +50,7 @@
 
     Ordering
     --------
-    `78_AuditContract_Apply.sql` must run after this. It applies the audit
+    `81_AuditContract_Apply.sql` must run after this. It applies the audit
     contract with a cursor over sys.tables and cannot see anything created
     after it -- which is why it was renumbered from 76 when this file took that
     number.

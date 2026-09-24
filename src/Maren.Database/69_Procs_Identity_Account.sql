@@ -717,6 +717,11 @@ BEGIN
             Order is forced by the foreign keys: records and the things hanging
             off a generation, then the generations, then the credentials. */
         DELETE FROM [Crypto].[Record]                WHERE UserId = @UserId;
+        /*  The tombstones go with the account. They exist so a deletion
+            reaches her other devices; once there is no account there is
+            nothing to reach, and a record of what she once deleted must not
+            outlive the thing it was about. */
+        DELETE FROM [Crypto].[RecordTombstone]       WHERE UserId = @UserId;
 
         /*  Recovery challenges, including the failed ones. They record that
             somebody tried her phrase and when, which is a history of attempts

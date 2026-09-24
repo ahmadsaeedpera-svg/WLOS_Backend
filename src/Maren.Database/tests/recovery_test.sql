@@ -45,6 +45,7 @@ PRINT '';
 -- Clean up, then build one account with one generation and one of each wrapper.
 -- ---------------------------------------------------------------------------
 DELETE FROM [Crypto].[RecoveryChallenge] WHERE UserId = @userR OR IpAddress = '203.0.113.9';
+DELETE FROM [Crypto].[RecordTombstone]   WHERE UserId = @userR;
 DELETE FROM [Crypto].[Record]            WHERE UserId = @userR;
 DELETE FROM [Crypto].[RecoveryVerifier]  WHERE GenerationId IN
        (SELECT GenerationId FROM [Crypto].[Generation] WHERE UserId = @userR);

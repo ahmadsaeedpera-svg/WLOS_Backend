@@ -81,6 +81,16 @@ public interface ICryptoRepository
 
     Task<bool> DeleteRecordAsync(Guid userId, Guid recordId, CancellationToken ct);
 
+    /// <summary>Everything that happened after a cursor, in the order it did.</summary>
+    /// <remarks>
+    /// Writes and deletions in one stream. A deletion arrives as a change with
+    /// no envelope, so a client applies rows in order rather than merging two
+    /// lists by cursor — and a wrong merge is an entry she deleted coming back.
+    /// </remarks>
+    Task<RecordChangesResponse> GetChangesAsync(
+        Guid userId, string? recordKind, byte[]? since, int take,
+        CancellationToken ct);
+
     /// <summary>Counts and states for an operator. Never content.</summary>
     Task<CryptoAccountSummary?> GetAccountSummaryAsync(Guid userId, CancellationToken ct);
 

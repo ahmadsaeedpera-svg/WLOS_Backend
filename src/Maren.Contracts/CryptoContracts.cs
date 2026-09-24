@@ -121,6 +121,49 @@ public sealed record RecordResponse(
     DateTime CreatedOn,
     DateTime ModifiedOn);
 
+/*  Catching up — what a second device asks for.
+
+    One ordered stream of changes, writes and deletions together, each row
+    carrying the cursor to resume from. A deletion is a change with no
+    envelope: there is nothing left to send for a record that is gone, and a
+    row with an id and no ciphertext is exactly what "this was deleted" looks
+    like.
+
+    The stream is ordered so the client can apply rows in the order it
+    receives them. Handed writes and deletions as two lists, a client has to
+    merge them by cursor and will eventually merge them wrong — and the wrong
+    merge puts back an entry she deleted.
+*/
+
+/// <summary>One thing that happened to one record.</summary>
+/// <remarks>
+/// <see cref="Cursor"/> is a SQL Server <c>rowversion</c>, and is ordering
+/// only — <b>never a time</b>. It is on every row rather than once per page so
+/// a client interrupted halfway through applying a page resumes from the row
+/// it actually committed.
+/// </remarks>
+public sealed record RecordChange(
+    byte[] Cursor,
+    Guid RecordId,
+    bool IsDeleted,
+    string RecordKind,
+    int? SchemaVersion,
+    int? Version,
+    byte[]? Envelope,
+    int? GenerationNumber,
+    DateTime? CreatedOn,
+    DateTime ChangedOn);
+
+/// <summary>A page of changes, and where to carry on from.</summary>
+/// <remarks>
+/// There is no "has more" flag. A caller asks again until a page comes back
+/// empty, which costs one round trip and removes the whole class of bugs that
+/// live in the difference between "the page was full" and "there is more".
+/// </remarks>
+public sealed record RecordChangesResponse(
+    IReadOnlyList<RecordChange> Changes,
+    byte[]? Cursor);
+
 /// <summary>
 /// What an operator may see about a woman's encrypted records: that they
 /// exist, and nothing else.

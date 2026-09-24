@@ -582,12 +582,25 @@ BEGIN
     END
 
     IF @existingVersion IS NULL
+    BEGIN
+        /*  An id that was deleted and is being written again. Record ids are
+            CSPRNG UUIDs so this is vanishingly rare, but leaving the
+            tombstone behind would mean the sync stream carries a deletion and
+            a creation for the same id forever. Clearing it here keeps the
+            stream saying what is true now.
+
+            Safe for a device that already applied the deletion: it sees the
+            creation next, at a higher cursor, and ends in the same place. */
+        DELETE FROM [Crypto].[RecordTombstone]
+         WHERE RecordId = @RecordId AND UserId = @UserId;
+
         INSERT INTO [Crypto].[Record]
             (RecordId, UserId, GenerationId, RecordKind, SchemaVersion,
              [Version], Envelope)
         VALUES
             (@RecordId, @UserId, @generationId, @RecordKind, @SchemaVersion,
              @Version, @Envelope);
+    END
     ELSE
         UPDATE [Crypto].[Record]
            SET GenerationId  = @generationId,
@@ -682,6 +695,21 @@ GO
     Deletion is deletion. There is no soft-delete flag on an encrypted record:
     a row that still exists is a row a future bug can serve, and "she deleted
     it" is not a property worth keeping about the contents of a journal.
+
+    **A tombstone is written in the same transaction**, and that is not a
+    weakening of the above. The row and its envelope are gone; what remains is
+    a record id, a kind and a time, with no ciphertext and nothing derived
+    from content.
+
+    It exists because without it her deletion never reaches her other phone.
+    A device catching up asks what changed since its cursor, and a row that
+    has simply vanished is mentioned by nothing — so the entry she deliberately
+    deleted stays on the other device forever. Remembering that an id once
+    existed is a smaller cost than that, and `usp_User_DeleteAccount` erases
+    the tombstones with everything else.
+
+    See 79_RecordSync.sql. The table is created there; SQL Server resolves the
+    name when this runs, not when it is created, so the order is fine.
 */
 IF OBJECT_ID('Crypto.usp_Record_Delete') IS NOT NULL
     DROP PROCEDURE [Crypto].[usp_Record_Delete];
@@ -692,11 +720,27 @@ CREATE PROCEDURE [Crypto].[usp_Record_Delete]
 AS
 BEGIN
     SET NOCOUNT ON;
+    SET XACT_ABORT ON;
 
-    DELETE FROM [Crypto].[Record]
-     WHERE RecordId = @RecordId AND UserId = @UserId;
+    DECLARE @deleted TABLE (RecordKind VARCHAR(32) NOT NULL);
 
-    SELECT CAST(CASE WHEN @@ROWCOUNT > 0 THEN 1 ELSE 0 END AS BIT) AS Succeeded,
+    BEGIN TRAN;
+
+        DELETE FROM [Crypto].[Record]
+        OUTPUT deleted.RecordKind INTO @deleted (RecordKind)
+         WHERE RecordId = @RecordId AND UserId = @UserId;
+
+        /*  Both writes or neither. A deletion without its tombstone is an
+            entry that stays on her other phone; a tombstone without its
+            deletion is an entry that disappears from every device while the
+            ciphertext is still stored here. */
+        INSERT INTO [Crypto].[RecordTombstone] (RecordId, UserId, RecordKind)
+        SELECT @RecordId, @UserId, d.RecordKind FROM @deleted d;
+
+    COMMIT;
+
+    SELECT CAST(CASE WHEN EXISTS (SELECT 1 FROM @deleted) THEN 1 ELSE 0 END AS BIT)
+               AS Succeeded,
            CAST(NULL AS VARCHAR(64)) AS FailureCode;
 END
 GO

@@ -265,7 +265,8 @@ and should be approved explicitly.**
 
 | | Invariant |
 |---|---|
-| **I1** | **Journal text never leaves the device in plaintext**, for any purpose, including AI. |
+| **I1** | **Journal text never leaves the device in plaintext to WLOS**, for any purpose, including AI. No server, service, log, backup, analytics pipeline or model receives it. The one exception is an export *she* asks for — see **I1a**, which is the boundary rather than a hole in it. |
+| **I1a** | **A user-initiated export is deliberately plaintext, and is not a violation of I1.** She asked this app to turn protected content into a portable readable document; producing something she cannot read would be refusing the request while appearing to grant it. What makes it compatible with I1 is that *she* is the recipient and *she* initiated it: nothing automatic, nothing on WLOS's infrastructure, no second copy retained. The distinction to hold is **automatic-or-to-us versus deliberate-and-to-her** — and the file says it is unencrypted in its own manifest, so the warning travels with the artifact rather than staying on the screen that made it. |
 | **I2** | **The server holds no key** capable of decrypting Interiority content. |
 | **I3** | **Any operation touching journal text runs on device, or does not run.** It is never relocated to the server on capability grounds. |
 | **I4** | **Manual memory extraction always works**, on every device. AI proposal is a convenience, never the only route. |

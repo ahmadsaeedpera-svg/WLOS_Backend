@@ -41,7 +41,7 @@ for f in 01_Schemas.sql 02_Identity.sql 03_Administration.sql 04_Health.sql \
          49_Behaviour.sql 50_Procs_Behaviour.sql 51_Procs_Inspector_Behaviour.sql \
          52_Growth_Goals.sql 53_Procs_Growth_Goals.sql \
          55_Growth_Routines.sql 56_Procs_Growth_Routines.sql 58_Recommendation.sql \
-         59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 69_Procs_Identity_Account.sql 70_Operations.sql 71_Procs_Operations.sql 72_Procs_Bootstrap.sql 73_Observability.sql 74_Crypto.sql 75_Procs_Crypto.sql 76_Recovery.sql 77_Procs_Recovery.sql 78_AuditContract_Apply.sql; do
+         59_Procs_Recommendation.sql 60_Procs_Inspector_Recommendation.sql 62_Coach.sql 63_Procs_Coach.sql 64_Procs_Inspector_Coach.sql 66_Prediction.sql 67_Procs_Prediction.sql 68_Procs_Inspector_Prediction.sql 69_Procs_Identity_Account.sql 70_Operations.sql 71_Procs_Operations.sql 72_Procs_Bootstrap.sql 73_Observability.sql 74_Crypto.sql 75_Procs_Crypto.sql 76_Recovery.sql 77_Procs_Recovery.sql 79_RecordSync.sql 80_Procs_RecordSync.sql 81_AuditContract_Apply.sql; do
   sqlcmd -S "(localdb)\MSSQLLocalDB" -I -b -d WlosPlatform -i "$f" || break
 done
 ```
@@ -146,8 +146,9 @@ version 1 path is closed structurally rather than by routing.
 | GET | `/api/v1/me/crypto/generation` | The active generation and its wrapped keys |
 | PUT | `/{recordId}` | `version` must be exactly one past what is stored |
 | GET | `/` | `?kind=&skip=&take=` — bounded at 200 |
+| GET | `/changes` | `?kind=&since=&take=` — how a second device catches up |
 | GET | `/{recordId}` | |
-| DELETE | `/{recordId}` | |
+| DELETE | `/{recordId}` | **Hard delete, plus a tombstone** — see below |
 
 Every envelope is ciphertext this platform cannot open. There is no user id or
 generation parameter anywhere: the subject comes from the token and the
@@ -175,6 +176,72 @@ records and not of entries she would recognise, and the portal says so.
 
 Nothing here is a server-side capability: the platform's job is to refuse the
 stale write honestly, which it already did.
+
+### Catching a second device up — `GET /api/v1/me/records/changes`
+
+Multi-device reading already worked: any phone that knows her password derives
+`KEK_password`, opens the PASSWORD wrapper and holds the same data key.
+**Catching up did not.**
+
+`GET /` is offset paging over a set being written to, which skips and
+duplicates rows, and every read is a full download. The obvious fix is "what
+changed since X", and against the old schema that fix was unsafe for one
+reason:
+
+> Device A deletes an entry. The row is gone. Device B asks what changed since
+> its cursor. Nothing mentions the entry. **Device B keeps showing it,
+> forever.**
+
+A delta sync without tombstones silently resurrects deleted entries, which for
+a journal is the worst failure available — she deleted something deliberately,
+was told it was gone for good, and finds it on her other phone. So
+`usp_Record_Delete` now writes a tombstone in the same transaction as the
+delete, and the deletion semantics support sync rather than being retrofitted
+around it.
+
+**The cursor is a `ROWVERSION` and never a time.** `ModifiedOn` cannot do this
+job: `DATETIME2(3)` ties within a millisecond so "greater than T" drops one of
+a tied pair permanently, and a clock adjustment moves rows back past a cursor
+that already passed them. Both losses are silent. The engine maintains
+rowversion and no application code can get it wrong, which is what matters when
+the mechanism decides whether an entry reaches her other phone.
+
+**Writes and deletions arrive in one ordered stream.** A deletion is a change
+with no envelope. Two result sets would mean two highest cursors and no safe
+value for a caller to store — advance to the higher and everything between is
+skipped forever — and would force the client to merge by cursor, where the
+merge it eventually gets wrong puts back an entry she deleted.
+
+There is no `HasMore`. A caller asks until a page comes back empty: "the page
+was full" and "there is more" are different facts, and a client that conflates
+them stops one page short of her newest entry. The cursor travels **per row**,
+so a client interrupted partway through a page resumes from what it actually
+committed.
+
+A cursor the platform did not issue is **refused**, not treated as a first
+sync — silently resyncing a whole journal is how a small client bug becomes a
+large amount of traffic nobody investigates.
+
+**What a tombstone holds:** a record id, a kind, and a time. No ciphertext and
+nothing derived from content. It is a named exception to *deletion is
+deletion*, and one that serves her, because without it her deletion never
+leaves the device it happened on. `usp_User_DeleteAccount` erases them with
+the account.
+
+They are kept for the life of the account rather than pruned: pruning means
+knowing every device has caught up, and there is no device registry to know it
+with. Inventing a retention window would be guessing with her deletions.
+
+> **New table, so the audit applier moved again** — `78_AuditContract_Apply.sql`
+> is now `81_`. `Crypto.RecordTombstone` is exempt from the audit contract,
+> with the reason in `dbo.AuditContractExemption`: `IsDeleted` on a tombstone
+> would let a deletion be marked deleted, which is precisely the resurrection
+> the table prevents.
+
+> **The foreign key bites test teardown.** Any harness that deletes an
+> `Identity.User` which ever held a record must clear tombstones first, or the
+> delete fails on `FK_RecordTombstone_User`. This surfaced as six unrelated
+> crypto tests failing because their class's `InitializeAsync` threw.
 
 ### Export — a capability this platform structurally cannot have
 

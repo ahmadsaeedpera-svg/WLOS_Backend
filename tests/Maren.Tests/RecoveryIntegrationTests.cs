@@ -79,6 +79,7 @@ public sealed class RecoveryIntegrationTests(DatabaseFixture fixture) : IAsyncLi
             INSERT @ids SELECT UserId FROM [Identity].[User] WHERE Email LIKE @p;
 
             DELETE FROM [Crypto].[RecoveryChallenge] WHERE UserId IN (SELECT UserId FROM @ids);
+            DELETE FROM [Crypto].[RecordTombstone] WHERE UserId IN (SELECT UserId FROM @ids);
             DELETE FROM [Crypto].[Record]            WHERE UserId IN (SELECT UserId FROM @ids);
             DELETE FROM [Crypto].[RecoveryVerifier]  WHERE GenerationId IN
                    (SELECT GenerationId FROM [Crypto].[Generation]

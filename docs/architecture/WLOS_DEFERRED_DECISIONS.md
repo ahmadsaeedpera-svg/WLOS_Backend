@@ -64,6 +64,30 @@ it is a row, not a release.
 The measurement lives in `WLOS_App/integration_test/crypto_flow_test.dart` and
 is asserted only against 30 s, as a smoke alarm rather than a threshold.
 
+### The protocol that closes D6 and D7
+
+Specified at the export-slice approval. **Do not change the Argon2id
+parameters before running it** — a profile tuned against an emulator is a
+guess wearing a number.
+
+1. The **actual minimum supported physical Android device**, not an emulator.
+2. **Release or profile build.** Never debug; see the table above for why.
+3. **Several runs**, not one.
+4. Record **median**, **p95**, **peak memory**, and any **failures or OOM** —
+   the last matters most, because 64 MiB of working memory on a low-end phone
+   under real memory pressure is where this fails badly rather than slowly.
+5. **Then** lock the production KDF profile.
+
+**Blocked on hardware, not on effort.** This environment has an emulator and
+no physical device, so steps 1 and 3–4 cannot be performed here and the
+numbers above must not be promoted into an answer. Nothing else in the
+protocol is unclear; it needs a phone.
+
+The unreproduced Argon2id crash above stays recorded and does not block this
+phase. It becomes urgent only if it reproduces on the supported physical
+device — which is the same run that closes D6 and D7, so it costs nothing to
+watch for at the same time.
+
 ---
 
 ## 1a. Resolved since the register was opened

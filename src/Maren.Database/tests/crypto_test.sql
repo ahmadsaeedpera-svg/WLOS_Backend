@@ -53,6 +53,7 @@ PRINT '';
 -- ---------------------------------------------------------------------------
 -- Clean up on the way in.
 -- ---------------------------------------------------------------------------
+DELETE FROM [Crypto].[RecordTombstone] WHERE UserId IN (@userA, @userB);
 DELETE FROM [Crypto].[Record]           WHERE UserId IN (@userA, @userB);
 DELETE FROM [Crypto].[RecoveryVerifier] WHERE GenerationId IN
        (SELECT GenerationId FROM [Crypto].[Generation] WHERE UserId IN (@userA, @userB));
@@ -614,6 +615,7 @@ DECLARE @child DATE = DATEADD(YEAR, -12, CAST(SYSUTCDATETIME() AS DATE));
 SET @regUserId = (SELECT UserId FROM [Identity].[User] WHERE NormalisedEmail = @regNorm);
 IF @regUserId IS NOT NULL
 BEGIN
+    DELETE FROM [Crypto].[RecordTombstone] WHERE UserId = @regUserId;
     DELETE FROM [Crypto].[Record]           WHERE UserId = @regUserId;
     DELETE FROM [Crypto].[RecoveryVerifier] WHERE GenerationId IN
            (SELECT GenerationId FROM [Crypto].[Generation] WHERE UserId = @regUserId);
@@ -887,6 +889,7 @@ DELETE FROM [Identity].[User] WHERE NormalisedEmail IN (@regNorm, UPPER(@childEm
 -- ---------------------------------------------------------------------------
 -- Clean up on the way out.
 -- ---------------------------------------------------------------------------
+DELETE FROM [Crypto].[RecordTombstone] WHERE UserId IN (@userA, @userB);
 DELETE FROM [Crypto].[Record]           WHERE UserId IN (@userA, @userB);
 DELETE FROM [Crypto].[RecoveryVerifier] WHERE GenerationId IN
        (SELECT GenerationId FROM [Crypto].[Generation] WHERE UserId IN (@userA, @userB));

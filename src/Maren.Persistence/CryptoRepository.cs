@@ -221,6 +221,44 @@ public sealed class CryptoRepository(IDbConnectionFactory factory) : ICryptoRepo
         return rows.Select(ToResponse).ToList();
     }
 
+    private sealed record ChangeRow(
+        byte[] Cursor, Guid RecordId, bool IsDeleted, string RecordKind,
+        int? SchemaVersion, int? Version, byte[]? Envelope,
+        int? GenerationNumber, DateTime? CreatedOn, DateTime ChangedOn);
+
+    public async Task<RecordChangesResponse> GetChangesAsync(
+        Guid userId, string? recordKind, byte[]? since, int take,
+        CancellationToken ct)
+    {
+        using var connection = await factory.CreateAsync(ct);
+        var rows = (await connection.QueryAsync<ChangeRow>(
+            new CommandDefinition(
+                "[Crypto].[usp_Record_GetChanges]",
+                new
+                {
+                    UserId = userId,
+                    RecordKind = recordKind,
+                    Since = since,
+                    Take = take
+                },
+                commandType: CommandType.StoredProcedure, cancellationToken: ct)))
+            .ToList();
+
+        var changes = rows
+            .Select(r => new RecordChange(
+                r.Cursor, r.RecordId, r.IsDeleted, r.RecordKind, r.SchemaVersion,
+                r.Version, r.Envelope, r.GenerationNumber, r.CreatedOn,
+                r.ChangedOn))
+            .ToList();
+
+        /*  The cursor of the last row, or the one the caller sent when the
+            page is empty. Handing back null for an empty page would send a
+            caught-up device back to the beginning of her journal on every
+            poll. */
+        return new RecordChangesResponse(
+            changes, changes.Count > 0 ? changes[^1].Cursor : since);
+    }
+
     public async Task<bool> DeleteRecordAsync(
         Guid userId, Guid recordId, CancellationToken ct)
     {

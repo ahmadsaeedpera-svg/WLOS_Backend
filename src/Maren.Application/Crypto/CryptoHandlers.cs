@@ -403,6 +403,77 @@ public sealed class GetRecordsHandler(
     }
 }
 
+/// <param name="Since">
+/// Base64 of the cursor this server last issued, or null for a first sync.
+/// A string rather than bytes because that is what arrives on a query string,
+/// and decoding it in the controller would put logic in a layer that is meant
+/// to translate and nothing else.
+/// </param>
+public sealed record GetRecordChangesQuery(string? RecordKind, string? Since, int Take)
+    : IRequest<Result<RecordChangesResponse>>;
+
+public sealed class GetRecordChangesValidator
+    : AbstractValidator<GetRecordChangesQuery>
+{
+    public GetRecordChangesValidator()
+    {
+        // Bounded here and again in the procedure, for the same reason the
+        // page read is: an unbounded pull over a table of encrypted blobs.
+        RuleFor(x => x.Take).InclusiveBetween(1, 500);
+
+        /*  A rowversion is eight bytes. Anything else is a client that stored
+            something other than the cursor it was given, and it is told so
+            rather than quietly resynced from the beginning of her journal --
+            a silent full re-download is how a small client bug becomes a
+            large amount of traffic nobody investigates. */
+        RuleFor(x => x.Since!)
+            .Must(s => TryDecodeCursor(s) is { Length: 8 })
+            .WithMessage("That is not a sync cursor.")
+            .When(x => !string.IsNullOrEmpty(x.Since));
+    }
+
+    internal static byte[]? TryDecodeCursor(string value)
+    {
+        Span<byte> buffer = stackalloc byte[16];
+        return Convert.TryFromBase64String(value, buffer, out var written)
+            ? buffer[..written].ToArray()
+            : null;
+    }
+}
+
+/// <summary>Catching a device up.</summary>
+/// <remarks>
+/// <para>
+/// The subject comes from the token, so there is no parameter that could name
+/// another account's changes.
+/// </para>
+/// <para>
+/// A first sync sends no cursor and gets everything — the same path as
+/// catching up, so there is no separate bootstrap to get wrong.
+/// </para>
+/// </remarks>
+public sealed class GetRecordChangesHandler(
+    ICryptoRepository repository, ICurrentUser currentUser)
+    : IRequestHandler<GetRecordChangesQuery, Result<RecordChangesResponse>>
+{
+    public async Task<Result<RecordChangesResponse>> Handle(
+        GetRecordChangesQuery query, CancellationToken ct)
+    {
+        if (currentUser.UserId is not { } userId)
+            return Result<RecordChangesResponse>.Failure(FailureCodes.Forbidden);
+
+        /*  Validated above, so a malformed cursor never reaches here. */
+        var since = string.IsNullOrEmpty(query.Since)
+            ? null
+            : GetRecordChangesValidator.TryDecodeCursor(query.Since);
+
+        var changes = await repository.GetChangesAsync(
+            userId, query.RecordKind, since, query.Take, ct);
+
+        return Result<RecordChangesResponse>.Success(changes);
+    }
+}
+
 public sealed record DeleteRecordCommand(Guid RecordId) : IRequest<Result>;
 
 public sealed class DeleteRecordHandler(
