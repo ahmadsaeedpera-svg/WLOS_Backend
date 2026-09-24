@@ -136,6 +136,90 @@ register items.
 
 ---
 
+## 3a. RECORD-INFRA-001 — the shared record infrastructure is not yet shared
+
+**Registered 2026-09-25, at the same approval, because the approval rests on
+something that is currently true of the design and not of the code.**
+
+The intended shape, and the right one:
+
+```
+  Encrypted Record Infrastructure     one copy
+          ├── Journal semantics       conflict: keep both
+          ├── State semantics         conflict: later wins, with two refusals
+          └── Observation semantics   later — prose, so keep both
+```
+
+**What exists today is two copies of the infrastructure.**
+`JournalRepository` and `StateRepository` each carry their own sync loop, their
+own hydrate-from-cache, their own apply-a-page and their own envelope open. The
+*semantics* are correctly separate; the transport under them is duplicated, not
+shared.
+
+That was a deliberate sequencing choice — extract the abstraction with two
+concrete cases in hand rather than guess the seams from one — and it has now
+served its purpose. It must not survive a third kind. This codebase's own
+standing argument applies directly: two copies of a mechanism that must stay in
+step will drift, and the drift is invisible until something is quietly wrong.
+
+**What drift would cost here.** The cursor-and-cache ordering is the part that
+matters: a cursor persisted ahead of the rows it stands for makes the next
+launch skip changes it never applied. That rule is currently written down
+twice. A fix applied to one and not the other loses records on whichever kind
+was forgotten, silently.
+
+**Closed by** extracting the transport into one place, with each kind
+supplying only its conflict policy, its parse and its serialise. **Reopens
+immediately if** a third record kind is written against a third copy.
+
+This is a refactor of existing, tested behaviour — not an architectural
+reopening, and not a reason to revisit anything approved above.
+
+---
+
+## 3b. STATE-CLOCK-001 — the future-skew threshold
+
+**Registered at the State-slice approval, 2026-09-25. It does not block, and
+it must not be used to reopen the record architecture.**
+
+`State` resolves two readings of the same day by authored time, with two
+refusals to resolve: a tie to the second, and a reading claiming to come from
+**more than five minutes** in the future. The second of those is the one with
+a number in it.
+
+**The rule is sound; the number is a policy constant.** Five minutes was
+chosen because zero would fire on ordinary drift between two honest phones and
+turn every check-in into a conflict she has to resolve, and because a clock
+wrong by more than five minutes is wrong in a way a person would notice. It
+has not been shown correct against real devices.
+
+What has to be exercised before it is fixed:
+
+| | Scenario |
+|---|---|
+| 1 | Ordinary drift between two honest handsets |
+| 2 | A device clock moved **forward** by the user |
+| 3 | A device clock moved **backward** by the user |
+| 4 | A device offline for days, then reconnecting |
+| 5 | Two devices submitting state within the same minute |
+| 6 | Two devices submitting within the same **second** |
+| 7 | A timezone change between two readings |
+| 8 | A daylight-saving transition |
+
+On 7 and 8: the authored time is stored as UTC and the day is computed from
+her local time, so a timezone change moves which day a past reading belongs
+to. That is deliberate — "today" is the day she was in — but it means a woman
+who flies east can see yesterday's answer become today's, and that has not
+been looked at with a real device in a real timezone.
+
+**Held open by:** `kStateClockTolerance`, one constant in
+`state_entry.dart`, and `compareStateReadings` taking `now` as a parameter so
+the rule can be exercised without waiting for a clock. Changing the threshold
+is a constant and a test, not a migration: nothing stored depends on it,
+because the comparison happens on read.
+
+---
+
 ## 4. Triggers that reopen a deferred item
 
 | Item | Reopens immediately if |
