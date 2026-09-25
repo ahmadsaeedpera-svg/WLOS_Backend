@@ -1,0 +1,32 @@
+# The frozen cross-language crypto vectors are bytes, not text.
+#
+# `core.autocrlf=true` is set on the machines this is developed on, and with
+# no attribute here git rewrites every LF to CRLF on checkout. That changes
+# the file's SHA-256, and this file's SHA-256 is asserted — by
+# `CryptoVectorTests.cs` here and by `crypto_vectors_test.dart` in WLOS_App,
+# against the same constant.
+#
+# The digest exists to pin byte-for-byte agreement between the .NET and Dart
+# implementations of the envelope and the recovery signature. A digest that
+# changes depending on how the file reached the disk pins nothing:
+#
+#   what git stores (LF)          6575 bytes   695a3856...   <- asserted
+#   after a Windows checkout      6702 bytes   3e4786fc...
+#   after `sed 's/$/\r/'`         6703 bytes   6f0d83b3...
+#
+# Three identities for one file. It matters more on this side than on the
+# client: a mismatch here reads as "the .NET implementation disagrees with
+# Dart", which is the one conclusion these vectors exist to make impossible to
+# reach by accident. `-text` tells git never to convert it.
+#
+# **An existing working copy that already has CRLF stays red.** The attribute
+# governs checkout, not what is already on disk. The remedy is to re-checkout
+# that one file:
+#
+#   git checkout -- tests/Maren.Tests/wlos_crypto_vectors.json
+#
+# Scoped to this file deliberately rather than set repo-wide. A blanket
+# `* text=auto` would renormalise every file in the repository in one commit,
+# which is a large diff to review for a one-file problem — and this repository
+# holds SQL scripts whose line endings nobody has had reason to think about.
+tests/Maren.Tests/wlos_crypto_vectors.json -text

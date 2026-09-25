@@ -47,7 +47,37 @@ public sealed class CryptoVectorTests
         var path = Path.Combine(AppContext.BaseDirectory, "wlos_crypto_vectors.json");
         var raw = File.ReadAllText(path);
 
-        var digest = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(raw)));
+        /*  Line endings are stripped before hashing, and that is not a
+            weakening.
+
+            What this digest pins is the vectors — the keys, nonces,
+            associated data and expected ciphertext that the .NET and Dart
+            implementations must agree on byte for byte. It does not pin the
+            newline convention, and it should not, because that is decided by
+            whatever put the file on disk rather than by anyone editing it.
+
+            Without this the same file has three identities: 6575 bytes as git
+            stores it, 6702 after a Windows checkout, 6703 after a conversion
+            that also terminates the final line. A .gitattributes now marks the
+            file -text so git stops rewriting it, which fixes the cause; this
+            makes the assertion independent of the route regardless.
+
+            It matters more on this side than on the client. A mismatch here
+            reads as "the .NET implementation disagrees with Dart", which is
+            the one conclusion these vectors exist to make impossible to reach
+            by accident.
+
+            Tamper detection is unaffected: altering any hex value in the file
+            still moves the digest, which is the thing being guarded. */
+        /*  Every carriage return, not only CRLF pairs. A conversion that also
+            terminates the final line leaves a bare CR that pair-matching
+            misses, which is exactly what happened the first time this fix was
+            tested. A literal CR inside a JSON string would be escaped as \r
+            rather than stored raw, so there is none here to lose. */
+        var canonical = raw.Replace("\r", string.Empty);
+
+        var digest = Convert.ToHexStringLower(
+            SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
         digest.Should().Be(ExpectedDigest,
             "the vector file changed. If that was deliberate, regenerate it, " +
             "update the digest in BOTH repositories, and expect review to ask " +
