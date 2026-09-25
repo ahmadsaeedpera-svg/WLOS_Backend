@@ -30,3 +30,21 @@
 # which is a large diff to review for a one-file problem — and this repository
 # holds SQL scripts whose line endings nobody has had reason to think about.
 tests/Maren.Tests/wlos_crypto_vectors.json -text
+
+# Shell scripts are LF, everywhere, always.
+#
+# `core.autocrlf=true` rewrites them to CRLF on a Windows checkout, and a
+# script whose shebang line ends in \r does not run on Linux — bash reports
+# `/usr/bin/env: 'bash\r': No such file or directory`, which names the
+# interpreter and not the line endings and so reads like a missing bash.
+#
+# It has not bitten yet only because the working copies here were written with
+# LF and never re-checked-out. That is luck, and it runs out the first time
+# anyone clones this repository on Windows and deploys from it — which is now
+# a normal thing to do, because ops/db/deploy.sh is how schema reaches a
+# managed database. See docs/PLATFORM_RUNBOOK.md §8.
+#
+# Scoped to *.sh for the same reason the rule above is scoped to one file: the
+# SQL scripts' line endings are nobody's problem, and renormalising them would
+# be a large diff for no defect.
+*.sh text eol=lf

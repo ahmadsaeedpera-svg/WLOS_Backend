@@ -33,6 +33,9 @@ appsettings.Local.json
 secrets.json
 .env
 .env.*
+# ...except the template, which is the only list of every variable a
+# deployment needs and holds no values.
+!.env.example
 
 # ---------------------------------------------------------------------------
 # Test and coverage output

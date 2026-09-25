@@ -1,0 +1,92 @@
+# The API alone, against a database this file does not own.
+#
+#   cp .env.example .env    # fill it in
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# ---------------------------------------------------------------------------
+# Why there is no db service here
+# ---------------------------------------------------------------------------
+#
+# docker-compose.yml brings up SQL Server beside the API so a new developer
+# needs Docker and nothing else. That is right for a laptop and wrong for a
+# deployment: a database in a container on the same host as the API shares its
+# fate, its disk and its memory pressure, and `docker compose down -v` is one
+# keystroke from erasing it. Production points at a database that outlives this
+# stack — managed, or on a host of its own — and the connection string in .env
+# is the whole of that arrangement.
+#
+# The consequence to hold on to: the API host and the SQL Server host are no
+# longer the same machine. Anything that writes a file "on the server" —
+# MAREN_BACKUP_DIR above all — now means the *database* server. See
+# docs/PLATFORM_RUNBOOK.md §8.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: maren-api:latest
+
+    # Every value comes from .env. Nothing is defaulted here, deliberately:
+    # a compose file that falls back to a working value when a secret is
+    # missing is a compose file that starts with the wrong secret.
+    env_file:
+      - .env
+
+    # The image's user is created with --no-create-home, so HOME would resolve
+    # to / — which read_only below makes unwritable. Nothing in this app needs
+    # a home directory, but the runtime may still try to touch one, and a
+    # container that fails on a path nobody chose is a bad way to find out.
+    environment:
+      HOME: /tmp
+
+    # Loopback only. The image serves plain HTTP on 8080 and TLS is the reverse
+    # proxy's job; binding 0.0.0.0 here would publish an unencrypted API to the
+    # internet the moment the host has a public address — which on a cloud VM
+    # it does, from the first boot. Change this only if something in front of
+    # it is terminating TLS on the same host.
+    ports:
+      - '127.0.0.1:${API_PORT:-8080}:8080'
+
+    restart: unless-stopped
+
+    # The image's own HEALTHCHECK is inherited, not overridden. It runs
+    # `dotnet Maren.Api.dll --healthcheck`, which is implemented in Program.cs
+    # and returns before any web host is built. An override here is how the
+    # broken version of that probe stayed hidden for so long.
+
+    # Hardening. The process writes nothing to its own image, so it should not
+    # be able to; /tmp is the one path the runtime genuinely needs.
+    #
+    # UNVERIFIED AS OF 2026-09-25. This was written on a machine whose Docker
+    # daemon was not running, so the image has not been built or started with
+    # these four settings applied. They are conservative and the reasoning holds,
+    # but reasoning is not a run. On the first deployment, confirm the container
+    # reaches healthy — `docker compose -f docker-compose.prod.yml ps` — before
+    # concluding anything about them. If it does not, remove `read_only` first:
+    # it is the only one of the four that can fail on a write nobody predicted.
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    # Container logs are unbounded by default, and a boot volume that fills is
+    # an outage that looks like a database problem. Serilog writes one line per
+    # request to stdout.
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '5'
+
+    deploy:
+      resources:
+        limits:
+          # Leaves room on a 12 GB host for a reverse proxy and for the kernel
+          # to keep a page cache. The API's own working set is far below this;
+          # the limit exists so a leak degrades one container instead of the
+          # machine.
+          memory: 2g

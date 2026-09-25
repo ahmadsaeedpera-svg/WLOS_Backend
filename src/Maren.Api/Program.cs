@@ -75,7 +75,35 @@ builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 builder.Services.AddSingleton<IHttpCorrelationSource, HttpCorrelationSource>();
 builder.Services.AddSingleton<ICorrelationContext, CorrelationContext>();
 
-var signingKey = builder.Configuration["Jwt:SigningKey"];
+/*  Bound once, and used for both issuing and validating.
+
+    The issuer the API *stamps* on a token and the issuer it *accepts* used to
+    come from two different places. Issuing goes through JwtOptions, which
+    defaults Issuer to "wlos.platform"; validation read Configuration["Jwt:Issuer"]
+    directly and got null whenever nobody set it.
+
+    A null ValidIssuer does not reject anything. IdentityModel 8.3 skips the
+    check entirely — any issuer is accepted so long as the signature verifies —
+    while ValidateIssuer above still reads true. ValidateAudience is the same.
+    So a deployment supplying a connection string and a signing key and nothing
+    else, which is what a container with two secrets in its environment looks
+    like, ran with both checks off and no symptom of any kind: it starts, it
+    issues tokens, it answers authenticated requests correctly. The only thing
+    missing is a refusal that never happens.
+
+    What that costs is cross-environment token reuse: any token signed with the
+    key is accepted whoever minted it and whatever it was minted for. Sharing a
+    key between environments is plausible here, because this same key is what
+    HmacKdfDecoy derives the decoy-salt key from.
+
+    Binding once removes the possibility. The two sides cannot disagree because
+    there is only one side, and it is never null.
+    TokenValidationConfigurationTests holds both halves of that. */
+var jwt = builder.Configuration
+    .GetSection(JwtOptions.SectionName)
+    .Get<JwtOptions>() ?? new JwtOptions();
+
+var signingKey = jwt.SigningKey;
 if (string.IsNullOrWhiteSpace(signingKey) || signingKey.Length < 32)
 {
     // Fail at startup rather than at first request. A short or missing signing
@@ -95,8 +123,8 @@ builder.Services
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
+            ValidIssuer = jwt.Issuer,
+            ValidAudience = jwt.Audience,
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(signingKey)),
             // No grace period. The default five minutes is a meaningful

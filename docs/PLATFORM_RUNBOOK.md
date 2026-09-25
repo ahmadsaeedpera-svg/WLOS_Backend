@@ -75,12 +75,39 @@ dotnet run --project src/Maren.Api --urls http://localhost:5299
 Configuration lives in `appsettings.Development.json`. In any other environment
 supply these through the environment or a secret store, never the file:
 
-| Key | Notes |
-|---|---|
-| `ConnectionStrings:WlosPlatform` | |
-| `Jwt:Key` | 32 bytes minimum. Rotating it invalidates every access token. |
-| `Jwt:Issuer`, `Jwt:Audience` | |
-| `Cors:AdminPortalOrigins` | Array. Named origins only — see below. |
+| Key | Environment variable | Notes |
+|---|---|---|
+| `ConnectionStrings:WlosPlatform` | `ConnectionStrings__WlosPlatform` | |
+| `Jwt:SigningKey` | `Jwt__SigningKey` | 32 characters minimum, enforced at startup. **See the rotation note below — it does more than invalidate tokens.** |
+| `Jwt:Issuer`, `Jwt:Audience` | `Jwt__Issuer`, `Jwt__Audience` | |
+| `Cors:AdminPortalOrigins` | `Cors__AdminPortalOrigins__0`, `__1`, … | Array. Named origins only — see below. |
+
+> This table said `Jwt:Key` until the first real deployment was prepared. The
+> code has always read `Jwt:SigningKey`, and it throws at startup when that is
+> missing — so anyone following the old table would have set a variable the
+> application never reads and met "Jwt:SigningKey must be configured" on a box
+> they had just built. The double underscore is how .NET maps environment
+> variables onto a configuration section; a single colon does not work on Linux.
+
+**Rotating `Jwt:SigningKey` also rotates every decoy salt, and that is an
+account-enumeration risk.**
+
+`HmacKdfDecoy` derives its key from the signing key by HKDF, so that one
+secret is not doing two jobs. The consequence is that the decoy salts move
+when the signing key moves, while real accounts' salts do not — they are
+stored per credential.
+
+So an attacker who records `GET /api/v1/auth/crypto/kdf-parameters?email=…`
+for a set of addresses either side of a rotation learns which of them are
+registered: **the salts that changed are the decoys.** The whole point of the
+decoy is that an unregistered address is indistinguishable from a registered
+one, and a rotation is exactly when that stops being true.
+
+It is not a reason to avoid rotating — a compromised signing key must be
+replaced. It is a reason to know that a rotation opens this window, and to
+treat rotation as a security event rather than routine hygiene. Closing it
+properly means giving the decoy its own secret with its own lifecycle, which
+is a change to make deliberately rather than during an incident.
 
 CORS is deliberately **not** `AllowAnyOrigin`. The portal sends a bearer token,
 and wildcard-with-credentials is exactly the configuration that lets any site a
@@ -636,3 +663,126 @@ every time.
 
 See also `docs/RELEASE_BLOCKERS.md` — RC-1 through RC-5 are open and gate the
 mobile release, not the platform.
+
+---
+
+## 8. Deploying in containers
+
+The image is built by `Dockerfile` and configured entirely from the
+environment. `.env.example` is the complete list of what it reads; nothing in
+this section asks you to edit a file inside the image.
+
+```bash
+cp .env.example .env               # fill it in — see §3 for what each key does
+docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml logs -f api
+```
+
+`docker-compose.yml` (no suffix) is the **development** stack: it brings up SQL
+Server beside the API so a new developer needs Docker and nothing else, with
+dev-only values inline. It is not a deployment file and must not be used as
+one.
+
+### The API host and the database host stop being the same machine
+
+This is the change that invalidates the largest number of assumptions in this
+runbook, so it is worth stating before anything else.
+
+Everything up to now has been written against LocalDB, where the machine
+running a script and the machine running SQL Server are the same. Once the
+database is managed, or simply lives elsewhere, they are not — and every
+instruction that says "on the server" has to be read again:
+
+- **`MAREN_BACKUP_DIR` is a path on the SQL Server.** `ops/db/backup.sh` issues
+  `BACKUP DATABASE ... TO DISK`, and SQL Server writes that file with its own
+  filesystem, not the shell's. Point it at a directory only the client can see
+  and the job either fails or — worse, on a path that happens to exist —
+  succeeds into nothing.
+- **`ops/db/backup.sh` and `ops/db/restore-drill.sh` do not work against Azure
+  SQL Database at all.** `BACKUP DATABASE` is not a supported statement there.
+  Backups are the platform's, configured and restored in Azure, and the drill
+  this repository documents has no equivalent. If you deploy on Azure SQL, the
+  restore-drill discipline in §2 is **not** satisfied by anything; say so out
+  loud rather than assuming the scripts still cover it.
+- **`ops/db/deploy.sh` does work**, from anywhere with `sqlcmd` and a route to
+  the server:
+
+  ```bash
+  SQLAUTH="-U <user> -P '<password>'" \
+    ./ops/db/deploy.sh WlosPlatform 'tcp:<server>.database.windows.net,1433'
+  ```
+
+  On a managed database, **create the empty database first** in the provider's
+  own console. The script will create one on a SQL Server you run; on Azure SQL
+  it cannot, because `CREATE DATABASE` must be the only statement in its batch
+  there and provisioning is the platform's job. It says so and exits 6 rather
+  than continuing.
+
+### Order
+
+1. Database exists and is reachable.
+2. `ops/db/deploy.sh` applies all 64 scripts and records them in
+   `Ops.DeploymentJournal`. `-b` and `-I` are inside the script; do not
+   hand-roll the loop.
+3. The assertion suites in `src/Maren.Database/tests/` run green against it.
+4. Only then bring the API up. It reads the schema on its first request and
+   an API in front of a half-applied database fails in ways that look like
+   application bugs.
+
+### TLS, and why the container binds to loopback
+
+`docker-compose.prod.yml` publishes `127.0.0.1:${API_PORT}:8080`, not
+`0.0.0.0`. The image serves plain HTTP; TLS belongs to a reverse proxy in front
+of it. A cloud VM has a public address from its first boot, so binding all
+interfaces publishes an unencrypted API carrying bearer tokens to the internet
+the moment the stack starts, with nothing to warn you.
+
+Whatever terminates TLS must also forward `X-Forwarded-For` and
+`X-Forwarded-Proto`, or every audit row and every rate-limit partition records
+the proxy's address instead of the caller's.
+
+### What must never reach the image
+
+`appsettings.Development.json` is committed on purpose — it holds LocalDB and a
+signing key explicitly named as dev-only, so a new developer can run the API
+immediately. `.dockerignore` excludes it from every build for the same reason
+it is convenient: a secret that ships in an image layer has leaked, whether or
+not the process ever loads it.
+
+That also removes the trap where setting `ASPNETCORE_ENVIRONMENT=Development`
+on a production container quietly activates the committed signing key instead
+of failing to start. Do not add the file back to the build context "just for
+staging".
+
+### Building for ARM
+
+The `mcr.microsoft.com/dotnet/sdk:10.0` and `aspnet:10.0` base images are
+multi-architecture, so building **on** an ARM host — an Oracle `A1.Flex`, an
+AWS Graviton, an Apple laptop — produces an ARM image with no change to the
+Dockerfile. Nothing in this repository pins a runtime identifier.
+
+Building on x64 for an ARM host is the case that needs saying so:
+
+```bash
+docker buildx build --platform linux/arm64 -t maren-api:latest --load .
+```
+
+An image built for the wrong architecture does not fail at build time. It fails
+at `docker run`, with `exec format error`, which reads like a corrupt binary.
+
+### Health probes in an orchestrator
+
+| Probe | Use | Why |
+|---|---|---|
+| `dotnet Maren.Api.dll --healthcheck` | the image's own `HEALTHCHECK` | liveness, no database |
+| `GET /health/live` | restart policy | liveness, no database |
+| `GET /health/ready` | load balancer | 503 when SQL is unreachable |
+
+Do not point a restart probe at `/health/ready`. A database blip would then
+restart every instance at once, which takes the platform down considerably
+harder than the blip did.
+
+Do not override the image's `HEALTHCHECK` in a compose file either. That is how
+the last broken version of it stayed hidden: the compose override called `wget`,
+which the ASP.NET runtime image does not contain, so two broken probes read as
+one working one.

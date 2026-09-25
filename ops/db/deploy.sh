@@ -112,9 +112,31 @@ echo "Deploying ${#SCRIPTS[@]} scripts to [$DB] on $SERVER"
 echo "Run id: $RUN_ID"
 echo
 
-if ! sql master "IF DB_ID('$(esc "$DB")') IS NULL CREATE DATABASE [$DB];" > /dev/null; then
-  echo "FATAL: could not reach $SERVER or create [$DB]." >&2
+# The database, if it is this script's to create.
+#
+# This was a single statement — IF DB_ID(...) IS NULL CREATE DATABASE [x] —
+# which is valid on a SQL Server you run and rejected by Azure SQL Database,
+# where CREATE DATABASE must be the only statement in its batch. The guard that
+# made the script idempotent was therefore the exact thing that made it fail
+# against a managed database, on the step before a single schema script ran.
+# Probing and creating as separate batches is correct on both.
+existing=$(sql master "SET NOCOUNT ON; SELECT CASE WHEN DB_ID('$(esc "$DB")') IS NULL THEN 0 ELSE 1 END;" | tr -dc '0-9')
+probe_rc=$?
+
+if [ $probe_rc -ne 0 ] || [ -z "$existing" ]; then
+  echo "FATAL: could not reach $SERVER." >&2
   exit 6
+fi
+
+if [ "$existing" = "0" ]; then
+  if ! sql master "CREATE DATABASE [$DB];" > /dev/null; then
+    echo "FATAL: [$DB] does not exist and could not be created on $SERVER." >&2
+    echo "       On a managed database — Azure SQL and its equivalents —" >&2
+    echo "       creating one is the platform's job and not this script's." >&2
+    echo "       Create [$DB] there, then re-run. This applies schema; it does" >&2
+    echo "       not provision." >&2
+    exit 6
+  fi
 fi
 
 # Rows are buffered rather than written as we go, because Ops.DeploymentJournal

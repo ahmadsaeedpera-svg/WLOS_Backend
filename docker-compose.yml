@@ -40,8 +40,12 @@ services:
         Password=${MSSQL_SA_PASSWORD:-Local!Dev!Passw0rd#2026};
         TrustServerCertificate=True;MultipleActiveResultSets=True
       Jwt__SigningKey: ${JWT_SIGNING_KEY:-dev-only-signing-key-not-for-production-use-32chars}
-      Jwt__Issuer: maren.platform
-      Jwt__Audience: maren.app
+      # wlos.*, matching JwtOptions and appsettings.Development.json. These read
+      # maren.* until the deployment work; it was self-consistent and therefore
+      # harmless, but two spellings of the issuer in one repository is how one
+      # of them ends up copied into an environment that validates the other.
+      Jwt__Issuer: wlos.platform
+      Jwt__Audience: wlos.app
       Cors__AdminPortalOrigins__0: http://localhost:5173
     healthcheck:
       # The same probe the image declares. This used to override it with a wget
