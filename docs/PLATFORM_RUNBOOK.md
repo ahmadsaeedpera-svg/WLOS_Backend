@@ -81,6 +81,8 @@ supply these through the environment or a secret store, never the file:
 | `Jwt:SigningKey` | `Jwt__SigningKey` | 32 characters minimum, enforced at startup. **See the rotation note below — it does more than invalidate tokens.** |
 | `Jwt:Issuer`, `Jwt:Audience` | `Jwt__Issuer`, `Jwt__Audience` | |
 | `Cors:AdminPortalOrigins` | `Cors__AdminPortalOrigins__0`, `__1`, … | Array. Named origins only — see below. |
+| `Proxy:Enabled` | `Proxy__Enabled` | Required whenever anything terminates TLS in front of the API. Off means forwarded headers are ignored, which is correct for a directly-exposed Kestrel and wrong behind a proxy — see §8. |
+| `Proxy:KnownProxies`, `Proxy:KnownNetworks` | `Proxy__KnownProxies__0`, `Proxy__KnownNetworks__0` | At least one is required when `Proxy:Enabled` is true; the API refuses to start otherwise. |
 
 > This table said `Jwt:Key` until the first real deployment was prepared. The
 > code has always read `Jwt:SigningKey`, and it throws at startup when that is
@@ -737,9 +739,68 @@ of it. A cloud VM has a public address from its first boot, so binding all
 interfaces publishes an unencrypted API carrying bearer tokens to the internet
 the moment the stack starts, with nothing to warn you.
 
-Whatever terminates TLS must also forward `X-Forwarded-For` and
-`X-Forwarded-Proto`, or every audit row and every rate-limit partition records
-the proxy's address instead of the caller's.
+Whatever terminates TLS must forward `X-Forwarded-For` and `X-Forwarded-Proto`,
+**and the API must be configured to believe it.** Neither half works alone, and
+the failure is silent in both directions.
+
+```bash
+Proxy__Enabled=true
+Proxy__KnownProxies__0=127.0.0.1
+Proxy__KnownProxies__1=::1          # both forms — see below
+# or, for a container behind a proxy on the host:
+Proxy__KnownNetworks__0=172.17.0.0/16
+```
+
+Left off behind a proxy, two things break and neither of them errors:
+
+- **Every audit row and every security event records the proxy's address.** On
+  the refusal path — an escalation attempt, a locked account, a reused refresh
+  token — the IP is most of the evidence, and it becomes one address for the
+  whole platform.
+- **The rate limiter puts every anonymous caller in one partition.** Its own
+  comment promises that one noisy client cannot exhaust the allowance for
+  everyone; behind a proxy that is exactly what happens. The 300-per-minute
+  limit becomes platform-wide across all sign-ins, registrations and
+  `kdf-parameters` lookups, so sign-in starts returning 429 under load that
+  should be nothing at all.
+
+`Proxy:Enabled=true` with no proxy named is refused at startup, because it is
+the same mistake with the danger pointing the other way: forwarded headers are
+attacker-controlled unless the hop they arrive from is known.
+
+**Name the proxy as the API sees it, which may not be the form you expect.**
+Measured on 2026-09-25: an instance configured with `127.0.0.1` ignored the
+header completely, because the connection arrived on `::1`. A wrong address
+here is indistinguishable from leaving the whole thing off — same audit rows,
+same rate-limit collapse, nothing in the log. Set both loopback forms when the
+proxy is on the same host.
+
+### Confirm it on the first deployment, by looking at a recorded address
+
+This is the one setting whose correctness cannot be inferred from the service
+working, so check it once, deliberately:
+
+```bash
+curl -s -X POST https://<host>/api/v1/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"proxy-check@example.com","password":"<a real one>","dateOfBirth":"1990-01-01"}'
+```
+
+```sql
+SELECT TOP 5 OccurredUtc, Action, IpAddress
+FROM Audit.AuditLog
+ORDER BY OccurredUtc DESC;
+```
+
+`IpAddress` must be **your** address. If it is the proxy's, or a container
+bridge address, the header is not being believed and everything above is
+currently true of this deployment.
+
+The same three cases were verified locally against a real audit trail: with the
+proxy named as the API sees it the client address is recorded; with it named
+wrongly the header is silently dropped; and with `Proxy:Enabled` off, a client
+sending `X-Forwarded-For` itself is ignored rather than trusted.
+
 
 ### What must never reach the image
 

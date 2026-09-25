@@ -159,6 +159,13 @@ builder.Services.AddRateLimiter(options =>
     // Anonymous callers are bucketed by IP; authenticated ones by user, so one
     // noisy client cannot exhaust the allowance for everyone behind the same
     // NAT.
+    //
+    // That holds only while RemoteIpAddress is the caller's. Behind a reverse
+    // proxy it is the proxy's, every anonymous caller collapses into one
+    // partition, and this limit becomes a platform-wide 300 a minute across
+    // all sign-ins and registrations — the precise failure the sentence above
+    // says is prevented. See ForwardedHeaders.cs; the Proxy section is what
+    // keeps this true, and it is not optional once anything sits in front.
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(
         context => RateLimitPartition.GetFixedWindowLimiter(
             context.User.FindFirst("sub")?.Value
@@ -211,12 +218,32 @@ builder.Services.AddCors(options =>
 builder.Services.AddExceptionHandler<MarenExceptionHandler>();
 builder.Services.AddProblemDetails();
 
+/*  Built before the host so a misconfigured proxy section fails at startup,
+    beside the signing-key check, rather than at the first request. */
+var forwardedHeaders = ForwardedHeadersConfiguration.Build(builder.Configuration);
+
 var app = builder.Build();
 
-/*  First. Everything downstream — request logging, the audit rows a handler
-    writes, the security event a refusal writes on its own connection — reads
-    what this establishes, so anything registered above it would be
-    uncorrelated. */
+/*  Before everything, including correlation.
+
+    Two things downstream read the caller's address and neither can be
+    corrected afterwards: HttpCurrentUser.IpAddress, which is what lands in
+    every audit row and every security event, and the rate limiter's partition
+    key. Behind a reverse proxy without this, both see the proxy — so the audit
+    trail records one address for the whole platform, and every anonymous
+    caller shares a single 300-per-minute bucket. The rate limiter's own
+    comment promises that cannot happen; this middleware is what keeps the
+    promise true.
+
+    Null when no proxy is configured, and then the headers are ignored
+    entirely — which is the right answer for a directly-exposed Kestrel, where
+    they are attacker-controlled input. */
+if (forwardedHeaders is not null)
+    app.UseForwardedHeaders(forwardedHeaders);
+
+/*  Everything downstream — request logging, the audit rows a handler writes,
+    the security event a refusal writes on its own connection — reads what this
+    establishes, so anything registered above it would be uncorrelated. */
 app.UseMiddleware<CorrelationMiddleware>();
 
 app.UseSerilogRequestLogging();
